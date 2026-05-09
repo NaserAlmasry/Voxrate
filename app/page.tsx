@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/app/lib/supabase/client'
-import LoginButton from '@/app/components/LoginButton'
 import CheckoutButton from '@/app/components/CheckoutButton'
+import AuthModal from '@/app/components/AuthModal'
 
 // ── helpers ────────────────────────────────────────────────────
 function scoreColor(n: number) {
@@ -391,6 +391,7 @@ export default function LandingPage() {
   const [ctaUrl, setCtaUrl]           = useState('')
   const [ctaUrlError, setCtaUrlError] = useState('')
   const [pricingTab, setPricingTab]   = useState<'packs' | 'subscription'>('packs')
+  const [showAuthModal, setShowAuthModal] = useState(false)
   const [showNewsletter, setShowNewsletter] = useState(false)
   const [nlEmail, setNlEmail]         = useState('')
   const [nlSubmitted, setNlSubmitted] = useState(false)
@@ -524,6 +525,7 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-[#FAF9F6] text-neutral-900" style={{ fontFamily: "'DM Sans',sans-serif" }}>
+      {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} />}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap');
         html { scroll-behavior: smooth; }
@@ -579,9 +581,12 @@ export default function LandingPage() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <button onClick={() => supabase.auth.signInWithOAuth({ provider: 'google', options: googleOAuthOptions(window.location.origin) })}
+            <button onClick={() => setShowAuthModal(true)}
               className="text-sm text-neutral-600 hover:text-black hidden sm:block transition-colors bg-transparent border-none cursor-pointer p-0">Login</button>
-            <LoginButton label="Start free" />
+            <button onClick={() => setShowAuthModal(true)}
+              className="glow px-5 py-2.5 text-sm font-medium rounded-full bg-black text-white hover:bg-neutral-800 transition-colors">
+              Start free
+            </button>
           </div>
         </div>
       </nav>
@@ -1276,7 +1281,7 @@ export default function LandingPage() {
                     ))}
                   </ul>
                   <CheckoutButton plan={sub.plan as any} billing="monthly" label={`Start ${sub.name} →`}
-                    className={`glow w-full py-2.5 text-sm font-medium rounded-xl transition-colors cursor-pointer ${sub.popular ? 'bg-orange-500 hover:bg-orange-600 text-white' : 'bg-black hover:bg-neutral-800 text-white'}`}
+                    className="glow w-full py-2.5 text-sm font-medium rounded-xl transition-colors cursor-pointer bg-black hover:bg-neutral-800 text-white"
                   />
                 </div>
               ))}
@@ -1286,7 +1291,9 @@ export default function LandingPage() {
           {/* Free tier note */}
           <div className="text-center mb-10">
             <p className="text-sm text-neutral-500">
-              Not ready to pay? <span className="font-medium text-neutral-700">Start free</span> — 1 full analysis included, no credit card required.
+              Not ready to pay?{' '}
+              <button onClick={() => setShowAuthModal(true)} className="font-medium text-neutral-700 hover:text-black underline underline-offset-2 bg-transparent border-none cursor-pointer p-0">Start free</button>
+              {' '}— 1 full analysis included, no credit card required.
             </p>
           </div>
 
