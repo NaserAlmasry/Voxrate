@@ -30,13 +30,7 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
-
-  // Protect all /dashboard routes server-side
-  if (!user && request.nextUrl.pathname.startsWith('/dashboard')) {
-    const loginUrl = new URL('/', request.url)
-    return NextResponse.redirect(loginUrl)
-  }
+  await supabase.auth.getUser()
 
   return supabaseResponse
 }
