@@ -150,31 +150,32 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   useEffect(() => {
-    // First check existing session immediately
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        setAuthChecked(true)
-        setUserEmail(session.user.email ?? '')
-        loadPlan()
+    let resolved = false
+
+    const resolve = (session: any) => {
+      if (resolved) return
+      resolved = true
+      setAuthChecked(true)
+      if (!session) { router.push('/'); return }
+      setUserEmail(session.user.email ?? '')
+      loadPlan()
+    }
+
+    // Primary: use onAuthStateChange which is authoritative
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') { resolved = true; router.push('/'); return }
+      if (session) resolve(session)
+      else if (event === 'INITIAL_SESSION') {
+        // Give getSession() a chance to find the cookie first
+        setTimeout(() => resolve(null), 800)
       }
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN') {
-        setAuthChecked(true)
-        setUserEmail(session?.user.email ?? '')
-        loadPlan()
-      } else if (event === 'SIGNED_OUT') {
-        router.push('/')
-      } else if (event === 'INITIAL_SESSION') {
-        setAuthChecked(true)
-        if (!session) router.push('/')
-        else {
-          setUserEmail(session.user.email ?? '')
-          loadPlan()
-        }
-      }
+    // Fallback: getSession handles cases where onAuthStateChange is slow
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) resolve(session)
     })
+
     return () => subscription.unsubscribe()
   }, [])
 
