@@ -135,6 +135,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [plan, setPlan] = useState('free')
   const [credits, setCredits] = useState<number | null>(null)
   const [showUpgradeBanner, setShowUpgradeBanner] = useState(false)
+  const [authChecked, setAuthChecked] = useState(false)
 
   const pathname = usePathname()
   const router   = useRouter()
@@ -149,11 +150,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) { router.push('/'); return }
-      setUserEmail(user.email ?? '')
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAuthChecked(true)
+      if (!session) { router.push('/'); return }
+      setUserEmail(session.user.email ?? '')
+      loadPlan()
     })
-    loadPlan()
+    return () => subscription.unsubscribe()
   }, [])
 
   useEffect(() => {
@@ -192,6 +195,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         queryParams: { access_type: 'offline', prompt: 'consent' },
       },
     })
+  }
+
+  if (!authChecked) {
+    return <div className="flex min-h-screen items-center justify-center bg-[#FAF9F6]"><div className="w-6 h-6 border-2 border-black border-t-transparent rounded-full animate-spin" /></div>
   }
 
   return (
