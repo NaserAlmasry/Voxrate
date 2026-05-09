@@ -150,30 +150,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   useEffect(() => {
-    let resolved = false
-
-    const resolve = (session: any) => {
-      if (resolved) return
-      resolved = true
+    supabase.auth.getSession().then(({ data: { session } }) => {
       setAuthChecked(true)
       if (!session) { router.push('/'); return }
       setUserEmail(session.user.email ?? '')
       loadPlan()
-    }
-
-    // Primary: use onAuthStateChange which is authoritative
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT') { resolved = true; router.push('/'); return }
-      if (session) resolve(session)
-      else if (event === 'INITIAL_SESSION') {
-        // Give getSession() a chance to find the cookie first
-        setTimeout(() => resolve(null), 800)
-      }
     })
 
-    // Fallback: getSession handles cases where onAuthStateChange is slow
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) resolve(session)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') { router.push('/') }
+      else if (event === 'SIGNED_IN' && session) {
+        setAuthChecked(true)
+        setUserEmail(session.user.email ?? '')
+        loadPlan()
+      }
     })
 
     return () => subscription.unsubscribe()
