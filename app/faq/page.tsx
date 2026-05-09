@@ -1,0 +1,112 @@
+'use client'
+
+import { useState } from 'react'
+
+const FAQ_ITEMS = [
+  {
+    q: 'Does this work for any Etsy product?',
+    a: 'Yes — Voxrate works for any product category on Etsy, from jewelry and ceramics to digital downloads and clothing. The AI adapts its analysis to the product type. Best results come from listings with 30+ reviews.',
+  },
+  {
+    q: 'What if my listing has very few reviews?',
+    a: 'The analysis will still run with fewer reviews, but insights will be limited. We automatically notify you if your listing has fewer than 30 reviews so you know what to expect. For the most reliable patterns, 50+ reviews is ideal.',
+  },
+  {
+    q: 'Does it work with languages other than English?',
+    a: 'Voxrate is optimized for English and other Latin-script languages (French, Spanish, Italian, Portuguese, German, Dutch, etc.). It will still process reviews in non-Latin scripts (Arabic, Chinese, Japanese, etc.) but accuracy and depth will be reduced. For best results, your reviews should be primarily in a Latin-script language.',
+  },
+  {
+    q: 'How is Voxrate different from other Etsy tools?',
+    a: "Most Etsy tools tell you what buyers search for before they buy — keyword volume, competition, tag suggestions. Voxrate tells you what buyers say after they buy — complaints, praise, and specific fixes. They solve different problems: use keyword tools to get found, use Voxrate to improve what happens after they find you.",
+  },
+  {
+    q: "Can I analyze a competitor's listing?",
+    a: "Yes. You can paste any public Etsy listing URL — including competitors'. Voxrate will analyze their reviews, show you their top weaknesses, what they do well, and give you a side-by-side comparison. Competitor analysis costs 48 credits and is available on Starter and Pro plans, or with any credit pack.",
+  },
+  {
+    q: 'What are credits and do they expire?',
+    a: 'Credits are the currency used for analyses. Each own-listing analysis costs 24 credits. Each competitor analysis costs 48 credits. All other tools (rewriter, listing grader, reply generator, listing builder) are completely free — no credits needed. Credits purchased in one-time packs never expire. Subscription credits refresh monthly.',
+  },
+  {
+    q: "Is my data and my customers' data private?",
+    a: "Voxrate only analyzes publicly available review text from Etsy — the same text anyone can read on the listing page. We don't access your Etsy account, private messages, or order data. Your generated reports are private to your account and are never shared.",
+  },
+  {
+    q: "What if I'm not happy with the results?",
+    a: "Email us at info@voxrate.app and we'll personally look into it with you. Tell us what seemed off and we'll check together — we want every analysis to be genuinely useful and we'll work with you until it is.",
+  },
+]
+
+export default function FaqPage() {
+  const [open, setOpen] = useState<number | null>(null)
+
+  return (
+    <div className="min-h-screen bg-[#FAF9F6]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap');`}</style>
+
+      <nav className="border-b border-neutral-200 bg-white px-6 h-16 flex items-center justify-between">
+        <a href="/"><img src="/logo.png" alt="Voxrate" height={28} style={{ objectFit: 'contain', maxWidth: 130 }} /></a>
+        <a href="/" className="text-sm text-neutral-500 hover:text-black transition-colors">← Back to home</a>
+      </nav>
+
+      <div className="max-w-2xl mx-auto px-6 py-16">
+        <div className="mb-12">
+          <p className="text-xs font-semibold text-orange-600 uppercase tracking-widest mb-2">FAQ</p>
+          <h1 className="text-3xl font-bold mb-3">Common questions</h1>
+          <p className="text-sm text-neutral-500">Everything sellers ask before signing up. Can't find your answer? Email <a href="mailto:info@voxrate.app" className="text-orange-500 hover:underline">info@voxrate.app</a></p>
+        </div>
+
+        <div className="space-y-2">
+          {FAQ_ITEMS.map((item, i) => (
+            <div
+              key={i}
+              className={`border rounded-2xl overflow-hidden transition-colors ${open === i ? 'border-orange-200 bg-orange-50/40' : 'border-neutral-200 bg-white'}`}
+            >
+              <button
+                onClick={() => setOpen(open === i ? null : i)}
+                className="w-full flex items-center justify-between px-5 py-4 text-left gap-4"
+              >
+                <span className="text-sm font-medium text-neutral-800">{item.q}</span>
+                <svg
+                  width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"
+                  className={`flex-shrink-0 text-neutral-400 transition-transform ${open === i ? 'rotate-180 text-orange-500' : ''}`}
+                >
+                  <polyline points="6 9 12 15 18 9"/>
+                </svg>
+              </button>
+              {open === i && (
+                <div className="px-5 pb-5">
+                  <p className="text-sm text-neutral-600 leading-relaxed">{item.a}</p>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-12 p-6 bg-white border border-neutral-200 rounded-2xl text-center">
+          <p className="text-sm font-semibold text-neutral-800 mb-1">Still have a question?</p>
+          <p className="text-xs text-neutral-500 mb-4">We reply personally to every email — usually within a few hours.</p>
+          <a
+            href="mailto:info@voxrate.app"
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-black text-white text-sm font-medium rounded-xl hover:bg-neutral-800 transition-colors"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+              <polyline points="22,6 12,13 2,6"/>
+            </svg>
+            info@voxrate.app
+          </a>
+        </div>
+      </div>
+
+      <footer className="border-t border-neutral-200 bg-white py-6 px-6 text-center">
+        <p className="text-xs text-neutral-400">
+          © 2026 Voxrate ·{' '}
+          <a href="/faq" className="hover:text-black transition-colors">FAQ</a> ·{' '}
+          <a href="/terms" className="hover:text-black transition-colors">Terms</a> ·{' '}
+          <a href="/privacy" className="hover:text-black transition-colors">Privacy</a>
+        </p>
+      </footer>
+    </div>
+  )
+}

@@ -1,0 +1,93 @@
+import { NextRequest, NextResponse } from 'next/server'
+import Groq from 'groq-sdk'
+import { createClient } from '@/app/lib/supabase/server'
+import { enforceRateLimit } from '@/app/lib/rate-limit'
+import { checkCsrf } from '@/app/lib/csrf'
+
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
+
+export async function POST(request: NextRequest) {
+  const csrfError = checkCsrf(request)
+  if (csrfError) return csrfError
+
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Please log in first' }, { status: 401 })
+
+  const limit = await enforceRateLimit(user.id, ip)
+  if (!limit.allowed) return NextResponse.json({ error: 'Too many requests.' }, { status: 429 })
+
+  const body        = await request.json()
+  const title       = typeof body?.title       === 'string' ? body.title.trim().slice(0, 500)       : ''
+  const tags        = typeof body?.tags        === 'string' ? body.tags.trim().slice(0, 500)        : ''
+  const description = typeof body?.description === 'string' ? body.description.trim().slice(0, 3000) : ''
+  const price       = typeof body?.price       === 'string' ? body.price.trim().slice(0, 50)        : ''
+  const category    = typeof body?.category    === 'string' ? body.category.trim().slice(0, 100)    : ''
+
+  if (!title && !description) {
+    return NextResponse.json({ error: 'At least a title or description is required' }, { status: 400 })
+  }
+
+  const prompt = `You are an expert Etsy listing optimizer. Grade this Etsy listing across 4 dimensions.
+
+${title       ? `TITLE: ${title}`           : ''}
+${tags        ? `TAGS: ${tags}`             : ''}
+${description ? `DESCRIPTION: ${description}` : ''}
+${price       ? `PRICE: $${price}`          : ''}
+${category    ? `CATEGORY: ${category}`     : ''}
+
+Grade each section 0-100. For each, give:
+- score (0-100)
+- grade (A/B/C/D/F)
+- 1 sentence summary
+- up to 3 specific, actionable fixes (or praise if score >= 80)
+
+Return ONLY valid JSON:
+{
+  "overallScore": 75,
+  "overallGrade": "B",
+  "title": {
+    "score": 70, "grade": "C",
+    "summary": "Title is too short and missing key search terms.",
+    "fixes": ["Add your main material (e.g. 'Sterling Silver')", "Include the occasion ('Gift for Mom')", "Front-load the most important keyword"]
+  },
+  "tags": {
+    "score": 60, "grade": "D",
+    "summary": "Tags are too generic and won't rank for buyer searches.",
+    "fixes": ["Use all 13 tag slots", "Include long-tail phrases like 'personalized wood sign for kitchen'", "Avoid single-word tags — buyers search phrases"]
+  },
+  "description": {
+    "score": 80, "grade": "B",
+    "summary": "Good structure but the opening line doesn't hook the buyer.",
+    "fixes": ["Open with the key benefit, not a product spec", "Add dimensions/sizes earlier", "End with a clear call to action"]
+  },
+  "pricing": {
+    "score": 85, "grade": "B",
+    "summary": "Price seems reasonable for the category.",
+    "fixes": ["Consider a charm price like $24.99 vs $25", "Offer a bundle option to increase average order value"]
+  }
+}`
+
+  const completion = await groq.chat.completions.create({
+    model:       'llama-3.1-8b-instant',
+    max_tokens:  900,
+    temperature: 0.3,
+    messages:    [{ role: 'user', content: prompt }],
+  })
+
+  const raw = completion.choices[0]?.message?.content || ''
+  let parsed: any
+  try {
+    const match = raw.match(/\{[\s\S]*\}/)
+    parsed = match ? JSON.parse(match[0]) : null
+  } catch {
+    parsed = null
+  }
+
+  if (!parsed?.overallScore) {
+    return NextResponse.json({ error: 'Failed to grade. Please try again.' }, { status: 500 })
+  }
+
+  return NextResponse.json(parsed)
+}

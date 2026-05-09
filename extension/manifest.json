@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "Voxrate — Etsy Listing Analyzer",
+  "version": "1.0.0",
+  "description": "Instantly analyze any Etsy listing's health score, complaints, and strengths from buyer reviews.",
+  "permissions": ["activeTab", "storage"],
+  "host_permissions": ["https://www.etsy.com/*"],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.etsy.com/listing/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

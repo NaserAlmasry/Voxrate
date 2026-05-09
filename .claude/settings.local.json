@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(node -e \"const p = require\\('C:/Users/Naser/voxrate/node_modules/next/package.json'\\); console.log\\(p.version\\)\")",
+      "Bash(npm run *)",
+      "Bash(del *)",
+      "Bash(npx tsc *)"
+    ]
+  }
+}
