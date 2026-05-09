@@ -150,11 +150,30 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setAuthChecked(true)
-      if (!session) { router.push('/'); return }
-      setUserEmail(session.user.email ?? '')
-      loadPlan()
+    // First check existing session immediately
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        setAuthChecked(true)
+        setUserEmail(session.user.email ?? '')
+        loadPlan()
+      }
+    })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN') {
+        setAuthChecked(true)
+        setUserEmail(session?.user.email ?? '')
+        loadPlan()
+      } else if (event === 'SIGNED_OUT') {
+        router.push('/')
+      } else if (event === 'INITIAL_SESSION') {
+        setAuthChecked(true)
+        if (!session) router.push('/')
+        else {
+          setUserEmail(session.user.email ?? '')
+          loadPlan()
+        }
+      }
     })
     return () => subscription.unsubscribe()
   }, [])
