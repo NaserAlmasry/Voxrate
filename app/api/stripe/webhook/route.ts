@@ -149,8 +149,8 @@ export async function POST(request: NextRequest) {
         const userId = subscription.metadata?.user_id
         if (!userId) break
 
-        console.log(`[Webhook] Subscription ended for user ${userId} — downgrading to free`)
-        await supabase.from('users').update({ plan: 'free' }).eq('id', userId)
+        console.log(`[Webhook] Subscription ended for user ${userId} — downgrading to free, zeroing credits`)
+        await supabase.from('users').update({ plan: 'free', credits: 0 }).eq('id', userId)
         break
       }
 

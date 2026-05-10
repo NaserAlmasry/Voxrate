@@ -183,10 +183,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           setPlan(data.plan)
           if (data?.credits != null) setCredits(data.credits)
           clearInterval(poll)
+          // Banner stays up 4s after plan confirmed so user sees their actual plan name
+          setTimeout(() => setShowUpgradeBanner(false), 4000)
         }
-        if (attempts >= 10) clearInterval(poll)
+        if (attempts >= 10) { clearInterval(poll); setShowUpgradeBanner(false) }
       }, 1500)
-      setTimeout(() => setShowUpgradeBanner(false), 6000)
     }
   }, [])
 

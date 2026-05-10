@@ -598,8 +598,12 @@ function DashboardHomeInner() {
                   onChange={e => setCsvDescription(e.target.value)}
                   placeholder="Briefly describe your product — materials, size, use case, what makes it special..."
                   rows={3}
+                  maxLength={1000}
                   className="w-full px-3 py-2.5 text-sm border border-neutral-200 rounded-xl outline-none focus:border-orange-400 transition-colors resize-none"
                 />
+                {csvDescription.length > 900 && (
+                  <p className="text-[10px] text-neutral-400 mt-0.5 text-right">{csvDescription.length}/1000</p>
+                )}
               </div>
 
               {/* Price */}
@@ -610,9 +614,13 @@ function DashboardHomeInner() {
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-neutral-400">$</span>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="decimal"
                     value={csvPrice}
-                    onChange={e => setCsvPrice(e.target.value)}
+                    onChange={e => {
+                      const v = e.target.value
+                      if (v === '' || /^\d{0,6}(\.\d{0,2})?$/.test(v)) setCsvPrice(v)
+                    }}
                     placeholder="29.99"
                     className="w-full pl-7 pr-3 py-2.5 text-sm border border-neutral-200 rounded-xl outline-none focus:border-orange-400 transition-colors"
                   />

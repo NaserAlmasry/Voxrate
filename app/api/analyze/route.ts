@@ -1137,6 +1137,22 @@ export async function POST(request: NextRequest) {
   // Abort everything 270s in — 30s before Vercel's hard 300s kill
   const timeoutSignal = AbortSignal.timeout(270_000)
 
+  // Tracks whether credits were deducted so the outer catch can refund on any failure
+  let creditsDeducted = false
+  let creditRefundUserId = ''
+  let creditRefundAmount = 0
+
+  const refundCredits = async () => {
+    if (!creditsDeducted || !creditRefundUserId) return
+    try {
+      const supabase = await createClient()
+      await supabase.rpc('add_credits', { p_user_id: creditRefundUserId, p_amount: creditRefundAmount })
+      console.log(`[Analyze] Refunded ${creditRefundAmount} credits to user ${creditRefundUserId}`)
+    } catch (e) {
+      console.error('[Analyze] Credit refund failed — manual review needed for user', creditRefundUserId)
+    }
+  }
+
   try {
     const body               = await request.json()
     const rawUrl             = body?.productUrl
@@ -1211,6 +1227,10 @@ export async function POST(request: NextRequest) {
           { status: 503 },
         )
       }
+      // Track so the outer catch can refund on any downstream failure
+      creditsDeducted = true
+      creditRefundUserId = user.id
+      creditRefundAmount = creditCost
     }
 
     if (isReAnalyze) {
@@ -1264,7 +1284,8 @@ export async function POST(request: NextRequest) {
 
       if (sampledReviews.length === 0) {
         await supabase.from('reports').update({ status: 'failed' }).eq('id', reportId)
-        return NextResponse.json({ error: 'No reviews found for this product.' }, { status: 400 })
+        await refundCredits()
+        return NextResponse.json({ error: 'No reviews found for this product. Your credits have been refunded.' }, { status: 400 })
       }
 
       const ctx = calculateHealthScore(sampledReviews, totalReviewCount || rawReviews.length)
@@ -1312,19 +1333,22 @@ export async function POST(request: NextRequest) {
     } catch (err: any) {
       console.error('[Pipeline] Error:', err.message)
       await supabase.from('reports').update({ status: 'failed' }).eq('id', reportId)
+      await refundCredits()
       throw err
     }
   } catch (error: any) {
     if (error?.name === 'TimeoutError' || error?.code === 23) {
       console.error('[Analyze] Request timed out after 270s')
+      await refundCredits()
       return NextResponse.json(
-        { error: 'Analysis timed out. Please try again.' },
+        { error: 'Analysis timed out — your credits have been refunded. Please try again.' },
         { status: 504 },
       )
     }
     console.error('[Analyze] Unhandled error:', error.message)
+    await refundCredits()
     return NextResponse.json(
-      { error: 'Analysis failed. Please try again.' },
+      { error: 'Analysis failed — your credits have been refunded. Please try again.' },
       { status: 500 },
     )
   }
