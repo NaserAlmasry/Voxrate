@@ -60,14 +60,18 @@ function GoogleIcon() {
   )
 }
 
-interface Props { onClose: () => void }
+interface Props {
+  onClose: () => void
+  initialStep?: 'plan' | 'auth'
+  initialAuthMode?: 'signup' | 'login'
+}
 
-export default function AuthModal({ onClose }: Props) {
+export default function AuthModal({ onClose, initialStep = 'plan', initialAuthMode = 'signup' }: Props) {
   const supabase = createClient()
 
   const [tab, setTab]             = useState<'subscription' | 'packs'>('subscription')
-  const [step, setStep]           = useState<'plan' | 'auth'>('plan')
-  const [authMode, setAuthMode]   = useState<'signup' | 'login'>('signup')
+  const [step, setStep]           = useState<'plan' | 'auth'>(initialStep)
+  const [authMode, setAuthMode]   = useState<'signup' | 'login'>(initialAuthMode)
   const [selection, setSelection] = useState<Selection | null>(null)
   const [email, setEmail]         = useState('')
   const [password, setPassword]   = useState('')
@@ -82,21 +86,22 @@ export default function AuthModal({ onClose }: Props) {
   }
 
   const handleGoogle = async () => {
-    if (!selection) return
+    const redirect = selection ? redirectUrl(selection) : `${window.location.origin}/auth/callback`
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: redirectUrl(selection),
+        redirectTo: redirect,
         queryParams: { access_type: 'offline', prompt: 'select_account' },
       },
     })
   }
 
   const handleEmailAuth = async () => {
-    if (!email.trim() || !password || !selection) return
+    if (!email.trim() || !password) return
+    if (authMode === 'signup' && !selection) return
     setError('')
     setLoading(true)
-    if (authMode === 'signup') {
+    if (authMode === 'signup' && selection) {
       const { error } = await supabase.auth.signUp({
         email: email.trim(),
         password,
@@ -135,9 +140,9 @@ export default function AuthModal({ onClose }: Props) {
         <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-neutral-100 shrink-0">
           <div>
             <p className="font-semibold text-sm">
-              {step === 'plan' ? 'Get started with Voxrate' : `Continue — ${selLabel}`}
+              {step === 'plan' ? 'Get started with Voxrate' : authMode === 'login' && !selection ? 'Sign in to Voxrate' : `Continue — ${selLabel}`}
             </p>
-            {step === 'auth' && (
+            {step === 'auth' && selection && (
               <button onClick={() => { setStep('plan'); setError('') }}
                 className="text-xs text-neutral-400 hover:text-black mt-0.5 block">← Back to plans</button>
             )}
@@ -203,6 +208,16 @@ export default function AuthModal({ onClose }: Props) {
                   ))}
                 </div>
               )}
+
+              <div className="mt-5 pt-4 border-t border-neutral-100 text-center">
+                <span className="text-xs text-neutral-400">Already have an account?{' '}</span>
+                <button
+                  onClick={() => { setStep('auth'); setAuthMode('login'); setError('') }}
+                  className="text-xs font-medium text-black hover:underline"
+                >
+                  Sign in
+                </button>
+              </div>
             </>
           )}
 

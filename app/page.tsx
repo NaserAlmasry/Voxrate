@@ -392,6 +392,7 @@ export default function LandingPage() {
   const [ctaUrlError, setCtaUrlError] = useState('')
   const [pricingTab, setPricingTab]   = useState<'packs' | 'subscription'>('packs')
   const [showAuthModal, setShowAuthModal] = useState(false)
+  const [authModalMode, setAuthModalMode] = useState<{ step?: 'plan' | 'auth'; authMode?: 'signup' | 'login' }>({})
   const [showNewsletter, setShowNewsletter] = useState(false)
   const [nlEmail, setNlEmail]         = useState('')
   const [nlSubmitted, setNlSubmitted] = useState(false)
@@ -525,7 +526,13 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-[#FAF9F6] text-neutral-900" style={{ fontFamily: "'DM Sans',sans-serif" }}>
-      {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} />}
+      {showAuthModal && (
+        <AuthModal
+          onClose={() => { setShowAuthModal(false); setAuthModalMode({}) }}
+          initialStep={authModalMode.step}
+          initialAuthMode={authModalMode.authMode}
+        />
+      )}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap');
         html { scroll-behavior: smooth; }
@@ -581,7 +588,7 @@ export default function LandingPage() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <button onClick={() => setShowAuthModal(true)}
+            <button onClick={() => { setAuthModalMode({ step: 'auth', authMode: 'login' }); setShowAuthModal(true) }}
               className="text-sm text-neutral-600 hover:text-black hidden sm:block transition-colors bg-transparent border-none cursor-pointer p-0">Login</button>
             <button onClick={() => setShowAuthModal(true)}
               className="glow px-5 py-2.5 text-sm font-medium rounded-full bg-black text-white hover:bg-neutral-800 transition-colors">

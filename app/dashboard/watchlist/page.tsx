@@ -10,17 +10,55 @@ function scoreColor(n: number) {
   return               { text: 'text-green-500',  bg: 'bg-green-50',  border: 'border-green-100'  }
 }
 
+function DeltaBadge({ initial, current }: { initial: number | null; current: number }) {
+  if (initial === null || initial === undefined) return null
+  const delta = current - initial
+  if (delta === 0) return <span className="text-[10px] text-neutral-400 font-medium">No change</span>
+  // For competitors: score going UP is bad for seller (they're getting better), score DOWN is good (opportunity)
+  const isGood = delta < 0
+  return (
+    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${isGood ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
+      {delta > 0 ? '▲' : '▼'}{Math.abs(delta)}
+    </span>
+  )
+}
+
+function Sparkline({ scores }: { scores: number[] }) {
+  if (scores.length < 2) return <span className="text-[10px] text-neutral-300">—</span>
+  const w = 72, h = 22, pad = 2
+  const min = Math.min(...scores)
+  const max = Math.max(...scores)
+  const range = max - min || 1
+  const pts = scores.map((s, i) => {
+    const x = pad + (i / (scores.length - 1)) * (w - pad * 2)
+    const y = h - pad - ((s - min) / range) * (h - pad * 2)
+    return `${x.toFixed(1)},${y.toFixed(1)}`
+  }).join(' ')
+  const last = scores[scores.length - 1]
+  const first = scores[0]
+  const color = last < first ? '#22c55e' : last > first ? '#ef4444' : '#a3a3a3'
+  return (
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="overflow-visible">
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx={pts.split(' ').at(-1)?.split(',')[0]} cy={pts.split(' ').at(-1)?.split(',')[1]} r="2.5" fill={color} />
+    </svg>
+  )
+}
+
 export default function WatchlistPage() {
-  const [items, setItems]           = useState<any[]>([])
-  const [competitors, setCompetitors] = useState<any[]>([])
-  const [plan, setPlan]             = useState('free')
-  const [loading, setLoading]       = useState(true)
-  const [removing, setRemoving]     = useState<string | null>(null)
-  const [showPicker, setShowPicker] = useState(false)
-  const [selected, setSelected]     = useState<any | null>(null)
-  const [note, setNote]             = useState('')
-  const [adding, setAdding]         = useState(false)
-  const [error, setError]           = useState('')
+  const [items, setItems]                 = useState<any[]>([])
+  const [competitors, setCompetitors]     = useState<any[]>([])
+  const [plan, setPlan]                   = useState('free')
+  const [loading, setLoading]             = useState(true)
+  const [removing, setRemoving]           = useState<string | null>(null)
+  const [showPicker, setShowPicker]       = useState(false)
+  const [selected, setSelected]           = useState<any | null>(null)
+  const [note, setNote]                   = useState('')
+  const [adding, setAdding]               = useState(false)
+  const [error, setError]                 = useState('')
+  const [editingNote, setEditingNote]     = useState<string | null>(null)
+  const [editNoteVal, setEditNoteVal]     = useState('')
+  const [savingNote, setSavingNote]       = useState(false)
   const router   = useRouter()
   const supabase = createClient()
 
@@ -78,13 +116,25 @@ export default function WatchlistPage() {
     await load()
   }
 
+  const saveNote = async (id: string) => {
+    setSavingNote(true)
+    await fetch('/api/watchlist', {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+      body:    JSON.stringify({ id, note: editNoteVal }),
+    })
+    setSavingNote(false)
+    setEditingNote(null)
+    await load()
+  }
+
   const isPaid = plan === 'starter' || plan === 'pro'
 
   if (loading) return (
     <div className="max-w-2xl mx-auto space-y-3">
       <h1 className="text-xl font-semibold mb-6">Competitor watchlist</h1>
       {[1, 2].map(i => (
-        <div key={i} className="bg-white rounded-2xl border border-neutral-200 p-5 animate-pulse h-20" />
+        <div key={i} className="bg-white rounded-2xl border border-neutral-200 p-5 animate-pulse h-24" />
       ))}
     </div>
   )
@@ -94,7 +144,7 @@ export default function WatchlistPage() {
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-xl font-semibold">Competitor watchlist</h1>
-          <p className="text-xs text-neutral-400 mt-1">Track competitors over time — get alerted when their score changes</p>
+          <p className="text-xs text-neutral-400 mt-1">Track competitors over time — see when their score changes</p>
         </div>
         {isPaid && (
           <button
@@ -126,7 +176,7 @@ export default function WatchlistPage() {
           <svg className="mx-auto mb-3 text-neutral-300" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
             <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>
           </svg>
-          <p className="text-sm text-neutral-400 mb-1">No competitors tracked yet</p>
+          <p className="text-sm text-neutral-500 mb-1">No competitors tracked yet</p>
           <p className="text-xs text-neutral-300 mb-4">First analyze a competitor listing, then add it here to track over time</p>
           <div className="flex items-center justify-center gap-3">
             <button onClick={() => router.push('/dashboard/competitor')} className="text-xs text-orange-600 font-medium hover:underline">
@@ -146,37 +196,92 @@ export default function WatchlistPage() {
             const date = item.last_checked_at
               ? new Date(item.last_checked_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
               : 'Never'
+            const isEditingThisNote = editingNote === item.id
             return (
               <div key={item.id} className="bg-white rounded-2xl border border-neutral-200 p-5">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold truncate mb-1">{item.product_name || 'Unnamed competitor'}</p>
-                    {item.top_complaint && (
-                      <p className="text-xs text-orange-500 mb-1">Top issue: {item.top_complaint}</p>
-                    )}
-                    {item.note && (
-                      <p className="text-xs text-neutral-400 italic">"{item.note}"</p>
-                    )}
-                    <p className="text-xs text-neutral-400 mt-1">Last checked {date}</p>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <div className={`text-center px-3 py-1.5 rounded-xl border ${sc.bg} ${sc.border}`}>
-                      <p className="text-[10px] text-neutral-400">Score</p>
-                      <p className={`text-base font-bold ${sc.text}`}>{item.last_score ?? '—'}</p>
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <p className="text-sm font-semibold truncate">{item.product_name || 'Unnamed competitor'}</p>
+                      <DeltaBadge initial={item.initial_score ?? null} current={item.last_score || 0} />
                     </div>
-                    <button
-                      onClick={() => router.push(`/dashboard/report/${item.report_id}`)}
-                      className="px-3 py-1.5 text-xs border border-neutral-200 rounded-lg hover:bg-neutral-50 transition-colors"
-                    >
-                      View
-                    </button>
-                    <button
-                      onClick={() => remove(item.id)}
-                      disabled={removing === item.id}
-                      className="px-3 py-1.5 text-xs border border-red-100 text-red-400 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
-                    >
-                      {removing === item.id ? '...' : 'Remove'}
-                    </button>
+                    {item.top_complaint && (
+                      <p className="text-xs text-orange-500 mb-1.5">Top complaint: {item.top_complaint}</p>
+                    )}
+                    {/* Note display / edit */}
+                    {isEditingThisNote ? (
+                      <div className="flex items-center gap-2 mt-1">
+                        <input
+                          value={editNoteVal}
+                          onChange={e => setEditNoteVal(e.target.value)}
+                          maxLength={300}
+                          className="flex-1 text-xs border border-neutral-200 rounded-lg px-2 py-1 focus:outline-none focus:border-black"
+                          onKeyDown={e => { if (e.key === 'Enter') saveNote(item.id); if (e.key === 'Escape') setEditingNote(null) }}
+                          autoFocus
+                        />
+                        <button onClick={() => saveNote(item.id)} disabled={savingNote}
+                          className="text-xs font-medium text-white bg-black rounded-lg px-2 py-1 disabled:opacity-50">
+                          {savingNote ? '…' : 'Save'}
+                        </button>
+                        <button onClick={() => setEditingNote(null)} className="text-xs text-neutral-400 hover:text-black">Cancel</button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5 mt-1">
+                        {item.note
+                          ? <p className="text-xs text-neutral-400 italic">"{item.note}"</p>
+                          : <p className="text-xs text-neutral-300">No note</p>
+                        }
+                        <button
+                          onClick={() => { setEditingNote(item.id); setEditNoteVal(item.note || '') }}
+                          className="text-neutral-300 hover:text-neutral-600 transition-colors"
+                          title="Edit note"
+                        >
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                          </svg>
+                        </button>
+                      </div>
+                    )}
+                    <p className="text-xs text-neutral-400 mt-1.5">Last checked {date}</p>
+                  </div>
+
+                  <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                    <div className="flex items-center gap-2">
+                      <div className={`text-center px-3 py-1.5 rounded-xl border ${sc.bg} ${sc.border}`}>
+                        <p className="text-[10px] text-neutral-400">Score</p>
+                        <p className={`text-base font-bold ${sc.text}`}>{item.last_score ?? '—'}</p>
+                      </div>
+                    </div>
+                    {/* Sparkline */}
+                    {item.history && item.history.length >= 2 && (
+                      <div className="flex flex-col items-end">
+                        <Sparkline scores={item.history} />
+                        <p className="text-[9px] text-neutral-300 mt-0.5">{item.history.length} data points</p>
+                      </div>
+                    )}
+                    <div className="flex gap-1.5">
+                      <button
+                        onClick={() => router.push(`/dashboard/report/${item.report_id}`)}
+                        className="px-2.5 py-1.5 text-xs border border-neutral-200 rounded-lg hover:bg-neutral-50 transition-colors"
+                      >
+                        View
+                      </button>
+                      <button
+                        onClick={() => router.push(`/dashboard/competitor?url=${encodeURIComponent(item.product_url)}`)}
+                        className="px-2.5 py-1.5 text-xs border border-blue-100 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
+                        title="Re-analyze this competitor to get fresh data"
+                      >
+                        Re-check
+                      </button>
+                      <button
+                        onClick={() => remove(item.id)}
+                        disabled={removing === item.id}
+                        className="px-2.5 py-1.5 text-xs border border-red-100 text-red-400 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
+                      >
+                        {removing === item.id ? '…' : 'Remove'}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -191,10 +296,10 @@ export default function WatchlistPage() {
           <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-3">How competitor tracking works</p>
           <div className="space-y-2">
             {[
-              'We re-check competitor listings weekly to detect score changes',
-              'If their score drops 5+ points — that\'s your opportunity to step in',
-              'If their score improves — you\'ll know they\'re raising the bar',
-              'New complaints on their listing = gaps you can fill in yours',
+              "We re-check competitor listings weekly to detect score changes",
+              "Score drops 5+ points on their side = your opportunity to step in",
+              "Score increases on their side = they're raising the bar, watch closely",
+              "Use 'Re-check' to manually get fresh data at any time (costs credits)",
             ].map((s, i) => (
               <div key={i} className="flex items-start gap-2">
                 <span className="w-4 h-4 bg-orange-500 rounded-full text-white text-[9px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{i + 1}</span>

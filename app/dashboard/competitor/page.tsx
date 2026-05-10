@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, Suspense } from 'react'
 import { createClient } from '@/app/lib/supabase/client'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 function scoreColor(n: number) {
   if (n <= 37) return { text: 'text-red-500',    bg: 'bg-red-50',    border: 'border-red-100'    }
@@ -10,7 +10,7 @@ function scoreColor(n: number) {
   return               { text: 'text-green-500',  bg: 'bg-green-50',  border: 'border-green-100'  }
 }
 
-export default function CompetitorPage() {
+function CompetitorPage() {
   const [url, setUrl]               = useState('')
   const [loading, setLoading]       = useState(false)
   const [error, setError]           = useState('')
@@ -19,8 +19,9 @@ export default function CompetitorPage() {
   const [reportsLoading, setReportsLoading] = useState(true)
   const controllerRef               = useRef<AbortController | null>(null)
   const cancelledRef                = useRef(false)
-  const router  = useRouter()
-  const supabase = createClient()
+  const router       = useRouter()
+  const searchParams = useSearchParams()
+  const supabase     = createClient()
 
   useEffect(() => {
     const init = async () => {
@@ -42,6 +43,9 @@ export default function CompetitorPage() {
 
       setPastReports(reports || [])
       setReportsLoading(false)
+
+      const preUrl = searchParams.get('url')
+      if (preUrl) setUrl(decodeURIComponent(preUrl))
     }
     init()
   }, [])
@@ -203,7 +207,7 @@ export default function CompetitorPage() {
                           <p className={`text-base font-bold ${sc.text}`}>{r.health_score || '—'}</p>
                         </div>
                         <button
-                          onClick={() => router.push(`/dashboard/report/${r.id}`)}
+                          onClick={() => router.push(`/dashboard/compare?competitor=${r.id}`)}
                           className="px-3 py-1.5 text-xs font-medium border border-purple-200 text-purple-700 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors"
                         >
                           Compare →
@@ -218,5 +222,17 @@ export default function CompetitorPage() {
         </>
       )}
     </div>
+  )
+}
+
+export default function CompetitorPageWrapper() {
+  return (
+    <Suspense fallback={
+      <div className="max-w-2xl mx-auto py-20 text-center">
+        <p className="text-sm text-neutral-400">Loading...</p>
+      </div>
+    }>
+      <CompetitorPage />
+    </Suspense>
   )
 }

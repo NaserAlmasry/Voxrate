@@ -13,7 +13,30 @@ export async function GET() {
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
 
-  return NextResponse.json({ items: data || [] })
+  const items = data || []
+
+  // Fetch score history (gracefully skip if table doesn't exist)
+  let historyMap: Record<string, number[]> = {}
+  try {
+    const { data: history } = await supabase
+      .from('watchlist_history')
+      .select('watchlist_id, score, checked_at')
+      .in('watchlist_id', items.map((i: any) => i.id))
+      .order('checked_at', { ascending: true })
+    if (history) {
+      for (const h of history) {
+        if (!historyMap[h.watchlist_id]) historyMap[h.watchlist_id] = []
+        historyMap[h.watchlist_id].push(h.score)
+      }
+    }
+  } catch {}
+
+  const itemsWithHistory = items.map((item: any) => ({
+    ...item,
+    history: historyMap[item.id] || [],
+  }))
+
+  return NextResponse.json({ items: itemsWithHistory })
 }
 
 export async function POST(request: NextRequest) {
@@ -40,9 +63,9 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const body       = await request.json()
-  const reportId   = typeof body?.reportId   === 'string' ? body.reportId   : null
-  const note       = typeof body?.note       === 'string' ? body.note.trim().slice(0, 300) : ''
+  const body     = await request.json()
+  const reportId = typeof body?.reportId === 'string' ? body.reportId : null
+  const note     = typeof body?.note     === 'string' ? body.note.trim().slice(0, 300) : ''
 
   if (!reportId) return NextResponse.json({ error: 'reportId required' }, { status: 400 })
 
@@ -56,7 +79,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Report not found' }, { status: 404 })
   }
 
-
   const { data: existing } = await supabase
     .from('watchlist')
     .select('id')
@@ -67,25 +89,77 @@ export async function POST(request: NextRequest) {
   if (existing) {
     await supabase
       .from('watchlist')
-      .update({ report_id: reportId, last_score: report.health_score, note })
+      .update({ report_id: reportId, last_score: report.health_score, note, last_checked_at: new Date().toISOString() })
       .eq('id', existing.id)
+    // Append to history
+    try {
+      await supabase.from('watchlist_history').insert({ watchlist_id: existing.id, score: report.health_score })
+    } catch {}
     return NextResponse.json({ success: true, updated: true })
   }
 
   const topComplaint = report.full_report?.complaints?.[0]?.title || null
+  const now = new Date().toISOString()
 
-  const { error } = await supabase.from('watchlist').insert({
-    user_id:        user.id,
-    report_id:      reportId,
-    product_url:    report.product_url,
-    product_name:   report.product_name,
-    last_score:     report.health_score,
-    top_complaint:  topComplaint,
+  const { data: inserted, error } = await supabase.from('watchlist').insert({
+    user_id:         user.id,
+    report_id:       reportId,
+    product_url:     report.product_url,
+    product_name:    report.product_name,
+    last_score:      report.health_score,
+    initial_score:   report.health_score,
+    top_complaint:   topComplaint,
     note,
-    last_checked_at: new Date().toISOString(),
-  })
+    last_checked_at: now,
+  }).select('id').single()
 
   if (error) return NextResponse.json({ error: 'Failed to add to watchlist' }, { status: 500 })
+
+  // Seed initial history point
+  try {
+    if (inserted?.id) {
+      await supabase.from('watchlist_history').insert({ watchlist_id: inserted.id, score: report.health_score })
+    }
+  } catch {}
+
+  return NextResponse.json({ success: true })
+}
+
+export async function PATCH(request: NextRequest) {
+  const csrfError = checkCsrf(request)
+  if (csrfError) return csrfError
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const body = await request.json()
+  const id       = typeof body?.id       === 'string' ? body.id       : null
+  const note     = typeof body?.note     === 'string' ? body.note.trim().slice(0, 300) : undefined
+  const reportId = typeof body?.reportId === 'string' ? body.reportId : undefined
+  const newScore = typeof body?.newScore === 'number' ? body.newScore : undefined
+
+  if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+
+  const updates: Record<string, any> = {}
+  if (note     !== undefined) updates.note             = note
+  if (reportId !== undefined) updates.report_id        = reportId
+  if (newScore !== undefined) { updates.last_score = newScore; updates.last_checked_at = new Date().toISOString() }
+
+  const { error } = await supabase
+    .from('watchlist')
+    .update(updates)
+    .eq('id', id)
+    .eq('user_id', user.id)
+
+  if (error) return NextResponse.json({ error: 'Update failed' }, { status: 500 })
+
+  if (newScore !== undefined) {
+    try {
+      await supabase.from('watchlist_history').insert({ watchlist_id: id, score: newScore })
+    } catch {}
+  }
+
   return NextResponse.json({ success: true })
 }
 
