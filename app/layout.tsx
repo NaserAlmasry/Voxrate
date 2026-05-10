@@ -28,6 +28,31 @@ export const metadata: Metadata = {
     description: "Find buyer complaints, product strengths, SEO gaps, and exact fixes from your product reviews.",
     url: "https://voxrate.app",
     siteName: "Voxrate",
+    images: [
+      {
+        url: "https://voxrate.app/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Voxrate – AI Review Analyzer for Etsy Sellers",
+      },
+    ],
+    type: "website",
+    locale: "en_US",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Voxrate - AI Review Analyzer for Sellers",
+    description: "Find buyer complaints, product strengths, SEO gaps, and exact fixes from your product reviews.",
+    images: ["https://voxrate.app/og-image.png"],
+  },
+  metadataBase: new URL("https://voxrate.app"),
+  alternates: {
+    canonical: "https://voxrate.app",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true },
   },
 };
 

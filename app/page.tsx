@@ -364,6 +364,8 @@ function FaqSection() {
             <div key={i} className={`border rounded-2xl overflow-hidden transition-colors ${open === i ? 'border-orange-200 bg-orange-50/30' : 'border-neutral-200 bg-white'}`}>
               <button
                 onClick={() => setOpen(open === i ? null : i)}
+                aria-expanded={open === i}
+                aria-controls={`faq-answer-${i}`}
                 className="w-full flex items-center justify-between px-5 py-4 text-left gap-4"
               >
                 <span className="text-sm font-medium text-neutral-800">{item.q}</span>
@@ -372,11 +374,9 @@ function FaqSection() {
                   <polyline points="6 9 12 15 18 9"/>
                 </svg>
               </button>
-              {open === i && (
-                <div className="px-5 pb-5">
-                  <p className="text-sm text-neutral-600 leading-relaxed">{item.a}</p>
-                </div>
-              )}
+              <div id={`faq-answer-${i}`} hidden={open !== i} className="px-5 pb-5">
+                <p className="text-sm text-neutral-600 leading-relaxed">{item.a}</p>
+              </div>
             </div>
           ))}
         </div>
@@ -616,7 +616,8 @@ export default function LandingPage() {
 
           <div className="max-w-2xl mx-auto">
             <div className={`flex flex-col sm:flex-row gap-2 p-2 bg-white rounded-2xl border shadow-sm transition-colors ${heroUrlError ? 'border-red-300' : 'border-neutral-200'}`}>
-              <input type="url" value={heroUrl} onChange={e => { setHeroUrl(e.target.value); setHeroUrlError('') }}
+              <label htmlFor="hero-url" className="sr-only">Etsy product URL</label>
+              <input id="hero-url" type="url" value={heroUrl} onChange={e => { setHeroUrl(e.target.value); setHeroUrlError('') }}
                 onKeyDown={e => e.key === 'Enter' && analyzeHero()}
                 placeholder="Paste your Etsy product URL..."
                 className="flex-1 px-4 py-3 text-base bg-transparent outline-none placeholder:text-neutral-400" />
@@ -1315,7 +1316,8 @@ export default function LandingPage() {
                   <label className="text-xs font-semibold text-neutral-700">How many products do you have?</label>
                   <span className="text-sm font-bold text-orange-600">{calcProducts} products</span>
                 </div>
-                <input type="range" min={1} max={50} value={calcProducts} onChange={e => setCalcProducts(Number(e.target.value))}
+                <input id="calc-products" type="range" min={1} max={50} value={calcProducts} onChange={e => setCalcProducts(Number(e.target.value))}
+                  aria-label={`Number of products: ${calcProducts}`}
                   className="w-full accent-orange-500" />
                 <div className="flex justify-between text-xs text-neutral-400 mt-1"><span>1</span><span>50</span></div>
               </div>

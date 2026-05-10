@@ -9,6 +9,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/app/lib/supabase/client'
 import CheckoutRedirectHandler from '@/app/components/CheckoutRedirectHandler'
 import OnboardingModal from '@/app/components/OnboardingModal'
+import ErrorBoundary from '@/app/components/ErrorBoundary'
 
 const NAV_ITEMS = [
   {
@@ -131,6 +132,7 @@ const NAV_ITEMS = [
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false)
+  const [mobileOpen, setMobileOpen] = useState(false)
   const [userEmail, setUserEmail] = useState('')
   const [plan, setPlan] = useState('free')
   const [credits, setCredits] = useState<number | null>(null)
@@ -222,6 +224,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         .glow:hover { box-shadow: 0 0 0 2px #000, 0 0 16px 3px rgba(249,115,22,0.45); }
         @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
         .banner-slide { animation: slideDown 0.3s ease forwards; }
+        @media (max-width: 767px) { .sidebar { position: fixed; z-index: 50; transform: translateX(-100%); transition: transform 0.25s ease; } .sidebar.mobile-open { transform: translateX(0); } }
       `}</style>
 
       {/*
@@ -241,12 +244,33 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="banner-slide fixed top-0 inset-x-0 z-50 flex items-center justify-center gap-3 px-6 py-3 bg-green-500 text-white text-sm font-medium">
           <span>🎉</span>
           <span>Payment successful! Your plan has been upgraded. Welcome to {plan !== 'free' ? plan.charAt(0).toUpperCase() + plan.slice(1) : 'your new plan'}!</span>
-          <button onClick={() => setShowUpgradeBanner(false)} className="ml-2 text-white/70 hover:text-white">✕</button>
+          <button onClick={() => setShowUpgradeBanner(false)} aria-label="Dismiss upgrade banner" className="ml-2 text-white/70 hover:text-white">✕</button>
         </div>
       )}
 
+      {/* ── MOBILE OVERLAY ── */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 bg-black/40 z-40 md:hidden"
+          onClick={() => setMobileOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* ── MOBILE HAMBURGER ── */}
+      <button
+        className="md:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-white border border-neutral-200 shadow-sm"
+        onClick={() => setMobileOpen(v => !v)}
+        aria-label={mobileOpen ? 'Close navigation menu' : 'Open navigation menu'}
+        aria-expanded={mobileOpen}
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          {mobileOpen ? <><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></> : <><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></>}
+        </svg>
+      </button>
+
       {/* ── SIDEBAR ── */}
-      <aside className={`sidebar fixed top-0 left-0 h-full bg-white border-r border-neutral-200 z-40 flex flex-col ${collapsed ? 'w-16' : 'w-56'}`}>
+      <aside className={`sidebar fixed top-0 left-0 h-full bg-white border-r border-neutral-200 z-40 flex flex-col ${collapsed ? 'w-16' : 'w-56'} ${mobileOpen ? 'mobile-open' : ''}`}>
 
         <div className="h-16 flex items-center justify-between px-4 border-b border-neutral-200">
           {!collapsed && (
@@ -256,6 +280,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           )}
           <button
             onClick={() => setCollapsed(v => !v)}
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             className="p-1.5 rounded-lg hover:bg-neutral-100 text-neutral-500 hover:text-black transition-colors ml-auto"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -271,6 +296,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <a
                 key={item.href}
                 href={item.href}
+                onClick={() => setMobileOpen(false)}
+                aria-label={collapsed ? item.label : undefined}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
                   isActive
                     ? 'bg-orange-50 text-orange-600'
@@ -322,6 +349,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
           <button
             onClick={signOut}
+            aria-label="Sign out"
             className="flex items-center gap-2 w-full px-3 py-2 text-sm text-neutral-500 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -334,14 +362,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </aside>
 
-      <main className={`flex-1 transition-all duration-250 ${collapsed ? 'ml-16' : 'ml-56'}`}>
-        <div className="h-16 bg-white border-b border-neutral-200 flex items-center px-6">
+      <main className={`flex-1 transition-all duration-250 md:${collapsed ? 'ml-16' : 'ml-56'} ml-0`}>
+        <div className="h-16 bg-white border-b border-neutral-200 flex items-center px-6 pl-16 md:pl-6">
           <p className="text-sm text-neutral-400">
             {NAV_ITEMS.find(i => pathname === i.href || (i.href !== '/dashboard' && pathname.startsWith(i.href)))?.label ?? 'Dashboard'}
           </p>
         </div>
-        <div className="p-6">
-          {children}
+        <div className="p-4 md:p-6">
+          <ErrorBoundary>
+            {children}
+          </ErrorBoundary>
         </div>
         <div className="px-6 pb-6">
           <p className="text-[10px] text-neutral-300 leading-relaxed">
