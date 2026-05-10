@@ -270,6 +270,9 @@ function parseReviews(
 function parseReviewsFromHtml(html: string) {
   const reviews: Array<{ rating: number; text: string; date: string }> = []
 
+  // Guard: truncate excessively large HTML to prevent slow regex on crafted pages
+  const safeHtml = html.length > 2_000_000 ? html.slice(0, 2_000_000) : html
+
   // Etsy renders each review inside a container that has the star rating
   // as an aria-label ("5 out of 5 stars") and the review body in a <p>.
   // We walk review blocks by splitting on the star aria-label pattern.
@@ -278,7 +281,7 @@ function parseReviewsFromHtml(html: string) {
 
   let m: RegExpExecArray | null
   // eslint-disable-next-line no-cond-assign
-  while ((m = blockPattern.exec(html)) !== null) {
+  while ((m = blockPattern.exec(safeHtml)) !== null) {
     const rating = parseInt(m[1]) || 5
     const text = m[2]
       .replace(/<[^>]*>/g, '')
@@ -1124,8 +1127,12 @@ export async function POST(request: NextRequest) {
   const csrfError = checkCsrf(request)
   if (csrfError) return csrfError
 
+  // On Vercel, x-real-ip is the trusted client IP set by the edge network.
+  // x-forwarded-for leftmost entry can be spoofed before Vercel's edge, so prefer x-real-ip.
   const ip =
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+    request.headers.get('x-real-ip') ||
+    request.headers.get('x-forwarded-for')?.split(',').at(-1)?.trim() ||
+    'unknown'
 
   // Abort everything 270s in — 30s before Vercel's hard 300s kill
   const timeoutSignal = AbortSignal.timeout(270_000)
@@ -1196,9 +1203,12 @@ export async function POST(request: NextRequest) {
         p_amount:  creditCost,
       })
       if (deductError) {
+        // deduct_credits RPC returns an error both when credits are insufficient
+        // and on DB failure — log the real reason, return a safe generic message
+        console.error('[Analyze] Credit deduction failed:', deductError.message)
         return NextResponse.json(
-          { error: 'Not enough credits.', upgradeRequired: true },
-          { status: 403 },
+          { error: 'Could not deduct credits. Please refresh and try again.', upgradeRequired: false },
+          { status: 503 },
         )
       }
     }

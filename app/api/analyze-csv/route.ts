@@ -1246,6 +1246,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: err.message }, { status: 400 })
     }
 
+    if (reviews.length > 5000) {
+      return NextResponse.json({ error: 'CSV contains too many rows. Maximum 5,000 reviews per upload.' }, { status: 400 })
+    }
+
     console.log(`[CSV] Parsed ${reviews.length} reviews from ${file.name}`)
 
     const { data: reportRow, error: reportError } = await supabase
@@ -1307,6 +1311,6 @@ export async function POST(request: NextRequest) {
     if (limitInfo.isRateLimit) {
       return NextResponse.json({ error: friendlyGroqLimitMessage(limitInfo.retryAfterSeconds), retryAfterSeconds: limitInfo.retryAfterSeconds }, { status: 429 })
     }
-    return NextResponse.json({ error: error.message || 'Analysis failed.' }, { status: 500 })
+    return NextResponse.json({ error: 'Analysis failed. Please try again or contact support.' }, { status: 500 })
   }
 }
