@@ -138,7 +138,7 @@ export default function AuthModal({ onClose }: Props) {
               {step === 'plan' ? 'Get started with Voxrate' : `Continue — ${selLabel}`}
             </p>
             {step === 'auth' && (
-              <button onClick={() => { setStep('plan'); setSent(false); setError('') }}
+              <button onClick={() => { setStep('plan'); setError('') }}
                 className="text-xs text-neutral-400 hover:text-black mt-0.5 block">← Back to plans</button>
             )}
           </div>
