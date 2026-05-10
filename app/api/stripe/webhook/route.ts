@@ -44,10 +44,13 @@ export async function POST(request: NextRequest) {
         console.log(`[Webhook] Duplicate event ${event.id} — skipping`)
         return NextResponse.json({ received: true })
       }
-      console.error('[Webhook] Failed to write idempotency record:', insertError.message)
+      // Any other idempotency failure — abort to prevent duplicate processing
+      console.error('[Webhook] Idempotency check failed:', insertError.message)
+      return NextResponse.json({ error: 'Internal error' }, { status: 500 })
     }
   } catch (idempotencyErr: any) {
-    console.warn('[Webhook] Idempotency check skipped:', idempotencyErr.message)
+    console.error('[Webhook] Idempotency check threw:', idempotencyErr.message)
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 
   // ── Event processing ─────────────────────────────────────────
