@@ -67,10 +67,11 @@ export default function AuthModal({ onClose }: Props) {
 
   const [tab, setTab]             = useState<'subscription' | 'packs'>('subscription')
   const [step, setStep]           = useState<'plan' | 'auth'>('plan')
+  const [authMode, setAuthMode]   = useState<'signup' | 'login'>('signup')
   const [selection, setSelection] = useState<Selection | null>(null)
   const [email, setEmail]         = useState('')
+  const [password, setPassword]   = useState('')
   const [loading, setLoading]     = useState(false)
-  const [sent, setSent]           = useState(false)
   const [error, setError]         = useState('')
 
   const redirectUrl = (sel: Selection) => {
@@ -91,17 +92,28 @@ export default function AuthModal({ onClose }: Props) {
     })
   }
 
-  const handleMagicLink = async () => {
-    if (!email.trim() || !selection) return
+  const handleEmailAuth = async () => {
+    if (!email.trim() || !password || !selection) return
     setError('')
     setLoading(true)
-    const { error } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
-      options: { emailRedirectTo: redirectUrl(selection) },
-    })
-    setLoading(false)
-    if (error) { setError(error.message); return }
-    setSent(true)
+    if (authMode === 'signup') {
+      const { error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: { emailRedirectTo: redirectUrl(selection) },
+      })
+      setLoading(false)
+      if (error) { setError(error.message); return }
+      // If email confirmation is off, session is set — redirect to dashboard
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) { window.location.href = redirectUrl(selection).replace(window.location.origin, '') || '/dashboard' }
+      else setError('Account created — check your email to confirm before signing in.')
+    } else {
+      const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
+      setLoading(false)
+      if (error) { setError('Invalid email or password.'); return }
+      window.location.href = '/dashboard'
+    }
   }
 
   const selectPlan = (sel: Selection) => { setSelection(sel); setStep('auth') }
@@ -197,52 +209,51 @@ export default function AuthModal({ onClose }: Props) {
           {/* ── STEP 2: Auth ── */}
           {step === 'auth' && (
             <>
-              {sent ? (
-                <div className="text-center py-8">
-                  <div className="w-12 h-12 bg-black rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">✉️</div>
-                  <p className="font-semibold mb-2">Check your inbox</p>
-                  <p className="text-sm text-neutral-500 mb-1">We sent a login link to</p>
-                  <p className="text-sm font-medium text-black">{email}</p>
-                  <p className="text-xs text-neutral-400 mt-3">Click the link to sign in — no password needed.</p>
-                  <button onClick={() => setSent(false)} className="text-xs text-neutral-400 hover:text-black mt-4 underline">Try a different email</button>
-                </div>
-              ) : (
-                <>
-                  {/* Google */}
-                  <button onClick={handleGoogle}
-                    className="w-full flex items-center justify-center gap-3 py-3 border-2 border-neutral-200 rounded-xl text-sm font-medium hover:border-black transition-all mb-5">
-                    <GoogleIcon />
-                    Continue with Google
+              {/* Signup / Login tabs */}
+              <div className="flex gap-1 bg-neutral-100 p-1 rounded-xl mb-5">
+                {(['signup', 'login'] as const).map(m => (
+                  <button key={m} onClick={() => { setAuthMode(m); setError('') }}
+                    className={`flex-1 py-1.5 text-xs font-medium rounded-lg transition-all ${authMode === m ? 'bg-white shadow-sm text-black' : 'text-neutral-500 hover:text-black'}`}>
+                    {m === 'signup' ? 'Create account' : 'Sign in'}
                   </button>
+                ))}
+              </div>
 
-                  <div className="flex items-center gap-3 mb-5">
-                    <div className="flex-1 h-px bg-neutral-200" />
-                    <span className="text-xs text-neutral-400">or sign in with email</span>
-                    <div className="flex-1 h-px bg-neutral-200" />
-                  </div>
+              {/* Google */}
+              <button onClick={handleGoogle}
+                className="w-full flex items-center justify-center gap-3 py-3 border-2 border-neutral-200 rounded-xl text-sm font-medium hover:border-black transition-all mb-4">
+                <GoogleIcon />
+                Continue with Google
+              </button>
 
-                  {/* Magic link */}
-                  <div className="space-y-3">
-                    <input
-                      type="email"
-                      placeholder="your@email.com"
-                      value={email}
-                      onChange={e => setEmail(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && handleMagicLink()}
-                      className="w-full px-4 py-3 border-2 border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-black transition-colors"
-                    />
-                    {error && <p className="text-xs text-red-500">{error}</p>}
-                    <button
-                      onClick={handleMagicLink}
-                      disabled={loading || !email.trim()}
-                      className="w-full py-3 bg-black text-white text-sm font-medium rounded-xl hover:bg-neutral-800 transition-colors disabled:opacity-40"
-                    >
-                      {loading ? 'Sending…' : 'Send login link →'}
-                    </button>
-                    <p className="text-center text-xs text-neutral-400">We'll email you a link — no password needed</p>
-                  </div>
-                </>
-              )}
+              <div className="flex items-center gap-3 mb-4">
+                <div className="flex-1 h-px bg-neutral-200" />
+                <span className="text-xs text-neutral-400">or with email</span>
+                <div className="flex-1 h-px bg-neutral-200" />
+              </div>
+
+              {/* Email + Password */}
+              <div className="space-y-3">
+                <input
+                  type="email" placeholder="Email address" value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  className="w-full px-4 py-3 border-2 border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-black transition-colors"
+                />
+                <input
+                  type="password" placeholder="Password" value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleEmailAuth()}
+                  className="w-full px-4 py-3 border-2 border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-black transition-colors"
+                />
+                {error && <p className="text-xs text-red-500">{error}</p>}
+                <button
+                  onClick={handleEmailAuth}
+                  disabled={loading || !email.trim() || !password}
+                  className="w-full py-3 bg-black text-white text-sm font-medium rounded-xl hover:bg-neutral-800 transition-colors disabled:opacity-40"
+                >
+                  {loading ? 'Please wait…' : authMode === 'signup' ? 'Create account →' : 'Sign in →'}
+                </button>
+              </div>
             </>
           )}
         </div>
