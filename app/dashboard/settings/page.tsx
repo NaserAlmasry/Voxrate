@@ -18,6 +18,7 @@ export default function SettingsPage() {
   const [joinedDate, setJoinedDate] = useState('')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [portalLoading, setPortalLoading] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
   const supabase = createClient()
 
   const loadUser = async () => {
@@ -41,8 +42,6 @@ export default function SettingsPage() {
       setTimeout(() => loadUser(), 2000)
     }
   }, [])
-
-  const [isAdmin, setIsAdmin] = useState(false)
 
   const openCustomerPortal = async () => {
     setPortalLoading(true)
@@ -217,7 +216,7 @@ export default function SettingsPage() {
             <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
               <p className="text-xs font-medium text-red-700 mb-1">Are you sure?</p>
               <p className="text-xs text-red-500 mb-3">
-                Your account will be kept for 7 days. Log back in with the same Google account to restore it.
+                Your account and all data will be permanently deleted. Your subscription will be cancelled immediately. This cannot be undone.
               </p>
               <div className="flex gap-2">
                 <button

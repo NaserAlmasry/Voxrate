@@ -68,13 +68,19 @@ export async function POST(request: NextRequest) {
           break
         }
 
+        // Max credits per pack is 840 (pro_pack); max per subscription is 2400 (pro monthly)
+        const MAX_PACK_CREDITS = 840
+        const MAX_SUB_CREDITS  = 2400
+
         if (type === 'credit_pack') {
           // Add credits for one-time purchase
           const credits = parseInt(session.metadata?.credits || '0', 10)
-          if (credits > 0) {
+          if (credits > 0 && credits <= MAX_PACK_CREDITS) {
             console.log(`[Webhook] Adding ${credits} credits to user ${userId} (pack)`)
             await supabase.rpc('add_credits', { p_user_id: userId, p_amount: credits })
             console.log(`[Webhook] ✅ ${credits} credits added`)
+          } else if (credits > MAX_PACK_CREDITS) {
+            console.error(`[Webhook] Suspicious credit amount ${credits} — rejected`)
           }
         } else {
           // Subscription checkout — set plan + add initial credits
@@ -94,8 +100,10 @@ export async function POST(request: NextRequest) {
             stripe_subscription_id: session.subscription as string,
           }).eq('id', userId)
 
-          if (credits > 0) {
+          if (credits > 0 && credits <= MAX_SUB_CREDITS) {
             await supabase.rpc('add_credits', { p_user_id: userId, p_amount: credits })
+          } else if (credits > MAX_SUB_CREDITS) {
+            console.error(`[Webhook] Suspicious subscription credit amount ${credits} — rejected`)
           }
 
           console.log(`[Webhook] ✅ User ${userId} upgraded to ${plan}`)
@@ -122,8 +130,10 @@ export async function POST(request: NextRequest) {
 
         console.log(`[Webhook] Monthly renewal for user ${userId} — adding ${credits} credits`)
         await supabase.from('users').update({ plan }).eq('id', userId)
-        if (credits > 0) {
+        if (credits > 0 && credits <= 2400) {
           await supabase.rpc('add_credits', { p_user_id: userId, p_amount: credits })
+        } else if (credits > 2400) {
+          console.error(`[Webhook] Suspicious renewal credit amount ${credits} — rejected`)
         }
         break
       }

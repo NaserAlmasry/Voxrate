@@ -115,7 +115,7 @@ export default function LibraryPage() {
           allScores,
           lastAnalyzed:   latest.created_at,
           reviewCount:    latest.total_reviews_analyzed || 0,
-          isCsv:          latest.product_url?.startsWith('csv:') ?? false,
+          isCsv:          latest.report_type === 'csv' || (latest.product_url?.startsWith('csv:') ?? false),
           isCompetitor:   latest.report_type === 'competitor',
           reportCount:    rows.length,
         })

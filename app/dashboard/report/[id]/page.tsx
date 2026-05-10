@@ -435,6 +435,7 @@ export default function ReportPage() {
   const [scoreHistory, setScoreHistory]             = useState<{ date: string; score: number }[]>([])
   const [showComparePicker, setShowComparePicker]   = useState(false)
   const [ownReports, setOwnReports]                 = useState<any[]>([])
+  const [reanalyzing, setReanalyzing]               = useState(false)
   const [ownReportsLoading, setOwnReportsLoading]   = useState(false)
   const loadStartRef                                = useRef<number>(Date.now())
   // Progressive section loading
@@ -635,6 +636,28 @@ export default function ReportPage() {
       setShareUrl(next ? data.shareUrl : null)
     }
     setShareLoading(false)
+  }
+
+  const handleReanalyze = async () => {
+    if (!report?.product_url || reanalyzing) return
+    setReanalyzing(true)
+    try {
+      const res = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        body: JSON.stringify({ productUrl: report.product_url, reportType: report.report_type || 'own' }),
+      })
+      const data = await res.json()
+      if (res.ok && data.reportId) {
+        router.push(`/dashboard/report/${data.reportId}`)
+      } else {
+        alert(data.error || 'Re-analysis failed. Please try again.')
+        setReanalyzing(false)
+      }
+    } catch {
+      alert('Something went wrong. Please try again.')
+      setReanalyzing(false)
+    }
   }
 
   const openComparePicker = async () => {
@@ -842,6 +865,21 @@ export default function ReportPage() {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
+          {/* Re-analyze button — only on URL-based own reports */}
+          {report.report_type !== 'competitor' && report.product_url && !report.product_url.startsWith('csv:') && (
+            <button
+              onClick={handleReanalyze}
+              disabled={reanalyzing}
+              className="px-3 py-2 text-xs font-medium border border-neutral-200 rounded-xl hover:bg-neutral-50 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+              title="Re-analyze this listing to get fresh data"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+              </svg>
+              {reanalyzing ? 'Starting…' : 'Re-analyze'}
+            </button>
+          )}
+
           {/* Compare button — only on competitor reports */}
           {report.report_type === 'competitor' && (
             <button
@@ -1211,8 +1249,21 @@ export default function ReportPage() {
 
           {safeArray(fr.complaints).length === 0 ? (
             <div className="bg-white rounded-2xl border border-neutral-200 p-8 text-center">
-              <p className="text-sm font-medium text-neutral-500">No significant problems found</p>
-              <p className="text-xs text-neutral-400 mt-1">Your reviews show mostly satisfied buyers</p>
+              {(report.total_reviews_analyzed ?? 0) < 10 ? (
+                <>
+                  <p className="text-sm font-medium text-neutral-600">Not enough reviews to detect patterns</p>
+                  <p className="text-xs text-neutral-400 mt-1 max-w-xs mx-auto">
+                    This listing has fewer than 10 reviews analyzed. Complaint patterns need more data to surface reliably. Check back once the listing has more reviews.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-medium text-green-700">No recurring complaints detected</p>
+                  <p className="text-xs text-neutral-400 mt-1 max-w-xs mx-auto">
+                    Across {report.total_reviews_analyzed} reviews, no consistent complaint pattern emerged. This is a strong signal of a well-received product.
+                  </p>
+                </>
+              )}
             </div>
           ) : (
             safeArray(fr.complaints).map((c: any, i: number) => {

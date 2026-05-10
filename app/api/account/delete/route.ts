@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { createClient } from '@/app/lib/supabase/server'
-import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { checkCsrf } from '@/app/lib/csrf'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -40,18 +39,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Mark user as deleted in DB
+    // Soft-delete: mark plan as deleted + timestamp. A cleanup job purges after 30 days.
     await supabase
       .from('users')
-      .update({ plan: 'deleted', analyses_count: -1 })
+      .update({ plan: 'deleted', analyses_count: -1, deleted_at: new Date().toISOString() })
       .eq('id', user.id)
-
-    // Delete auth user (requires service role key)
-    const adminClient = createAdminClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
-    await adminClient.auth.admin.deleteUser(user.id)
 
     return NextResponse.json({ success: true })
 
