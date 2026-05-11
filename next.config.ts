@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from '@sentry/nextjs'
 
 const securityHeaders = [
   // Prevent browsers from MIME-sniffing the response type
@@ -49,4 +50,10 @@ const nextConfig: NextConfig = {
   },
 }
 
-export default nextConfig
+export default withSentryConfig(nextConfig, {
+  org:     'voxrate',
+  project: 'voxrate',
+  silent:  true,
+  widenClientFileUpload: true,
+  disableLogger: true,
+})
