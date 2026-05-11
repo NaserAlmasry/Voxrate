@@ -883,7 +883,7 @@ Return ONLY this JSON — start with { immediately:
   // SEO keywords are pre-calculated, marketing copy is verbatim quotes.
   // 8b handles this perfectly and is 3-4x faster than 70b here.
   // max_tokens: 1200 → 800 (output is structured and short)
-  const seoRaw = await callGroq70b([
+  const seoRaw = await callGroq8b([
     { role: 'system' as const, content: systemPrompt },
     {
       role: 'user' as const,

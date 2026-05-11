@@ -73,11 +73,6 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const toast = useCallback((message: string, type: ToastType = 'success') => {
-    setToasts(prev => {
-      // Cap queue — drop oldest if over limit
-      if (prev.length >= MAX_TOASTS) return prev
-      return prev
-    })
     const id = ++counterRef.current
     setToasts(prev => {
       if (prev.length >= MAX_TOASTS) return prev
