@@ -39,7 +39,7 @@ export function looksLikeNonsense(text: string): boolean {
 const REVIEW_SIGNAL_WORDS = new Set([
   'product', 'item', 'order', 'shipping', 'delivery', 'quality', 'arrived', 'package',
   'bought', 'purchased', 'received', 'seller', 'shop', 'store', 'etsy', 'broken',
-  'damaged', 'perfect', 'beautiful', 'love', 'hate', 'disappointed', 'happy', 'great',
+  'damaged', 'perfect', 'beautiful', 'disappointed', 'happy', 'great',
   'terrible', 'awful', 'excellent', 'poor', 'fast', 'slow', 'wrong', 'missing',
   'refund', 'return', 'size', 'color', 'colour', 'material', 'fabric', 'fit',
   'expected', 'exactly', 'recommend', 'worth', 'waste', 'money', 'price',
