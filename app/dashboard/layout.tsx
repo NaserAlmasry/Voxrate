@@ -135,7 +135,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [userEmail, setUserEmail] = useState('')
-  const [plan, setPlan] = useState('free')
+  const [plan, setPlan]       = useState('free')
+  const [isAdmin, setIsAdmin] = useState(false)
   const [credits, setCredits] = useState<number | null>(null)
   const [showUpgradeBanner, setShowUpgradeBanner] = useState(false)
   const [authChecked, setAuthChecked] = useState(false)
@@ -147,8 +148,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const loadPlan = async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    const { data } = await supabase.from('users').select('plan, credits').eq('id', user.id).single()
+    const { data } = await supabase.from('users').select('plan, credits, is_admin').eq('id', user.id).single()
     if (data?.plan) setPlan(data.plan)
+    if (data?.is_admin) setIsAdmin(true)
     if (data?.credits != null) setCredits(data.credits)
   }
 
@@ -311,6 +313,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </a>
             )
           })}
+          {/* Admin link — only visible to admins */}
+          {isAdmin && (
+            <a
+              href="/dashboard/admin"
+              onClick={() => setMobileOpen(false)}
+              aria-label={collapsed ? 'Admin' : undefined}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors mt-1 ${
+                pathname === '/dashboard/admin'
+                  ? 'bg-red-50 text-red-600'
+                  : 'text-red-400 hover:bg-red-50 hover:text-red-600'
+              }`}
+            >
+              <span className="flex-shrink-0">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                </svg>
+              </span>
+              {!collapsed && <span className="nav-label">Admin</span>}
+            </a>
+          )}
         </nav>
 
         <div className="border-t border-neutral-200 p-3">
