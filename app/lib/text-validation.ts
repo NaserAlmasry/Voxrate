@@ -43,9 +43,13 @@ const REVIEW_SIGNAL_WORDS = new Set([
   'terrible', 'awful', 'excellent', 'poor', 'fast', 'slow', 'wrong', 'missing',
   'refund', 'return', 'size', 'color', 'colour', 'material', 'fabric', 'fit',
   'expected', 'exactly', 'recommend', 'worth', 'waste', 'money', 'price',
-  'described', 'accurate', 'accurate', 'smells', 'looks', 'feels', 'works',
+  'described', 'accurate', 'smells', 'looks', 'feels', 'works',
   'stopped', 'broke', 'cracked', 'faded', 'scratched', 'pleased', 'upset',
   'nice', 'bad', 'good', 'okay', 'fine', 'amazing', 'horrible', 'lovely',
+  'this', 'very', 'really', 'super', 'absolutely', 'totally', 'highly',
+  'pillow', 'mug', 'cup', 'shirt', 'dress', 'ring', 'necklace', 'bracelet',
+  'candle', 'frame', 'poster', 'print', 'bag', 'wallet', 'hat', 'shoes',
+  'gift', 'box', 'card', 'sticker', 'towel', 'blanket', 'cushion', 'mat',
 ])
 
 /**
@@ -56,8 +60,8 @@ export function looksLikeReview(text: string): boolean {
   const lower = text.trim().toLowerCase()
   const words = lower.split(/\W+/).filter(w => w.length > 2)
 
-  // Must have at least 4 words
-  if (words.length < 4) return false
+  // Must have at least 3 meaningful words
+  if (words.length < 3) return false
 
   // At least one word must be review-related
   return words.some(w => REVIEW_SIGNAL_WORDS.has(w))
