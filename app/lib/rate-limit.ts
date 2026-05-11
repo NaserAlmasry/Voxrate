@@ -11,7 +11,7 @@
 import { Redis } from '@upstash/redis'
 
 const WINDOW_SECONDS = 10 * 60 // 10 minutes
-const MAX_REQUESTS   = 3
+const MAX_REQUESTS   = 30
 
 // Upstash client — only created when env vars are present
 const hasUpstash =

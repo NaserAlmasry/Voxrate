@@ -23,11 +23,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Too many requests. Please wait a moment.' }, { status: 429 })
     }
 
-    const { data: userData } = await supabase.from('users').select('plan, ai_uses').eq('id', user.id).single()
-    const plan    = userData?.plan    || 'free'
-    const aiUses  = userData?.ai_uses ?? 0
-    if (plan === 'free' && aiUses >= 1) {
-      return NextResponse.json({ error: 'Free plan includes 1 AI generation. Upgrade to continue using this feature.', upgrade: true }, { status: 403 })
+    const { data: userData } = await supabase.from('users').select('plan, ai_reply_uses').eq('id', user.id).single()
+    const plan        = userData?.plan           || 'free'
+    const aiReplyUses = userData?.ai_reply_uses  ?? 0
+    if (plan === 'free' && aiReplyUses >= 1) {
+      return NextResponse.json({ error: 'Free plan includes 1 reply generation. Upgrade to continue using this feature.', upgrade: true }, { status: 403 })
     }
 
     const body        = await request.json()
@@ -91,7 +91,7 @@ Return ONLY valid JSON in this exact format:
       return NextResponse.json({ error: 'Failed to generate replies. Please try again.' }, { status: 500 })
     }
 
-    await supabase.from('users').update({ ai_uses: aiUses + 1 }).eq('id', user.id)
+    await supabase.from('users').update({ ai_reply_uses: aiReplyUses + 1 }).eq('id', user.id)
 
     return NextResponse.json({ replies: parsed.replies })
 
