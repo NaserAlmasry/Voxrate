@@ -158,6 +158,35 @@ function DashboardHomeInner() {
       }
     })
 
+    // Auto-analyze URL saved before auth (user pasted URL on landing page while logged out)
+    const pendingUrl = localStorage.getItem('pendingUrl')
+    if (pendingUrl) {
+      localStorage.removeItem('pendingUrl')
+      setUrl(pendingUrl)
+      // Small delay so state settles before triggering
+      setTimeout(() => {
+        if (!pendingUrl.includes('etsy.com/listing/')) return
+        cancelledRef.current = false
+        setLoading(true); setError('')
+        const controller = new AbortController()
+        controllerRef.current = controller
+        fetch('/api/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+          body: JSON.stringify({ productUrl: pendingUrl }),
+          signal: controller.signal,
+        })
+          .then(r => r.json().then(data => ({ ok: r.ok, data })))
+          .then(({ ok, data }) => {
+            if (!ok) { setError(data.error || 'Analysis failed.'); setLoading(false); return }
+            window.location.href = `/dashboard/report/${data.reportId}`
+          })
+          .catch((err) => {
+            if (err?.name !== 'AbortError') { setError('Something went wrong.'); setLoading(false) }
+          })
+      }, 300)
+    }
+
     const csvContent = localStorage.getItem('pendingCsvContent')
     const csvName    = localStorage.getItem('pendingCsvName')
     const csvProdName = localStorage.getItem('pendingCsvProductName')
