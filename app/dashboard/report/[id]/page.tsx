@@ -26,6 +26,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { createClient } from '@/app/lib/supabase/client'
 import { useParams, useRouter } from 'next/navigation'
+import { useToast } from '@/app/components/Toast'
 
 const SIMULATE_USER_KEY = 'voxrate_simulate_user'
 const FREE_PLAN_LIMIT   = 3   // change here if the limit ever changes
@@ -322,13 +323,14 @@ function ProgressChart({ history }: { history: { date: string; score: number }[]
 
 // ── QuickWin card with copy button ───────────────────────────
 
-function QuickWinCard({ quickWin }: { quickWin: any }) {
+function QuickWinCard({ quickWin, onCopy }: { quickWin: any; onCopy?: (msg: string) => void }) {
   const [copied, setCopied] = useState(false)
   const text = safeStr(quickWin.action)
 
   const handleCopy = () => {
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true)
+      onCopy?.('Copied to clipboard')
       setTimeout(() => setCopied(false), 2000)
     })
   }
@@ -368,13 +370,14 @@ function QuickWinCard({ quickWin }: { quickWin: any }) {
 
 // ── Improvement card with copy button ────────────────────────
 
-function ImprovementCard({ imp }: { imp: any }) {
+function ImprovementCard({ imp, onCopy }: { imp: any; onCopy?: (msg: string) => void }) {
   const [copied, setCopied] = useState(false)
   const text = [safeStr(imp.title), safeStr(imp.description)].filter(s => s !== '—').join('\n\n')
 
   const handleCopy = () => {
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true)
+      onCopy?.('Copied to clipboard')
       setTimeout(() => setCopied(false), 2000)
     })
   }
@@ -408,6 +411,7 @@ function ImprovementCard({ imp }: { imp: any }) {
 // ── Main component ────────────────────────────────────────────
 
 export default function ReportPage() {
+  const toast = useToast()
   const [report, setReport]                         = useState<any>(null)
   const [loading, setLoading]                       = useState(true)
   const [error, setError]                           = useState('')
@@ -427,6 +431,9 @@ export default function ReportPage() {
   const [ratingValue, setRatingValue]               = useState(0)
   const [ratingHover, setRatingHover]               = useState(0)
   const [ratingDone, setRatingDone]                 = useState(false)
+  const [ratingFeedback, setRatingFeedback]         = useState('')
+  const [ratingSubmitting, setRatingSubmitting]     = useState(false)
+  const [feedbackSent, setFeedbackSent]             = useState(false)
   const [pollCount, setPollCount]                   = useState(0)
   const [isPublic, setIsPublic]                     = useState(false)
   const [shareUrl, setShareUrl]                     = useState<string | null>(null)
@@ -438,6 +445,8 @@ export default function ReportPage() {
   const [reanalyzing, setReanalyzing]               = useState(false)
   const [ownReportsLoading, setOwnReportsLoading]   = useState(false)
   const loadStartRef                                = useRef<number>(Date.now())
+  const ratingTimerRef                              = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isMountedRef                               = useRef(true)
   // Progressive section loading
   const [sectionsReady, setSectionsReady]           = useState<string[]>([])
   const [loadingSection, setLoadingSection]         = useState<string | null>(null)
@@ -525,9 +534,35 @@ export default function ReportPage() {
         const { _cache, _sectionsReady, ...cleanReport } = data.full_report || {}
         setReport({ ...data, full_report: cleanReport })
         setSectionsReady(['complaints', 'strengths', 'seo', 'summary'])
-        // Show rating prompt 8 seconds after report loads (only if not already rated)
-        const alreadyRated = localStorage.getItem('voxrate_rated')
-        if (!alreadyRated) setTimeout(() => setShowRating(true), 8000)
+        // Show rating prompt 8 seconds after report loads
+        ;(async () => {
+          try {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (user) {
+              const { data: existingRating } = await supabase
+                .from('ratings')
+                .select('id')
+                .eq('user_id', user.id)
+                .limit(1)
+                .single()
+              if (existingRating) return // already rated — never show again
+            }
+          } catch {}
+          if (!isMountedRef.current) return
+          // Check dismiss cadence
+          const dismissCount        = parseInt(localStorage.getItem('voxrate_dismiss_count') || '0')
+          const lastDismissAnalysis = parseInt(localStorage.getItem('voxrate_dismiss_at_analysis') || '0')
+          const totalAnalyses       = parseInt(localStorage.getItem('voxrate_analysis_count') || '0')
+          const analysesSinceDismiss = totalAnalyses - lastDismissAnalysis
+          const shouldShow = dismissCount === 0 || analysesSinceDismiss >= 10
+          // Only increment counter when we actually intend to (possibly) show the prompt
+          if (shouldShow) {
+            localStorage.setItem('voxrate_analysis_count', String(totalAnalyses + 1))
+            ratingTimerRef.current = setTimeout(() => {
+              if (isMountedRef.current) setShowRating(true)
+            }, 8000)
+          }
+        })()
       } else {
         // Partial — show complaints now, load rest progressively
         setReport(data)
@@ -574,6 +609,10 @@ export default function ReportPage() {
       }
     }
     init()
+    return () => {
+      isMountedRef.current = false
+      if (ratingTimerRef.current) clearTimeout(ratingTimerRef.current)
+    }
   }, [])
 
   useEffect(() => {
@@ -678,8 +717,8 @@ export default function ReportPage() {
   const copyShareUrl = () => {
     if (!shareUrl) return
     navigator.clipboard.writeText(shareUrl)
-    setShareCopied(true)
-    setTimeout(() => setShareCopied(false), 2000)
+      .then(() => { setShareCopied(true); toast('Share link copied!'); setTimeout(() => setShareCopied(false), 2000) })
+      .catch(() => toast('Copy failed — please copy the link manually', 'error'))
   }
 
   const saveNotes = async () => {
@@ -1042,7 +1081,7 @@ export default function ReportPage() {
 
       {/* Quick Win — paid only */}
       {!isLimited && fr.quickWin && (
-        <QuickWinCard quickWin={fr.quickWin} />
+        <QuickWinCard quickWin={fr.quickWin} onCopy={toast} />
       )}
 
       {/* Top Actions — paid only */}
@@ -1404,7 +1443,7 @@ export default function ReportPage() {
                       <div className="p-3 bg-green-50 border border-green-100 rounded-xl">
                         <p className="text-xs font-semibold text-green-700 mb-1">Use in your listing</p>
                         <p className="text-xs text-neutral-700 italic">&quot;{safeStr(s.marketingAngle)}&quot;</p>
-                        <button onClick={() => navigator.clipboard.writeText(s.marketingAngle)} className="mt-2 text-[10px] text-green-600 hover:underline">
+                        <button onClick={() => navigator.clipboard.writeText(s.marketingAngle).then(() => toast('Marketing phrase copied!')).catch(() => toast('Copy failed — please copy manually', 'error'))} className="mt-2 text-[10px] text-green-600 hover:underline">
                           Copy phrase →
                         </button>
                       </div>
@@ -1451,7 +1490,7 @@ export default function ReportPage() {
             </div>
           ) : (
             safeArray(fr.improvements).map((imp: any, i: number) => (
-              <ImprovementCard key={i} imp={imp} />
+              <ImprovementCard key={i} imp={imp} onCopy={toast} />
             ))
           )}
         </div>
@@ -1534,7 +1573,7 @@ export default function ReportPage() {
               {safeArray(fr.marketingCopy).map((copy: string, i: number) => (
                 <div key={i} className="bg-white rounded-2xl border border-purple-100 p-4 flex items-center justify-between gap-3">
                   <p className="text-sm text-neutral-700 italic">&quot;{safeStr(copy)}&quot;</p>
-                  <button onClick={() => navigator.clipboard.writeText(copy)} className="flex-shrink-0 px-2.5 py-1 text-xs bg-purple-50 text-purple-700 border border-purple-200 rounded-lg hover:bg-purple-100 transition-colors">
+                  <button onClick={() => navigator.clipboard.writeText(copy).then(() => toast('Marketing copy copied!')).catch(() => toast('Copy failed', 'error'))} className="flex-shrink-0 px-2.5 py-1 text-xs bg-purple-50 text-purple-700 border border-purple-200 rounded-lg hover:bg-purple-100 transition-colors">
                     Copy
                   </button>
                 </div>
@@ -1547,7 +1586,7 @@ export default function ReportPage() {
                       <div key={i} className="p-3 bg-neutral-50 rounded-xl">
                         <p className="text-xs font-medium text-neutral-500 mb-1">{safeStr(t.situation)}</p>
                         <p className="text-xs text-neutral-700 leading-relaxed">{safeStr(t.template)}</p>
-                        <button onClick={() => navigator.clipboard.writeText(t.template)} className="mt-2 text-xs text-orange-600 hover:underline">
+                        <button onClick={() => navigator.clipboard.writeText(t.template).then(() => toast('Template copied!')).catch(() => toast('Copy failed', 'error'))} className="mt-2 text-xs text-orange-600 hover:underline">
                           Copy template
                         </button>
                       </div>
@@ -1672,47 +1711,100 @@ export default function ReportPage() {
 
     {/* ── STAR RATING NOTIFICATION ── */}
     {showRating && (
-      <div className="fixed bottom-6 right-6 z-50 w-72 bg-white border border-neutral-200 rounded-2xl shadow-2xl p-5"
+      <div className="fixed bottom-6 right-6 z-50 w-80 bg-white border border-neutral-200 rounded-2xl shadow-2xl p-5"
         style={{ animation: 'slideUp 0.35s ease forwards' }}>
         <style>{`@keyframes slideUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }`}</style>
         <button
-          onClick={() => { setShowRating(false); localStorage.setItem('voxrate_rated', '0') }}
+          onClick={() => {
+            setShowRating(false)
+            setRatingValue(0)
+            setRatingDone(false)
+            setRatingFeedback('')
+            setRatingSubmitting(false)
+            setFeedbackSent(false)
+            const count = parseInt(localStorage.getItem('voxrate_dismiss_count') || '0') + 1
+            const total = parseInt(localStorage.getItem('voxrate_analysis_count') || '0')
+            localStorage.setItem('voxrate_dismiss_count', String(count))
+            localStorage.setItem('voxrate_dismiss_at_analysis', String(total))
+          }}
           className="absolute top-3 right-3 text-neutral-300 hover:text-neutral-500 transition-colors"
+          aria-label="Dismiss"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
-        <p className="text-sm font-semibold text-neutral-900 mb-0.5">How was your analysis?</p>
-        <p className="text-xs text-neutral-400 mb-4">Rate your Voxrate experience out of 5</p>
-        {!ratingDone ? (
-          <div className="flex items-center gap-1 justify-center">
-            {[1, 2, 3, 4, 5].map(star => (
-              <button
-                key={star}
-                onClick={async () => {
-                  setRatingValue(star)
-                  setRatingDone(true)
-                  localStorage.setItem('voxrate_rated', String(star))
-                  try {
-                    const { createClient } = await import('@/app/lib/supabase/client')
-                    const supabase = createClient()
-                    const { data: { user } } = await supabase.auth.getUser()
-                    if (user) {
-                      await supabase.from('ratings').insert({ user_id: user.id, rating: star, source: 'report_page' })
-                    }
-                  } catch {}
-                  setTimeout(() => setShowRating(false), 2500)
-                }}
-                onMouseEnter={() => setRatingHover(star)}
-                onMouseLeave={() => setRatingHover(0)}
-                className="text-4xl transition-transform hover:scale-125 leading-none"
-                style={{ color: star <= (ratingHover || ratingValue) ? '#f97316' : '#e5e7eb' }}
-              >
-                ★
-              </button>
-            ))}
-          </div>
+
+        {feedbackSent ? (
+          <p className="text-sm text-center text-green-600 font-medium py-2">Thank you! Your feedback helps us improve. 🙏</p>
+        ) : !ratingDone ? (
+          <>
+            <p className="text-sm font-semibold text-neutral-900 mb-0.5">How was your analysis?</p>
+            <p className="text-xs text-neutral-400 mb-4">Rate your Voxrate experience out of 5</p>
+            <div className="flex items-center gap-1 justify-center">
+              {[1, 2, 3, 4, 5].map(star => (
+                <button
+                  key={star}
+                  onClick={() => { setRatingValue(star); setRatingDone(true) }}
+                  onMouseEnter={() => setRatingHover(star)}
+                  onMouseLeave={() => setRatingHover(0)}
+                  className="text-4xl transition-transform hover:scale-125 leading-none"
+                  style={{ color: star <= (ratingHover || ratingValue) ? '#f97316' : '#e5e7eb' }}
+                >
+                  ★
+                </button>
+              ))}
+            </div>
+          </>
         ) : (
-          <p className="text-sm text-center text-green-600 font-medium py-2">Thank you! Your feedback helps us improve.</p>
+          <>
+            <p className="text-sm font-semibold text-neutral-900 mb-0.5">
+              {ratingValue <= 2 ? 'Sorry to hear that 😔' : ratingValue === 3 ? 'Thanks for rating!' : 'Glad you liked it! 🎉'}
+            </p>
+            <p className="text-xs text-neutral-400 mb-3">
+              {ratingValue <= 2 ? 'What went wrong? Help us fix it.' : 'Anything we can improve? (optional)'}
+            </p>
+            <div className="flex gap-1 justify-center mb-3">
+              {[1, 2, 3, 4, 5].map(star => (
+                <span key={star} className="text-2xl leading-none" style={{ color: star <= ratingValue ? '#f97316' : '#e5e7eb' }}>★</span>
+              ))}
+            </div>
+            <textarea
+              value={ratingFeedback}
+              onChange={e => setRatingFeedback(e.target.value)}
+              placeholder={ratingValue <= 2 ? 'Tell us what went wrong...' : 'Your thoughts (optional)...'}
+              rows={3}
+              className="w-full text-xs border border-neutral-200 rounded-lg p-2 resize-none focus:outline-none focus:ring-1 focus:ring-orange-400 text-neutral-700 placeholder-neutral-300"
+            />
+            <button
+              disabled={ratingSubmitting}
+              onClick={async () => {
+                setRatingSubmitting(true)
+                let saved = false
+                try {
+                  const { data: { user } } = await supabase.auth.getUser()
+                  if (user) {
+                    const { error } = await supabase.from('ratings').insert({
+                      user_id: user.id,
+                      rating: ratingValue,
+                      feedback: ratingFeedback.trim() || null,
+                      source: 'report_page',
+                    })
+                    if (!error) saved = true
+                  }
+                } catch {}
+                setRatingSubmitting(false)
+                if (saved) {
+                  setFeedbackSent(true)
+                  setTimeout(() => setShowRating(false), 2500)
+                } else {
+                  // Silently close — don't show false success to unauthenticated users
+                  setShowRating(false)
+                }
+              }}
+              className="mt-2 w-full py-1.5 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold transition-colors disabled:opacity-50"
+            >
+              {ratingSubmitting ? 'Submitting...' : 'Submit'}
+            </button>
+          </>
         )}
       </div>
     )}

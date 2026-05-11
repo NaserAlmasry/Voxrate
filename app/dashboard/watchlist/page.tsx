@@ -3,6 +3,9 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/app/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import { useToast } from '@/app/components/Toast'
+import EmptyState from '@/app/components/EmptyState'
+import { WatchlistCardSkeleton } from '@/app/components/Skeleton'
 
 function scoreColor(n: number) {
   if (n <= 37) return { text: 'text-red-500',    bg: 'bg-red-50',    border: 'border-red-100'    }
@@ -46,6 +49,7 @@ function Sparkline({ scores }: { scores: number[] }) {
 }
 
 export default function WatchlistPage() {
+  const toast = useToast()
   const [items, setItems]                 = useState<any[]>([])
   const [competitors, setCompetitors]     = useState<any[]>([])
   const [plan, setPlan]                   = useState('free')
@@ -97,11 +101,12 @@ export default function WatchlistPage() {
       body:    JSON.stringify({ reportId: selected.id, note }),
     })
     const data = await res.json()
-    if (!res.ok) { setError(data.error || 'Failed'); setAdding(false); return }
+    if (!res.ok) { setError(data.error || 'Failed'); setAdding(false); toast(data.error || 'Failed to add', 'error'); return }
     setShowPicker(false)
     setSelected(null)
     setNote('')
     setAdding(false)
+    toast('Added to watchlist!')
     await load()
   }
 
@@ -113,6 +118,7 @@ export default function WatchlistPage() {
       body:    JSON.stringify({ id }),
     })
     setRemoving(null)
+    toast('Removed from watchlist', 'info')
     await load()
   }
 
@@ -133,9 +139,7 @@ export default function WatchlistPage() {
   if (loading) return (
     <div className="max-w-2xl mx-auto space-y-3">
       <h1 className="text-xl font-semibold mb-6">Competitor watchlist</h1>
-      {[1, 2].map(i => (
-        <div key={i} className="bg-white rounded-2xl border border-neutral-200 p-5 animate-pulse h-24" />
-      ))}
+      {[1, 2, 3].map(i => <WatchlistCardSkeleton key={i} />)}
     </div>
   )
 
@@ -172,23 +176,14 @@ export default function WatchlistPage() {
           </a>
         </div>
       ) : items.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-neutral-200 p-10 text-center">
-          <svg className="mx-auto mb-3 text-neutral-300" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>
-          </svg>
-          <p className="text-sm text-neutral-500 mb-1">No competitors tracked yet</p>
-          <p className="text-xs text-neutral-300 mb-4">First analyze a competitor listing, then add it here to track over time</p>
-          <div className="flex items-center justify-center gap-3">
-            <button onClick={() => router.push('/dashboard/competitor')} className="text-xs text-orange-600 font-medium hover:underline">
-              Analyze a competitor →
-            </button>
-            {competitors.length > 0 && (
-              <button onClick={() => setShowPicker(true)} className="text-xs text-neutral-500 font-medium hover:underline">
-                Add existing →
-              </button>
-            )}
-          </div>
-        </div>
+        <EmptyState
+          icon={<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>}
+          title="No competitors tracked yet"
+          description="Add competitor listings here and Voxrate will track their score over time — so you know the moment they improve or slip."
+          action={{ label: 'Analyze a competitor', onClick: () => router.push('/dashboard/competitor') }}
+          secondaryAction={competitors.length > 0 ? { label: 'Add existing', onClick: () => setShowPicker(true) } : undefined}
+          tip="Track up to 5 competitors on the Pro plan to stay ahead of the market."
+        />
       ) : (
         <div className="space-y-3">
           {items.map(item => {

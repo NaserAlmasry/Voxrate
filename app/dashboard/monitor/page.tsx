@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/app/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import EmptyState from '@/app/components/EmptyState'
+import { MonitorCardSkeleton } from '@/app/components/Skeleton'
 
 function scoreColor(n: number) {
   if (n <= 37) return { text: 'text-red-500',    bg: 'bg-red-50',    border: 'border-red-100'    }
@@ -82,9 +84,7 @@ export default function MonitorPage() {
   if (loading) return (
     <div className="max-w-2xl mx-auto space-y-3">
       <h1 className="text-xl font-semibold mb-6">Review monitoring</h1>
-      {[1, 2].map(i => (
-        <div key={i} className="bg-white rounded-2xl border border-neutral-200 p-5 animate-pulse h-20" />
-      ))}
+      {[1, 2, 3].map(i => <MonitorCardSkeleton key={i} />)}
     </div>
   )
 
@@ -127,16 +127,13 @@ export default function MonitorPage() {
           </a>
         </div>
       ) : monitored.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-neutral-200 p-10 text-center">
-          <svg className="mx-auto mb-3 text-neutral-300" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-          </svg>
-          <p className="text-sm text-neutral-400 mb-1">No listings monitored yet</p>
-          <p className="text-xs text-neutral-300 mb-4">Add your first listing to start receiving health alerts</p>
-          <button onClick={() => setShowPicker(true)} className="text-xs text-orange-600 font-medium hover:underline">
-            Add a listing →
-          </button>
-        </div>
+        <EmptyState
+          icon={<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>}
+          title="No listings monitored yet"
+          description="Add your listings here and get alerted the moment your score drops — before it costs you sales."
+          action={{ label: 'Add your first listing', onClick: () => setShowPicker(true) }}
+          tip="Voxrate checks your listings regularly and notifies you of any significant changes."
+        />
       ) : (
         <div className="space-y-3">
           {monitored.map(m => {
@@ -238,7 +235,7 @@ export default function MonitorPage() {
             <div className="mb-4">
               <p className="text-xs font-semibold text-neutral-600 mb-2">Select product</p>
               {ownReports.length === 0 ? (
-                <p className="text-xs text-neutral-400 text-center py-4">No analyzed products yet</p>
+                <p className="text-xs text-neutral-400 text-center py-4">No analyzed products yet — run an analysis first.</p>
               ) : (
                 <div className="space-y-2 max-h-60 overflow-y-auto">
                   {ownReports.map(r => {

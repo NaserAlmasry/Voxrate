@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { Suspense } from 'react'
 import { createClient } from '@/app/lib/supabase/client'
+import EmptyState from '@/app/components/EmptyState'
+import { ComparePageSkeleton } from '@/app/components/Skeleton'
 
 function scoreColor(n: number) {
   if (n <= 37) return { text: 'text-red-500',    hex: '#ef4444', bg: 'bg-red-50',    border: 'border-red-200'    }
@@ -70,6 +72,240 @@ function CompareRow({ label, ownVal, compVal, higher = 'own' }: {
   )
 }
 
+// ── Opportunity Summary ───────────────────────────────────────────────────────
+function OpportunitySummary({ ownScore, compScore, scoreDiff, overallWinner, yourWeaknesses, theirWeaknesses, sharedIssues, ownStrengths, compStrengths, ownReviews, compReviews }: any) {
+  const lines: string[] = []
+
+  // Score context
+  if (overallWinner === 'you') {
+    lines.push(`Your listing scores ${scoreDiff} points higher than this competitor${scoreDiff >= 15 ? ' — a significant lead' : ''}.`)
+  } else if (overallWinner === 'them') {
+    lines.push(`This competitor leads you by ${scoreDiff} points${scoreDiff >= 15 ? ' — a meaningful gap worth closing' : ' — a small gap you can close quickly'}.`)
+  } else {
+    lines.push(`You and this competitor are evenly matched on overall score.`)
+  }
+
+  // Complaint gaps
+  if (theirWeaknesses.length > 0 && yourWeaknesses.length === 0) {
+    lines.push(`You have no unique weaknesses — but they have ${theirWeaknesses.length}. Lead with "${theirWeaknesses[0]?.title}" in your listing to pull their dissatisfied buyers.`)
+  } else if (yourWeaknesses.length > 0 && theirWeaknesses.length === 0) {
+    lines.push(`You have ${yourWeaknesses.length} unique complaint${yourWeaknesses.length > 1 ? 's' : ''} they don't — fixing "${yourWeaknesses[0]?.title}" alone could close the gap.`)
+  } else if (theirWeaknesses.length > 0 && yourWeaknesses.length > 0) {
+    lines.push(`You both have unique issues: fix your "${yourWeaknesses[0]?.title}" problem while promoting that they struggle with "${theirWeaknesses[0]?.title?.toLowerCase()}".`)
+  } else if (sharedIssues.length > 0) {
+    lines.push(`All complaints are shared — whoever fixes "${sharedIssues[0]?.title?.toLowerCase()}" first gains the edge across the whole niche.`)
+  }
+
+  // Strengths gap
+  const missedStrengths = compStrengths.filter((cs: any) =>
+    !ownStrengths.some((os: any) => { const w = (cs.title || '').toLowerCase().split(' ')[0]; return w.length > 2 && (os.title || '').toLowerCase().includes(w) })
+  )
+  if (missedStrengths.length > 0) {
+    lines.push(`Their customers praise "${missedStrengths[0]?.title}" — a quality your listing doesn't highlight yet.`)
+  }
+
+  const bg = overallWinner === 'you' ? 'from-green-50 to-white border-green-200' :
+             overallWinner === 'them' ? 'from-red-50 to-white border-red-100' :
+             'from-blue-50 to-white border-blue-100'
+  const dot = overallWinner === 'you' ? 'bg-green-500' : overallWinner === 'them' ? 'bg-red-500' : 'bg-blue-500'
+
+  return (
+    <div className={`rounded-2xl border bg-gradient-to-br ${bg} p-5`}>
+      <div className="flex items-center gap-2 mb-3">
+        <div className={`w-2 h-2 rounded-full ${dot}`} />
+        <p className="text-xs font-semibold text-neutral-600 uppercase tracking-wide">Strategic summary</p>
+      </div>
+      <ul className="space-y-2">
+        {lines.map((line, i) => (
+          <li key={i} className="flex items-start gap-2 text-sm text-neutral-700 leading-relaxed">
+            <span className="text-neutral-300 mt-0.5 flex-shrink-0">→</span>
+            {line}
+          </li>
+        ))}
+      </ul>
+      <p className="text-[11px] text-neutral-400 mt-3">Based on {ownReviews + compReviews} total reviews analyzed across both listings.</p>
+    </div>
+  )
+}
+
+// ── Strengths You're Missing ──────────────────────────────────────────────────
+function StrengthsYoureMissing({ ownStrengths, compStrengths }: { ownStrengths: any[]; compStrengths: any[] }) {
+  if (compStrengths.length === 0) return null
+
+  const ownTitles = ownStrengths.map((s: any) => (s.title || '').toLowerCase())
+  const missing = compStrengths.filter((cs: any) => {
+    const word = (cs.title || '').toLowerCase().split(' ')[0]
+    return word.length > 2 && !ownTitles.some(t => t.includes(word))
+  })
+
+  if (missing.length === 0) return (
+    <div className="bg-white rounded-2xl border border-green-200 p-5 flex items-center gap-3">
+      <span className="text-green-500 font-bold text-lg">✓</span>
+      <div>
+        <p className="text-sm font-semibold text-neutral-800">You match all their strengths</p>
+        <p className="text-xs text-neutral-400 mt-0.5">Everything their customers praise, yours praise too. No blind spots found.</p>
+      </div>
+    </div>
+  )
+
+  return (
+    <div className="bg-white rounded-2xl border border-neutral-200 p-6">
+      <div className="flex items-center gap-2 mb-1">
+        <div className="w-2 h-2 rounded-full bg-purple-500" />
+        <p className="text-xs font-semibold text-neutral-700 uppercase tracking-wide">
+          Strengths you're missing ({missing.length})
+        </p>
+      </div>
+      <p className="text-xs text-neutral-400 mb-4">Their customers love these qualities — yours don't mention them. Either you have them and aren't promoting them, or you need to add them.</p>
+      <div className="space-y-2">
+        {missing.map((s: any, i: number) => (
+          <div key={i} className="flex items-start gap-3 p-3 bg-purple-50 border border-purple-100 rounded-xl">
+            <span className="text-purple-400 mt-0.5 flex-shrink-0">★</span>
+            <div>
+              <p className="text-sm font-semibold text-neutral-800">{s.title}</p>
+              {s.description && <p className="text-xs text-neutral-500 mt-0.5">{s.description}</p>}
+              <p className="text-[10px] text-purple-700 font-medium mt-1.5 bg-purple-100 rounded px-1.5 py-0.5 inline-block">
+                Add to listing or photos if you already offer this
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── Battle Card ───────────────────────────────────────────────────────────────
+function BattleCard({ ownName, compName, ownScore, compScore, overallWinner, scoreDiff, yourWeaknesses, theirWeaknesses, ownStrengths, compStrengths }: any) {
+  const [copied, setCopied] = useState(false)
+
+  const copyCard = () => {
+    const lines = [
+      `BATTLE CARD — Voxrate`,
+      ``,
+      `YOUR PRODUCT: ${ownName}`,
+      `  Health score: ${ownScore}/100`,
+      `  Strengths: ${ownStrengths.slice(0, 3).map((s: any) => s.title).join(', ') || 'N/A'}`,
+      `  Unique weaknesses: ${yourWeaknesses.length === 0 ? 'None' : yourWeaknesses.slice(0, 3).map((c: any) => c.title).join(', ')}`,
+      ``,
+      `COMPETITOR: ${compName}`,
+      `  Health score: ${compScore}/100`,
+      `  Strengths: ${compStrengths.slice(0, 3).map((s: any) => s.title).join(', ') || 'N/A'}`,
+      `  Unique weaknesses: ${theirWeaknesses.length === 0 ? 'None' : theirWeaknesses.slice(0, 3).map((c: any) => c.title).join(', ')}`,
+      ``,
+      `VERDICT: ${overallWinner === 'you' ? `You lead by ${scoreDiff} points` : overallWinner === 'them' ? `They lead by ${scoreDiff} points` : 'Tied'}`,
+      ``,
+      `TOP ACTIONS:`,
+      ...yourWeaknesses.slice(0, 2).map((c: any) => `  • Fix: "${c.title}"`),
+      ...theirWeaknesses.slice(0, 2).map((c: any) => `  • Promote: Their buyers hate "${c.title?.toLowerCase()}"`),
+    ]
+    navigator.clipboard.writeText(lines.join('\n'))
+      .then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000) })
+      .catch(() => {})
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border-2 border-neutral-900 overflow-hidden">
+      {/* Card header */}
+      <div className="bg-neutral-900 px-5 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f97316" strokeWidth="2.5"><path d="M14.5 10c-.83 0-1.5-.67-1.5-1.5v-5c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5v5c0 .83-.67 1.5-1.5 1.5z"/><path d="M20.5 10H19V8.5c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/><path d="M9.5 14c.83 0 1.5.67 1.5 1.5v5c0 .83-.67 1.5-1.5 1.5S8 21.33 8 20.5v-5c0-.83.67-1.5 1.5-1.5z"/><path d="M3.5 14H5v1.5c0 .83-.67 1.5-1.5 1.5S2 16.33 2 15.5 2.67 14 3.5 14z"/><path d="M14 14.5c0-.83.67-1.5 1.5-1.5h5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5h-5c-.83 0-1.5-.67-1.5-1.5z"/><path d="M15.5 9H17v1.5c0 .83-.67 1.5-1.5 1.5S14 11.33 14 10.5 14.67 9 15.5 9z"/><path d="M10 9.5C10 8.67 9.33 8 8.5 8h-5C2.67 8 2 8.67 2 9.5S2.67 11 3.5 11h5c.83 0 1.5-.67 1.5-1.5z"/><path d="M8.5 15H7v-1.5c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>
+          <p className="text-xs font-bold text-white tracking-wide uppercase">Battle Card</p>
+        </div>
+        <button
+          type="button"
+          onClick={copyCard}
+          className="flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-white transition-colors"
+        >
+          <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          {copied ? 'Copied!' : 'Copy'}
+        </button>
+      </div>
+
+      {/* Two columns */}
+      <div className="grid grid-cols-2 divide-x divide-neutral-100">
+        {/* You */}
+        <div className="p-5">
+          <p className="text-[10px] font-bold text-green-600 uppercase tracking-wide mb-1">You</p>
+          <p className="text-xs font-semibold text-neutral-800 line-clamp-1 mb-3">{ownName}</p>
+          <div className="flex items-baseline gap-1 mb-3">
+            <span className={`text-3xl font-black ${ownScore > compScore ? 'text-green-600' : ownScore < compScore ? 'text-red-500' : 'text-neutral-700'}`}>{ownScore}</span>
+            <span className="text-xs text-neutral-400">/100</span>
+          </div>
+          <div className="space-y-1.5">
+            <p className="text-[10px] font-semibold text-neutral-400 uppercase">Top strengths</p>
+            {ownStrengths.slice(0, 3).length > 0
+              ? ownStrengths.slice(0, 3).map((s: any, i: number) => (
+                  <p key={i} className="text-xs text-neutral-600 flex items-center gap-1.5">
+                    <span className="text-green-400 flex-shrink-0">✓</span>{s.title}
+                  </p>
+                ))
+              : <p className="text-xs text-neutral-300">No strengths detected</p>
+            }
+          </div>
+          {yourWeaknesses.length > 0 && (
+            <div className="mt-3 space-y-1">
+              <p className="text-[10px] font-semibold text-neutral-400 uppercase">Fix urgently</p>
+              {yourWeaknesses.slice(0, 2).map((c: any, i: number) => (
+                <p key={i} className="text-xs text-red-600 flex items-center gap-1.5">
+                  <span className="flex-shrink-0">!</span>{c.title}
+                </p>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Competitor */}
+        <div className="p-5">
+          <p className="text-[10px] font-bold text-orange-600 uppercase tracking-wide mb-1">Competitor</p>
+          <p className="text-xs font-semibold text-neutral-800 line-clamp-1 mb-3">{compName}</p>
+          <div className="flex items-baseline gap-1 mb-3">
+            <span className={`text-3xl font-black ${compScore > ownScore ? 'text-green-600' : compScore < ownScore ? 'text-red-500' : 'text-neutral-700'}`}>{compScore}</span>
+            <span className="text-xs text-neutral-400">/100</span>
+          </div>
+          <div className="space-y-1.5">
+            <p className="text-[10px] font-semibold text-neutral-400 uppercase">Their strengths</p>
+            {compStrengths.slice(0, 3).length > 0
+              ? compStrengths.slice(0, 3).map((s: any, i: number) => (
+                  <p key={i} className="text-xs text-neutral-600 flex items-center gap-1.5">
+                    <span className="text-orange-400 flex-shrink-0">✓</span>{s.title}
+                  </p>
+                ))
+              : <p className="text-xs text-neutral-300">No strengths detected</p>
+            }
+          </div>
+          {theirWeaknesses.length > 0 && (
+            <div className="mt-3 space-y-1">
+              <p className="text-[10px] font-semibold text-neutral-400 uppercase">Their weak spots</p>
+              {theirWeaknesses.slice(0, 2).map((c: any, i: number) => (
+                <p key={i} className="text-xs text-green-700 flex items-center gap-1.5">
+                  <span className="flex-shrink-0">→</span>{c.title}
+                </p>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Verdict footer */}
+      <div className={`px-5 py-3 border-t border-neutral-100 flex items-center justify-between ${
+        overallWinner === 'you' ? 'bg-green-50' : overallWinner === 'them' ? 'bg-red-50' : 'bg-neutral-50'
+      }`}>
+        <p className="text-xs font-semibold text-neutral-700">
+          {overallWinner === 'you'  && `You lead by ${scoreDiff} pts — keep the pressure on`}
+          {overallWinner === 'them' && `Close ${scoreDiff} pts — start with your unique weaknesses`}
+          {overallWinner === 'tied' && `Tied — first to improve wins the buyers`}
+        </p>
+        <span className={`text-lg font-black ${
+          overallWinner === 'you' ? 'text-green-600' : overallWinner === 'them' ? 'text-red-500' : 'text-neutral-400'
+        }`}>
+          {overallWinner === 'you' ? '▲' : overallWinner === 'them' ? '▼' : '='}
+        </span>
+      </div>
+    </div>
+  )
+}
+
 // ── Own-report picker (shown when ?own param is missing) ──────────────────────
 function OwnReportPicker({ competitorId }: { competitorId: string }) {
   const router   = useRouter()
@@ -78,7 +314,7 @@ function OwnReportPicker({ competitorId }: { competitorId: string }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const fetch = async () => {
+    const loadReports = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/'); return }
       const { data } = await supabase
@@ -92,7 +328,7 @@ function OwnReportPicker({ competitorId }: { competitorId: string }) {
       setReports(data || [])
       setLoading(false)
     }
-    fetch()
+    loadReports()
   }, [])
 
   return (
@@ -103,14 +339,20 @@ function OwnReportPicker({ competitorId }: { competitorId: string }) {
         <p className="text-xs text-neutral-400 mt-1">Pick which of your products to stack against this competitor</p>
       </div>
       {loading ? (
-        <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="h-16 bg-neutral-100 rounded-2xl animate-pulse" />)}</div>
+        <div className="space-y-2">{[1,2,3].map(i => (
+          <div key={i} className="bg-white rounded-2xl border border-neutral-200 p-4 animate-pulse flex items-center justify-between gap-4">
+            <div className="flex-1 space-y-2"><div className="h-4 bg-neutral-100 rounded w-2/5"/><div className="h-3 bg-neutral-100 rounded w-1/4"/></div>
+            <div className="h-10 w-12 bg-neutral-100 rounded-xl"/>
+          </div>
+        ))}</div>
       ) : reports.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-neutral-200 p-10 text-center">
-          <p className="text-sm text-neutral-500 mb-3">No product analyses yet</p>
-          <button onClick={() => router.push('/dashboard')} className="text-sm text-orange-600 font-medium hover:underline">
-            Analyze your product first →
-          </button>
-        </div>
+        <EmptyState
+          icon={<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>}
+          title="Nothing to compare yet"
+          description="First analyze your own product, then come back here to see how it stacks up against any competitor."
+          action={{ label: 'Analyze your product', onClick: () => router.push('/dashboard') }}
+          tip="Compare mode reveals exactly where competitors beat you — and where you have the advantage."
+        />
       ) : (
         <div className="space-y-2">
           {reports.map(r => {
@@ -179,14 +421,7 @@ function ComparePage() {
     </div>
   )
 
-  if (loading) return (
-    <div className="max-w-4xl mx-auto py-20 text-center">
-      <svg className="animate-spin w-10 h-10 text-orange-500 mx-auto mb-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
-      </svg>
-      <p className="text-sm text-neutral-500">Building your comparison...</p>
-    </div>
-  )
+  if (loading) return <ComparePageSkeleton />
 
   if (error || !ownReport || !compReport) return (
     <div className="max-w-4xl mx-auto py-20 text-center">
@@ -269,6 +504,21 @@ function ComparePage() {
           </div>
         </div>
       </div>
+
+      {/* ── OPPORTUNITY SUMMARY ── */}
+      <OpportunitySummary
+        ownScore={ownScore}
+        compScore={compScore}
+        scoreDiff={scoreDiff}
+        overallWinner={overallWinner}
+        yourWeaknesses={yourWeaknesses}
+        theirWeaknesses={theirWeaknesses}
+        sharedIssues={sharedIssues}
+        ownStrengths={safeArray(own.fr.strengths)}
+        compStrengths={safeArray(comp.fr.strengths)}
+        ownReviews={ownReport.total_reviews_analyzed || 0}
+        compReviews={compReport.total_reviews_analyzed || 0}
+      />
 
       {/* Column headers */}
       <div className="grid grid-cols-2 gap-4">
@@ -460,6 +710,23 @@ function ComparePage() {
           </div>
         </div>
       )}
+
+      {/* ── STRENGTHS YOU'RE MISSING ── */}
+      <StrengthsYoureMissing ownStrengths={safeArray(own.fr.strengths)} compStrengths={safeArray(comp.fr.strengths)} />
+
+      {/* ── BATTLE CARD ── */}
+      <BattleCard
+        ownName={ownReport.product_name || 'Your product'}
+        compName={compReport.product_name || 'Competitor'}
+        ownScore={ownScore}
+        compScore={compScore}
+        overallWinner={overallWinner}
+        scoreDiff={scoreDiff}
+        yourWeaknesses={yourWeaknesses}
+        theirWeaknesses={theirWeaknesses}
+        ownStrengths={safeArray(own.fr.strengths)}
+        compStrengths={safeArray(comp.fr.strengths)}
+      />
 
       {/* Action plan */}
       <div className="bg-black rounded-2xl p-6">

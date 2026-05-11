@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/app/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import EmptyState from '@/app/components/EmptyState'
+import { CardRowSkeleton } from '@/app/components/Skeleton'
 
 function scoreColor(n: number) {
   if (n <= 37) return { text: 'text-red-500',    bg: 'bg-red-50',    border: 'border-red-100'    }
@@ -153,32 +155,20 @@ export default function LibraryPage() {
   if (loading) return (
     <div className="max-w-3xl mx-auto space-y-3">
       <h1 className="text-xl font-semibold mb-6">Product library</h1>
-      {[1,2,3].map(i => (
-        <div key={i} className="bg-white rounded-2xl border border-neutral-200 p-5 animate-pulse">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex-1">
-              <div className="h-4 bg-neutral-100 rounded w-48 mb-2" />
-              <div className="h-3 bg-neutral-100 rounded w-32" />
-            </div>
-            <div className="h-12 w-16 bg-neutral-100 rounded-xl" />
-          </div>
-        </div>
-      ))}
+      {[1,2,3].map(i => <CardRowSkeleton key={i} />)}
     </div>
   )
 
   if (products.length === 0) return (
     <div className="max-w-3xl mx-auto">
       <h1 className="text-xl font-semibold mb-6">Product library</h1>
-      <div className="bg-white rounded-2xl border border-neutral-200 p-12 text-center">
-        <svg className="mx-auto mb-3 text-neutral-300" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-          <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
-        </svg>
-        <p className="text-sm text-neutral-400 mb-1">No products yet</p>
-        <p className="text-xs text-neutral-300 mb-4">Analyze your first listing to see it here</p>
-        <a href="/dashboard" className="text-xs text-orange-600 font-medium hover:underline">Analyze a product →</a>
-      </div>
+      <EmptyState
+        icon={<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>}
+        title="Your library is empty"
+        description="Once you analyze a product, it will appear here so you can quickly revisit its report anytime."
+        action={{ label: 'Analyze your first product', onClick: () => router.push('/dashboard') }}
+        tip="Your library saves every product you've ever analyzed — no need to re-enter ASINs."
+      />
     </div>
   )
 

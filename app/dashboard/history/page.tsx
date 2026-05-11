@@ -7,6 +7,8 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/app/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import EmptyState from '@/app/components/EmptyState'
+import { CardRowSkeleton } from '@/app/components/Skeleton'
 
 const SIMULATE_USER_KEY = 'voxrate_simulate_user'
 
@@ -108,17 +110,7 @@ export default function HistoryPage() {
       <div className="max-w-3xl mx-auto">
         <h1 className="text-xl font-semibold mb-6">Report history</h1>
         <div className="space-y-3">
-          {[1, 2, 3].map(i => (
-            <div key={i} className="bg-white rounded-2xl border border-neutral-200 p-5 animate-pulse">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1">
-                  <div className="h-4 bg-neutral-100 rounded w-48 mb-2" />
-                  <div className="h-3 bg-neutral-100 rounded w-32" />
-                </div>
-                <div className="h-12 w-16 bg-neutral-100 rounded-xl" />
-              </div>
-            </div>
-          ))}
+          {[1, 2, 3].map(i => <CardRowSkeleton key={i} />)}
         </div>
       </div>
     )
@@ -128,17 +120,13 @@ export default function HistoryPage() {
     return (
       <div className="max-w-3xl mx-auto">
         <h1 className="text-xl font-semibold mb-6">Report history</h1>
-        <div className="bg-white rounded-2xl border border-neutral-200 p-12 text-center">
-          <svg className="mx-auto mb-3 text-neutral-300" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <circle cx="12" cy="12" r="10"/>
-            <polyline points="12 6 12 12 16 14"/>
-          </svg>
-          <p className="text-sm text-neutral-400 mb-1">No reports yet</p>
-          <p className="text-xs text-neutral-300 mb-4">Run your first analysis to see it here</p>
-          <a href="/dashboard" className="text-xs text-orange-600 font-medium hover:underline">
-            Go analyze a product →
-          </a>
-        </div>
+        <EmptyState
+          icon={<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>}
+          title="No analysis history yet"
+          description="Every report you run is saved here so you can track how your listings improve over time."
+          action={{ label: 'Run your first analysis', onClick: () => router.push('/dashboard') }}
+          tip="Re-analyzing the same product after making changes lets you see your score improvement."
+        />
       </div>
     )
   }
