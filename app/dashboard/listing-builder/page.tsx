@@ -22,7 +22,7 @@ function ValidationError({ message }: { message: string }) {
             <p className="font-semibold text-neutral-800 mb-1.5">Why is this being blocked?</p>
             <p className="mb-2">Our system checks that the product description you enter is meaningful — it looks for real words and enough detail to generate a useful listing. This prevents the AI from producing irrelevant or low-quality results.</p>
             <p className="mb-3">Common reasons: the text is too short, contains random characters, or doesn&apos;t describe a real product.</p>
-            <p className="text-neutral-400">If you believe this is a mistake, <a href="mailto:support@voxrate.co" className="text-black underline font-medium">contact us</a> and we&apos;ll look into it.</p>
+            <p className="text-neutral-400">If you believe this is a mistake, <a href="mailto:info@voxrate.app" className="text-black underline font-medium">contact us</a> and we&apos;ll look into it.</p>
           </div>
         )}
       </div>
