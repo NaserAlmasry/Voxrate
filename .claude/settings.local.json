@@ -27,7 +27,8 @@
       "Bash(xargs grep -l \"rating\\\\|feedback\\\\|nps\" -i)",
       "Bash(findstr /R \"grade|score|rating|review\" \"C:\\\\Users\\\\Naser\\\\voxrate\\\\app\\\\page.tsx\")",
       "Bash(Get-ChildItem C:\\\\Users\\\\Naser\\\\voxrate\\\\app -Recurse -Name)",
-      "Bash(Get-ChildItem \"C:\\\\Users\\\\Naser\\\\voxrate\\\\app\" -Recurse -Filter \"*.tsx\")"
+      "Bash(Get-ChildItem \"C:\\\\Users\\\\Naser\\\\voxrate\\\\app\" -Recurse -Filter \"*.tsx\")",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\Naser\\\\voxrate\" -Recurse -File -ErrorAction SilentlyContinue | Where-Object {$_.Name -match \"\\(auth|session|cookie|token|middleware|config\\)\" -or $_.FullName -match \"\\(auth|session|cookie|token|middleware\\)\" } | Select-Object -ExpandProperty FullName)"
     ]
   }
 }
