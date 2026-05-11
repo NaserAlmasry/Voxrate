@@ -224,16 +224,6 @@ export default function AuthModal({ onClose, initialStep = 'plan', initialAuthMo
           {/* ── STEP 2: Auth ── */}
           {step === 'auth' && (
             <>
-              {/* Signup / Login tabs */}
-              <div className="flex gap-1 bg-neutral-100 p-1 rounded-xl mb-5">
-                {(['signup', 'login'] as const).map(m => (
-                  <button key={m} onClick={() => { setAuthMode(m); setError('') }}
-                    className={`flex-1 py-1.5 text-xs font-medium rounded-lg transition-all ${authMode === m ? 'bg-white shadow-sm text-black' : 'text-neutral-500 hover:text-black'}`}>
-                    {m === 'signup' ? 'Create account' : 'Sign in'}
-                  </button>
-                ))}
-              </div>
-
               {/* Google */}
               <button onClick={handleGoogle}
                 className="w-full flex items-center justify-center gap-3 py-3 border-2 border-neutral-200 rounded-xl text-sm font-medium hover:border-black transition-all mb-4">
@@ -269,6 +259,34 @@ export default function AuthModal({ onClose, initialStep = 'plan', initialAuthMo
                   {loading ? 'Please wait…' : authMode === 'signup' ? 'Create account →' : 'Sign in →'}
                 </button>
               </div>
+
+              {/* Login-only: link to plans */}
+              {authMode === 'login' && !selection && (
+                <p className="text-center text-xs text-neutral-400 mt-4">
+                  Don&apos;t have an account?{' '}
+                  <button
+                    type="button"
+                    onClick={() => { onClose(); setTimeout(() => document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' }), 100) }}
+                    className="font-medium text-black hover:underline"
+                  >
+                    See plans →
+                  </button>
+                </p>
+              )}
+
+              {/* Signup: link back to plans */}
+              {authMode === 'signup' && selection && (
+                <p className="text-center text-xs text-neutral-400 mt-4">
+                  Already have an account?{' '}
+                  <button
+                    type="button"
+                    onClick={() => { setAuthMode('login'); setError('') }}
+                    className="font-medium text-black hover:underline"
+                  >
+                    Sign in
+                  </button>
+                </p>
+              )}
             </>
           )}
         </div>

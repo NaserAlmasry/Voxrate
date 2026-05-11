@@ -28,10 +28,29 @@ function ScoreBar({ score, max = 100 }: { score: number; max?: number }) {
   )
 }
 
+const RESOLVED_KEY = 'voxrate_resolved_items'
+
+function useResolvedItems() {
+  const [resolved, setResolved] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem(RESOLVED_KEY) || '[]')) } catch { return new Set() }
+  })
+  const toggle = (key: string) => {
+    setResolved(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      try { localStorage.setItem(RESOLVED_KEY, JSON.stringify([...next])) } catch {}
+      return next
+    })
+  }
+  return { resolved, toggle }
+}
+
 export default function ShopHealthPage() {
   const [data, setData]     = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError]   = useState('')
+  const { resolved, toggle } = useResolvedItems()
   const router = useRouter()
 
   useEffect(() => {
@@ -117,12 +136,24 @@ export default function ShopHealthPage() {
         <div className="bg-black rounded-2xl p-5">
           <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wide mb-3">Top priorities</p>
           <div className="space-y-2.5">
-            {data.priorities.map((p: string, i: number) => (
-              <div key={i} className="flex items-start gap-3">
-                <span className="w-5 h-5 rounded-full bg-orange-500 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{i + 1}</span>
-                <p className="text-sm text-white leading-snug">{p}</p>
-              </div>
-            ))}
+            {data.priorities.map((p: string, i: number) => {
+              const key = `priority:${p}`
+              const done = resolved.has(key)
+              return (
+                <div key={i} className={`flex items-start gap-3 transition-opacity ${done ? 'opacity-40' : ''}`}>
+                  <span className="w-5 h-5 rounded-full bg-orange-500 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{i + 1}</span>
+                  <p className={`text-sm leading-snug flex-1 ${done ? 'line-through text-neutral-400' : 'text-white'}`}>{p}</p>
+                  <button
+                    type="button"
+                    onClick={() => toggle(key)}
+                    title={done ? 'Mark as unresolved' : 'Mark as resolved'}
+                    className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors ${done ? 'bg-green-500 border-green-500' : 'border-neutral-500 hover:border-green-400'}`}
+                  >
+                    {done && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>}
+                  </button>
+                </div>
+              )
+            })}
           </div>
         </div>
       )}
@@ -174,16 +205,28 @@ export default function ShopHealthPage() {
         <div className="bg-white rounded-2xl border border-neutral-200 p-5">
           <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-3">Recurring complaints across your shop</p>
           <div className="space-y-2.5">
-            {data.topComplaints.map((c: any, i: number) => (
-              <div key={i} className="flex items-center gap-3">
-                <div className="flex-1">
-                  <p className="text-sm text-neutral-700">{c.title}</p>
+            {data.topComplaints.map((c: any, i: number) => {
+              const key = `complaint:${c.title}`
+              const done = resolved.has(key)
+              return (
+                <div key={i} className={`flex items-center gap-3 transition-opacity ${done ? 'opacity-40' : ''}`}>
+                  <div className="flex-1">
+                    <p className={`text-sm ${done ? 'line-through text-neutral-400' : 'text-neutral-700'}`}>{c.title}</p>
+                  </div>
+                  <span className="text-xs text-red-400 font-semibold flex-shrink-0">
+                    {c.count} listing{c.count > 1 ? 's' : ''}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => toggle(key)}
+                    title={done ? 'Mark as unresolved' : 'Mark as resolved'}
+                    className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${done ? 'bg-green-500 border-green-500' : 'border-neutral-300 hover:border-green-400'}`}
+                  >
+                    {done && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>}
+                  </button>
                 </div>
-                <span className="text-xs text-red-400 font-semibold flex-shrink-0">
-                  {c.count} listing{c.count > 1 ? 's' : ''}
-                </span>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}

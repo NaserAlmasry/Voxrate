@@ -122,13 +122,10 @@ export default function OnboardingModal() {
       if (!active || !user) return
       userIdRef.current = user.id
 
-      const [{ data: userData }, { count }] = await Promise.all([
-        supabase.from('users').select('onboarding_done').eq('id', user.id).single(),
-        supabase.from('reports').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
-      ])
+      const { data: userData } = await supabase.from('users').select('onboarding_done').eq('id', user.id).single()
 
       if (!active) return
-      if (userData?.onboarding_done || (count && count > 0)) {
+      if (userData?.onboarding_done) {
         localStorage.setItem(STORAGE_KEY, '1')
         return
       }

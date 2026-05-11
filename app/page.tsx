@@ -449,13 +449,20 @@ export default function LandingPage() {
       try { localStorage.setItem('pendingUrl', url) } catch { return { error: 'Browser storage unavailable. Please enable cookies.' } }
     }
     if (user) { window.location.href = '/dashboard'; return { error: null } }
-    await supabase.auth.signInWithOAuth({ provider: 'google', options: googleOAuthOptions(window.location.origin) })
+    // Not logged in — show auth modal with plan picker so user signs up properly
+    setAuthModalMode({ step: 'plan' })
+    setShowAuthModal(true)
     return { error: null }
   }, [supabase])
 
   const analyzeHero = async () => { const r = await signIn(heroUrl, true); if (r?.error) setHeroUrlError(r.error) }
   const analyzeCta  = async () => { const r = await signIn(ctaUrl,  true); if (r?.error) setCtaUrlError(r.error) }
-  const openCsv = () => document.getElementById('csv-in')?.click()
+  const openCsv = () => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) { setAuthModalMode({ step: 'plan' }); setShowAuthModal(true); return }
+      document.getElementById('csv-in')?.click()
+    })
+  }
 
   const onCsv = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]

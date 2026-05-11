@@ -48,25 +48,11 @@ export default function AdminPage() {
       setAuthorized(true)
 
       // Parallel data fetch
-      const [
-        { data: usersData },
-        { data: ratingsData },
-        { count: totalReports },
-        { count: totalUsers },
-        { count: paidUsers },
-      ] = await Promise.all([
-        supabase.from('users')
-          .select('id, email, plan, credits, analyses_count, created_at, is_admin')
-          .order('created_at', { ascending: false })
-          .limit(100),
-        supabase.from('ratings')
-          .select('id, rating, feedback, source, created_at, user_id')
-          .order('created_at', { ascending: false })
-          .limit(100),
-        supabase.from('reports').select('id', { count: 'exact', head: true }),
-        supabase.from('users').select('id', { count: 'exact', head: true }),
-        supabase.from('users').select('id', { count: 'exact', head: true }).neq('plan', 'free'),
-      ])
+      // Use server-side API to bypass RLS — client queries only return own data
+      const res = await fetch('/api/admin/stats', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      if (!res.ok) { router.push('/dashboard'); return }
+      const json = await res.json()
+      const { users: usersData, ratings: ratingsData, totalReports, totalUsers, paidUsers } = json
 
       const ratingsList = ratingsData || []
       const avgRating   = ratingsList.length

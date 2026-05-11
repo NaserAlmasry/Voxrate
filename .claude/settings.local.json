@@ -8,7 +8,26 @@
       "Bash(git add *)",
       "Bash(git commit *)",
       "Bash(git push *)",
-      "Bash(git rm *)"
+      "Bash(git rm *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\Naser\\\\voxrate\" -Recurse -Filter \"route.ts\")",
+      "Bash(Select-Object FullName)",
+      "Bash(Get-ChildItem app/lib -File)",
+      "Bash(Select-Object Name)",
+      "Bash(higgsfield generate *)",
+      "Bash(runway --version)",
+      "Bash(runwayml --version)",
+      "Bash(pip show *)",
+      "Bash(npm list *)",
+      "Bash(pip list *)",
+      "Bash(pip install *)",
+      "Bash(python *)",
+      "Bash(xargs grep -l \"pricing\\\\|plan\")",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\Naser\\\\voxrate\" -Directory)",
+      "Bash(Get-Content *)",
+      "Bash(xargs grep -l \"rating\\\\|feedback\\\\|nps\" -i)",
+      "Bash(findstr /R \"grade|score|rating|review\" \"C:\\\\Users\\\\Naser\\\\voxrate\\\\app\\\\page.tsx\")",
+      "Bash(Get-ChildItem C:\\\\Users\\\\Naser\\\\voxrate\\\\app -Recurse -Name)",
+      "Bash(Get-ChildItem \"C:\\\\Users\\\\Naser\\\\voxrate\\\\app\" -Recurse -Filter \"*.tsx\")"
     ]
   }
 }

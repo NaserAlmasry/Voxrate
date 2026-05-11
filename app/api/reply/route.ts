@@ -3,6 +3,7 @@ import Groq from 'groq-sdk'
 import { createClient } from '@/app/lib/supabase/server'
 import { enforceRateLimit } from '@/app/lib/rate-limit'
 import { checkCsrf } from '@/app/lib/csrf'
+import { looksLikeNonsense } from '@/app/lib/text-validation'
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
 
@@ -22,6 +23,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Too many requests. Please wait a moment.' }, { status: 429 })
     }
 
+    const { data: userData } = await supabase.from('users').select('plan, ai_uses').eq('id', user.id).single()
+    const plan    = userData?.plan    || 'free'
+    const aiUses  = userData?.ai_uses ?? 0
+    if (plan === 'free' && aiUses >= 1) {
+      return NextResponse.json({ error: 'Free plan includes 1 AI generation. Upgrade to continue using this feature.', upgrade: true }, { status: 403 })
+    }
+
     const body        = await request.json()
     const reviewText  = typeof body?.review       === 'string' ? body.review.trim().slice(0, 1000)       : ''
     const productName = typeof body?.productName  === 'string' ? body.productName.trim().slice(0, 200)   : 'our product'
@@ -30,6 +38,10 @@ export async function POST(request: NextRequest) {
 
     if (!reviewText) {
       return NextResponse.json({ error: 'Review text is required' }, { status: 400 })
+    }
+
+    if (looksLikeNonsense(reviewText)) {
+      return NextResponse.json({ error: 'The review text doesn\'t look like a real customer review. Please paste an actual review.' }, { status: 400 })
     }
 
     const tone = rating <= 2 ? 'empathetic and professional, focused on making things right' : 'warm and appreciative'
@@ -78,6 +90,8 @@ Return ONLY valid JSON in this exact format:
     if (!parsed?.replies || !Array.isArray(parsed.replies)) {
       return NextResponse.json({ error: 'Failed to generate replies. Please try again.' }, { status: 500 })
     }
+
+    await supabase.from('users').update({ ai_uses: aiUses + 1 }).eq('id', user.id)
 
     return NextResponse.json({ replies: parsed.replies })
 

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 
 const CATEGORIES = [
   'Home Decor', 'Jewelry & Accessories', 'Clothing & Apparel', 'Art & Prints',
@@ -33,12 +34,14 @@ export default function ListingBuilderPage() {
   const [building, setBuilding]   = useState(false)
   const [result, setResult]       = useState<any | null>(null)
   const [error, setError]         = useState('')
+  const [needsUpgrade, setNeedsUpgrade] = useState(false)
   const [selectedTitle, setSelectedTitle] = useState(0)
 
   const build = async () => {
     if (!prompt.trim()) return
     setBuilding(true)
     setError('')
+    setNeedsUpgrade(false)
     setResult(null)
     setSelectedTitle(0)
 
@@ -48,7 +51,10 @@ export default function ListingBuilderPage() {
       body:    JSON.stringify({ prompt, category, materials, price }),
     })
     const data = await res.json()
-    if (!res.ok) { setError(data.error || 'Failed to generate'); setBuilding(false); return }
+    if (!res.ok) {
+      if (data.upgrade) { setNeedsUpgrade(true); setBuilding(false); return }
+      setError(data.error || 'Failed to generate'); setBuilding(false); return
+    }
     setResult(data)
     setBuilding(false)
   }
@@ -106,9 +112,19 @@ export default function ListingBuilderPage() {
           />
         </div>
 
+        {needsUpgrade && (
+          <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 text-center">
+            <p className="text-sm font-semibold text-orange-800 mb-1">Free plan limit reached</p>
+            <p className="text-xs text-orange-600 mb-3">You&apos;ve used your 1 free AI generation. Upgrade to keep going.</p>
+            <Link href="/dashboard/billing" className="inline-block px-4 py-2 bg-orange-500 text-white text-sm font-medium rounded-lg hover:bg-orange-600 transition-colors">
+              Upgrade plan →
+            </Link>
+          </div>
+        )}
+
         <button
           onClick={build}
-          disabled={building || !prompt.trim()}
+          disabled={building || !prompt.trim() || needsUpgrade}
           className="w-full py-3 bg-black text-white text-sm font-medium rounded-xl hover:bg-neutral-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
         >
           {building ? (
