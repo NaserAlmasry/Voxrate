@@ -3,6 +3,33 @@
 import { useState } from 'react'
 import Link from 'next/link'
 
+function ValidationError({ message }: { message: string }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="flex items-start gap-1.5">
+      <p className="text-sm text-red-600 flex-1">{message}</p>
+      <div className="relative flex-shrink-0">
+        <button
+          type="button"
+          onClick={() => setOpen(v => !v)}
+          className="w-4 h-4 rounded-full bg-red-100 text-red-400 text-[10px] font-bold flex items-center justify-center hover:bg-red-200 transition-colors mt-0.5"
+          aria-label="Why is this blocked?"
+        >
+          ?
+        </button>
+        {open && (
+          <div className="absolute right-0 top-6 z-10 w-72 bg-white border border-neutral-200 rounded-xl shadow-lg p-4 text-xs text-neutral-600 leading-relaxed">
+            <p className="font-semibold text-neutral-800 mb-1.5">Why is this being blocked?</p>
+            <p className="mb-2">Our system checks that the product description you enter is meaningful — it looks for real words and enough detail to generate a useful listing. This prevents the AI from producing irrelevant or low-quality results.</p>
+            <p className="mb-3">Common reasons: the text is too short, contains random characters, or doesn&apos;t describe a real product.</p>
+            <p className="text-neutral-400">If you believe this is a mistake, <a href="mailto:support@voxrate.co" className="text-black underline font-medium">contact us</a> and we&apos;ll look into it.</p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 const CATEGORIES = [
   'Home Decor', 'Jewelry & Accessories', 'Clothing & Apparel', 'Art & Prints',
   'Handmade Crafts', 'Candles & Bath', 'Stationery & Paper', 'Toys & Games',
@@ -138,7 +165,11 @@ export default function ListingBuilderPage() {
         </button>
       </div>
 
-      {error && <div className="bg-red-50 border border-red-100 rounded-2xl p-4 text-sm text-red-600">{error}</div>}
+      {error && (
+        <div className="bg-red-50 border border-red-100 rounded-2xl p-4">
+          <ValidationError message={error} />
+        </div>
+      )}
 
       {result && (
         <div className="space-y-4">
