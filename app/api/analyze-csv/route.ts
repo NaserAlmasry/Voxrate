@@ -36,6 +36,7 @@ import {
 } from '@/app/lib/health-score'
 import { enforceRateLimit } from '@/app/lib/rate-limit'
 import { checkCsrf } from '@/app/lib/csrf'
+import { getClientIp } from '@/app/lib/ip'
 import {
   generateDomainAndSeo,
   extractWorstReviews,
@@ -1181,7 +1182,7 @@ export async function POST(request: NextRequest) {
   const csrfError = checkCsrf(request)
   if (csrfError) return csrfError
 
-  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+  const ip = getClientIp(request)
 
   try {
     const supabase = await createClient()

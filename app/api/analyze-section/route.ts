@@ -17,6 +17,7 @@ import { createClient } from '@/app/lib/supabase/server'
 import { applyHardOverrides, validateSemanticConstraints } from '@/app/lib/health-score'
 import { enforceRateLimit, checkRateLimit } from '@/app/lib/rate-limit'
 import { checkCsrf } from '@/app/lib/csrf'
+import { getClientIp } from '@/app/lib/ip'
 
 export const maxDuration = 300
 
@@ -134,7 +135,7 @@ export async function POST(request: NextRequest) {
 
     // Rate limit: separate namespace from /api/analyze so section calls
     // don't share the same 3-req counter as the main analysis call.
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? '0.0.0.0'
+    const ip = getClientIp(request)
     const limit = await checkRateLimit(`section:${user.id}`, 'user')
     if (!limit.allowed) {
       return NextResponse.json({ error: 'Too many requests. Please wait a moment.' }, { status: 429 })

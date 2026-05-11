@@ -9,9 +9,10 @@ import { sendMonitorAlert } from '@/app/lib/email'
 export const maxDuration = 300
 
 export async function GET(request: NextRequest) {
-  // Verify cron secret to prevent public triggering
+  const cronSecret = process.env.CRON_SECRET
+  if (!cronSecret) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const authHeader = request.headers.get('authorization')
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
