@@ -24,7 +24,12 @@ export async function proxy(request: NextRequest) {
   )
 
   // Refreshes session cookies on every request — required for SSR auth
-  await supabase.auth.getUser()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  // Redirect unauthenticated users away from /dashboard
+  if (request.nextUrl.pathname.startsWith('/dashboard') && !user) {
+    return NextResponse.redirect(new URL('/', request.url))
+  }
 
   return supabaseResponse
 }
