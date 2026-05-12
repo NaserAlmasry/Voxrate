@@ -151,32 +151,38 @@ async function fetchReviewsViaEtsyApi(
   return allReviews
 }
 
-// ── scrape.do fetcher ─────────────────────────────────────────
-// scrape.do returns the page HTML directly (no JSON wrapper).
-// render=true  → headless Chrome (JS executed, reviews visible in DOM)
-// render=false → raw server HTML (JSON-LD intact, fast)
+// ── Firecrawl fetcher ─────────────────────────────────────────
+// Firecrawl renders JS pages via headless Chrome and returns clean HTML.
+// Uses FIRECRAWL_API_KEY env var.
 
-async function scrapeDoFetch(url: string, render = true): Promise<string> {
-  const token = process.env.SCRAPEDO_API_KEY
-  if (!token) throw new Error('SCRAPE.DO_API_KEY not set')
+async function firecrawlFetch(url: string): Promise<string> {
+  const apiKey = process.env.FIRECRAWL_API_KEY
+  if (!apiKey) throw new Error('FIRECRAWL_API_KEY not set')
 
-  const apiUrl =
-    `https://api.scrape.do?token=${token}` +
-    `&url=${encodeURIComponent(url)}` +
-    `&render=${render}` +
-    `&super=true&geoCode=us` +
-    (render ? '&waitFor=3000&scrollToBottom=true' : '')
+  console.log(`[Firecrawl] Fetching: ${url}`)
 
-  console.log(`[ScrapeDo] Fetching (render=${render}): ${url}`)
-
-  const response = await fetch(apiUrl, {
+  const response = await fetch('https://api.firecrawl.dev/v1/scrape', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type':  'application/json',
+    },
+    body: JSON.stringify({
+      url,
+      formats: ['html'],
+      waitFor: 3000,
+      actions: [
+        { type: 'scroll', direction: 'down', amount: 3000 },
+        { type: 'wait', milliseconds: 1500 },
+      ],
+    }),
     signal: AbortSignal.timeout(120_000),
   })
 
   if (!response.ok) {
     const errText = await response.text()
-    console.error(`[ScrapeDo] HTTP ${response.status}: ${errText.slice(0, 200)}`)
-    if ([403, 422, 500].includes(response.status)) {
+    console.error(`[Firecrawl] HTTP ${response.status}: ${errText.slice(0, 200)}`)
+    if ([401, 403, 422, 429, 500].includes(response.status)) {
       throw new Error(
         'Etsy blocked this request. Please try again in 1–2 minutes, or upload a CSV of your reviews instead.',
       )
@@ -184,23 +190,26 @@ async function scrapeDoFetch(url: string, render = true): Promise<string> {
     throw new Error('Scraping failed. Please try again.')
   }
 
-  const html = await response.text()
-  console.log(`[ScrapeDo] Got ${html.length} chars from ${url}`)
+  const json = await response.json()
+  if (!json.success) {
+    console.error(`[Firecrawl] Not successful:`, JSON.stringify(json).slice(0, 200))
+    throw new Error('Scraping failed. Please try again.')
+  }
+
+  const html = json.data?.html || ''
+  console.log(`[Firecrawl] Got ${html.length} chars from ${url}`)
   return html
 }
 
-// First-page scrape: single render=true call. Etsy's server-rendered HTML
-// contains JSON-LD (for review count) AND the JS-hydrated reviews (aria-label
-// stars). One request instead of two — fewer credits, fewer failures.
+// First-page scrape: JS-rendered so both JSON-LD and aria-label reviews are present.
 async function scrapeFirstPage(url: string): Promise<{ renderedHtml: string; rawHtml: string }> {
-  const html = await scrapeDoFetch(url, true)
-  console.log(`[ScrapeDo] First page — ${html.length} chars`)
-  // Pass the same HTML for both so existing parsers work unchanged
+  const html = await firecrawlFetch(url)
+  console.log(`[Firecrawl] First page — ${html.length} chars`)
   return { renderedHtml: html, rawHtml: html }
 }
 
 async function scrapePage(url: string): Promise<string> {
-  return scrapeDoFetch(url, true)
+  return firecrawlFetch(url)
 }
 
 // ── JSON-LD extraction ────────────────────────────────────────
