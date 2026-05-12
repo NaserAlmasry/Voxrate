@@ -157,7 +157,7 @@ async function fetchReviewsViaEtsyApi(
 // Uses DECODO_API_KEY env var (Basic auth token from dashboard).
 // session_id keeps the same IP/cookies across paginated requests.
 
-async function decodoFetch(url: string, sessionId?: string): Promise<string> {
+async function decodoFetch(url: string): Promise<string> {
   const token = process.env.DECODO_API_KEY
   if (!token) throw new Error('DECODO_API_KEY not set')
 
@@ -165,16 +165,15 @@ async function decodoFetch(url: string, sessionId?: string): Promise<string> {
 
   const body: Record<string, any> = {
     url,
-    proxy_pool:       'premium',
-    headless:         'html',
-    geo:              'us',
-    locale:           'en-us',
-    device_type:      'desktop',
-    javascript:       true,
-    javascript_wait:  5000,
-    wait_for:         'networkidle2',
+    proxy_pool:      'premium',
+    headless:        'html',
+    geo:             'us',
+    locale:          'en-us',
+    device_type:     'desktop',
+    javascript:      true,
+    javascript_wait: 5000,
+    wait_for:        'networkidle2',
   }
-  if (sessionId) body.session_id = sessionId
 
   const response = await fetch('https://scraper-api.decodo.com/v2/scrape', {
     method: 'POST',
@@ -205,16 +204,14 @@ async function decodoFetch(url: string, sessionId?: string): Promise<string> {
 }
 
 // First-page scrape: JS-rendered so both JSON-LD and aria-label reviews are present.
-// Returns sessionId so subsequent pages use the same IP/cookies.
-async function scrapeFirstPage(url: string): Promise<{ renderedHtml: string; rawHtml: string; sessionId: string }> {
-  const sessionId = `voxrate_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
-  const html = await decodoFetch(url, sessionId)
-  console.log(`[Decodo] First page — ${html.length} chars (session: ${sessionId})`)
-  return { renderedHtml: html, rawHtml: html, sessionId }
+async function scrapeFirstPage(url: string): Promise<{ renderedHtml: string; rawHtml: string }> {
+  const html = await decodoFetch(url)
+  console.log(`[Decodo] First page — ${html.length} chars`)
+  return { renderedHtml: html, rawHtml: html }
 }
 
-async function scrapePage(url: string, sessionId?: string): Promise<string> {
-  return decodoFetch(url, sessionId)
+async function scrapePage(url: string): Promise<string> {
+  return decodoFetch(url)
 }
 
 // ── JSON-LD extraction ────────────────────────────────────────
@@ -625,7 +622,7 @@ async function scrapeAllReviews(
 
   const firstPage = firstPageResult.status === 'fulfilled'
     ? firstPageResult.value
-    : { renderedHtml: '', rawHtml: '', sessionId: '' }
+    : { renderedHtml: '', rawHtml: '' }
 
   const internalResult = internalReviews.status === 'fulfilled' ? internalReviews.value : null
 
@@ -659,7 +656,7 @@ async function scrapeAllReviews(
   }
 
   // ── First page ────────────────────────────────────────────
-  const { renderedHtml, rawHtml, sessionId } = firstPage
+  const { renderedHtml, rawHtml } = firstPage
 
   ingestHtml(renderedHtml)
   ingestHtml(rawHtml)
@@ -701,7 +698,7 @@ async function scrapeAllReviews(
 
     try {
       const pageUrl = `${productUrl}?reviews_page=${page}`
-      const html    = await scrapePage(pageUrl, sessionId)
+      const html    = await scrapePage(pageUrl)
       const added   = ingestHtml(html)
 
       console.log(`[Scraper] Page ${page}: +${added} reviews (total ${allReviews.length})`)
