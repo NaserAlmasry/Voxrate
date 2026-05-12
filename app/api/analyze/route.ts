@@ -208,17 +208,36 @@ async function decodoFetch(url: string, useJs = false): Promise<string> {
   }
 
   const json = await response.json()
-  const html = json.content || ''
+  const html =
+    json.content ??
+    json.results?.[0]?.content ??
+    json.results?.[0]?.data?.content ??
+    ''
+
+  if (!html) {
+    const keys = Object.keys(json).join(',') || 'none'
+    const resultKeys = json.results?.[0] ? Object.keys(json.results[0]).join(',') : 'none'
+    console.warn(`[Decodo] Empty content. responseKeys=${keys} firstResultKeys=${resultKeys}`)
+  }
+
   console.log(`[Decodo] Got ${html.length} chars from ${url}`)
   return html
 }
 
 // First-page scrape: JS-rendered so both JSON-LD and aria-label reviews are present.
 async function scrapeFirstPage(url: string): Promise<{ renderedHtml: string; rawHtml: string }> {
-  // JS rendering for first page to get product metadata (JSON-LD, title, rating)
-  const renderedHtml = await decodoFetch(url, true)
-  // Raw HTML for review extraction — avoids React rehydration overwriting page 1
-  const rawHtml = await decodoFetch(url, false).catch(() => renderedHtml)
+  // Raw HTML for review extraction — avoids React rehydration overwriting page 1.
+  // JS rendering is best-effort metadata enrichment and should not block raw reviews.
+  const [rawResult, renderedResult] = await Promise.allSettled([
+    decodoFetch(url, false),
+    decodoFetch(url, true),
+  ])
+
+  const rawHtml = rawResult.status === 'fulfilled' ? rawResult.value : ''
+  const renderedHtml = renderedResult.status === 'fulfilled' && renderedResult.value
+    ? renderedResult.value
+    : rawHtml
+
   console.log(`[Decodo] First page — rendered=${renderedHtml.length} raw=${rawHtml.length} chars`)
   return { renderedHtml, rawHtml }
 }
