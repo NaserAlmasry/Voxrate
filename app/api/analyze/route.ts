@@ -157,7 +157,17 @@ async function fetchReviewsViaEtsyApi(
 // Uses DECODO_API_KEY env var (Basic auth token from dashboard).
 // session_id keeps the same IP/cookies across paginated requests.
 
-async function decodoFetch(url: string, useJs = false): Promise<string> {
+async function decodoFetch(
+  url: string,
+  useJs = false,
+  options: {
+    sessionId?: string
+    httpMethod?: 'GET' | 'POST'
+    payload?: string
+    headers?: string[]
+    successfulStatusCodes?: number[]
+  } = {},
+): Promise<string> {
   const token = process.env.DECODO_API_KEY
   if (!token) throw new Error('DECODO_API_KEY not set')
 
@@ -184,6 +194,17 @@ async function decodoFetch(url: string, useJs = false): Promise<string> {
         locale:      'en-us',
         device_type: 'desktop',
       }
+
+  if (options.sessionId) body.session_id = options.sessionId
+  if (options.httpMethod) body.http_method = options.httpMethod
+  if (options.payload) body.payload = Buffer.from(options.payload).toString('base64')
+  if (options.headers?.length) {
+    body.headers = options.headers
+    body.force_headers = true
+  }
+  if (options.successfulStatusCodes?.length) {
+    body.successful_status_codes = options.successfulStatusCodes
+  }
 
   const response = await fetch('https://scraper-api.decodo.com/v2/scrape', {
     method: 'POST',
@@ -231,12 +252,15 @@ async function decodoFetch(url: string, useJs = false): Promise<string> {
 }
 
 // First-page scrape: JS-rendered so both JSON-LD and aria-label reviews are present.
-async function scrapeFirstPage(url: string): Promise<{ renderedHtml: string; rawHtml: string }> {
+async function scrapeFirstPage(
+  url: string,
+  sessionId?: string,
+): Promise<{ renderedHtml: string; rawHtml: string }> {
   // Raw HTML for review extraction — avoids React rehydration overwriting page 1.
   // JS rendering is best-effort metadata enrichment and should not block raw reviews.
   const [rawResult, renderedResult] = await Promise.allSettled([
-    decodoFetch(url, false),
-    decodoFetch(url, true),
+    decodoFetch(url, false, { sessionId }),
+    decodoFetch(url, true, { sessionId }),
   ])
 
   const rawHtml = rawResult.status === 'fulfilled' ? rawResult.value : ''
@@ -248,9 +272,9 @@ async function scrapeFirstPage(url: string): Promise<{ renderedHtml: string; raw
   return { renderedHtml, rawHtml }
 }
 
-async function scrapePage(url: string): Promise<string> {
+async function scrapePage(url: string, sessionId?: string): Promise<string> {
   // Raw HTML for all paginated pages — server-renders the correct page number
-  return decodoFetch(url, false)
+  return decodoFetch(url, false, { sessionId })
 }
 
 // ── JSON-LD extraction ────────────────────────────────────────
@@ -632,6 +656,7 @@ async function fetchReviewsFromDeepDiveApi(
   listingId: string,
   productUrl: string,
   firstPageHtml: string,
+  sessionId?: string,
 ): Promise<Array<{ rating: number; text: string; date: string }> | null> {
   if (!firstPageHtml) {
     console.log('[DeepDiveAPI] No first-page HTML available — skipping')
@@ -690,17 +715,47 @@ async function fetchReviewsFromDeepDiveApi(
       let lastStatus = 0
 
       for (let variant = 0; variant < payloads.length; variant++) {
+        const payload = JSON.stringify(payloads[variant])
+        const decodoHeaders = Object.entries(headers).map(([key, value]) => `${key}: ${value}`)
+
+        try {
+          const content = await decodoFetch(endpoint, false, {
+            sessionId,
+            httpMethod: 'POST',
+            payload,
+            headers: decodoHeaders,
+            successfulStatusCodes: [200, 400, 403],
+          })
+          lastStatus = 200
+          const json = JSON.parse(content)
+          const candidate = json?.output?.deep_dive_reviews
+          if (typeof candidate === 'string' && candidate.length > 0) {
+            reviewHtml = candidate
+            if (variant > 0) {
+              console.log(`[DeepDiveAPI] page=${page} used Decodo payload variant ${variant + 1}`)
+            }
+            break
+          }
+          console.log(`[DeepDiveAPI] page=${page} Decodo variant ${variant + 1} returned no review HTML`)
+        } catch (decodoErr) {
+          console.log(`[DeepDiveAPI] page=${page} Decodo variant ${variant + 1} failed: ${decodoErr}`)
+        }
+
         const res = await fetch(endpoint, {
           method: 'POST',
           headers,
-          body: JSON.stringify(payloads[variant]),
+          body: payload,
           signal: AbortSignal.timeout(25_000),
         })
 
         lastStatus = res.status
-        if (!res.ok) continue
+        const text = await res.text()
+        if (!res.ok) {
+          console.log(`[DeepDiveAPI] page=${page} direct variant ${variant + 1} HTTP ${res.status}: ${text.slice(0, 160)}`)
+          continue
+        }
 
-        const json = await res.json()
+        const json = JSON.parse(text)
         const candidate = json?.output?.deep_dive_reviews
         if (typeof candidate === 'string' && candidate.length > 0) {
           reviewHtml = candidate
@@ -835,9 +890,10 @@ async function scrapeAllReviews(
   // Scrape the first page to get product metadata (rawHtml JSON-LD)
   // and simultaneously attempt Etsy's internal AJAX endpoint for reviews.
   const listingId = extractListingId(productUrl)
+  const decodoSessionId = listingId ? `etsy-${listingId}-${Date.now()}` : undefined
 
   const [firstPageResult, internalReviews] = await Promise.allSettled([
-    scrapeFirstPage(productUrl),
+    scrapeFirstPage(productUrl, decodoSessionId),
     listingId ? fetchReviewsFromInternalApi(listingId) : Promise.resolve(null),
   ])
 
@@ -856,7 +912,7 @@ async function scrapeAllReviews(
 
   const firstPageHtml = firstPage.rawHtml || firstPage.renderedHtml
   const deepDiveReviews = listingId
-    ? await fetchReviewsFromDeepDiveApi(listingId, productUrl, firstPageHtml)
+    ? await fetchReviewsFromDeepDiveApi(listingId, productUrl, firstPageHtml, decodoSessionId)
     : null
 
   if (deepDiveReviews && deepDiveReviews.length > 0) {
@@ -930,7 +986,7 @@ async function scrapeAllReviews(
 
     try {
       const pageUrl = `${productUrl}?reviews_page=${page}`
-      const html    = await scrapePage(pageUrl)
+      const html    = await scrapePage(pageUrl, decodoSessionId)
       const added   = ingestHtml(html)
 
       console.log(`[Scraper] Page ${page}: +${added} reviews (total ${allReviews.length})`)
