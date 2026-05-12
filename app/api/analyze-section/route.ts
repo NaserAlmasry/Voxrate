@@ -60,16 +60,31 @@ function extractJson(content: string): unknown {
 async function callGroq(
   messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
   maxTokens: number,
+  retries = 3,
 ): Promise<string> {
-  const response = await groq.chat.completions.create({
-    model: MODEL,
-    max_tokens: maxTokens,
-    temperature: 0.1,
-    messages,
-  })
-  const usage = response.usage
-  if (usage) console.log(`[Groq] prompt:${usage.prompt_tokens} completion:${usage.completion_tokens} total:${usage.total_tokens}`)
-  return response.choices[0].message.content || ''
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const response = await groq.chat.completions.create({
+        model: MODEL,
+        max_tokens: maxTokens,
+        temperature: 0.1,
+        messages,
+      })
+      const usage = response.usage
+      if (usage) console.log(`[Groq] prompt:${usage.prompt_tokens} completion:${usage.completion_tokens} total:${usage.total_tokens}`)
+      return response.choices[0].message.content || ''
+    } catch (err: any) {
+      const is429 = err?.status === 429 || err?.message?.includes('429') || err?.message?.includes('rate limit')
+      if (is429 && attempt < retries) {
+        const wait = (attempt + 1) * 20_000
+        console.warn(`[Groq] 429 rate limit — waiting ${wait / 1000}s before retry ${attempt + 1}/${retries}`)
+        await new Promise(r => setTimeout(r, wait))
+        continue
+      }
+      throw err
+    }
+  }
+  throw new Error('Groq rate limit exceeded after retries')
 }
 
 const SYSTEM_PROMPT = `You are a review analysis engine. Convert reviewer language into structured JSON. Every word you write must trace back to something a reviewer actually said or described.
