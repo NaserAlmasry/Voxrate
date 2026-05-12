@@ -1,14 +1,18 @@
-// Voxrate scraper microservice — Playwright + stealth + Etsy XHR interception
-const express = require('express')
+// Voxrate scraper — Playwright + Decodo residential proxy
+const express  = require('express')
 const { chromium } = require('playwright')
 
-const app = express()
+const app    = express()
 app.use(express.json())
 
-const PORT   = process.env.PORT || 3001
-const SECRET = process.env.SCRAPER_SECRET || 'dev-secret'
+const PORT          = process.env.PORT || 3001
+const SECRET        = process.env.SCRAPER_SECRET   || 'dev-secret'
+const DECODO_USER   = process.env.DECODO_PROXY_USER // e.g. "user-abc123"
+const DECODO_PASS   = process.env.DECODO_PROXY_PASS // e.g. "password"
+// Decodo residential proxy endpoint
+const PROXY_SERVER  = 'http://gate.decodo.com:10000'
 
-// ─── helpers ────────────────────────────────────────────────────────────────
+// ─── helpers ─────────────────────────────────────────────────────────────────
 
 function extractListingId(url) {
   const m = url.match(/listing\/(\d+)/)
@@ -28,7 +32,8 @@ function collectReviews(obj, found = [], depth = 0) {
       rating: Math.round(rating),
       review: text.replace(/<[^>]*>/g, '').trim(),
       id:     obj.listing_review_id ?? obj.id ?? obj.review_id ?? null,
-      date:   obj.datePublished ?? (obj.create_timestamp ? new Date(obj.create_timestamp * 1000).toISOString().slice(0, 10) : ''),
+      date:   obj.datePublished ?? (obj.create_timestamp
+        ? new Date(obj.create_timestamp * 1000).toISOString().slice(0, 10) : ''),
     })
     return found
   }
@@ -36,49 +41,61 @@ function collectReviews(obj, found = [], depth = 0) {
   return found
 }
 
-// ─── main scrape ─────────────────────────────────────────────────────────────
+// ─── scrape ───────────────────────────────────────────────────────────────────
 
 async function scrapeReviews(listingUrl, maxPages = 30) {
   const listingId = extractListingId(listingUrl)
-  if (!listingId) throw new Error('Could not extract listing ID from URL')
+  if (!listingId) throw new Error('Could not extract listing ID')
 
-  let browser
+  const launchOpts = {
+    headless: true,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-blink-features=AutomationControlled',
+    ],
+  }
+
+  // Use residential proxy if credentials are configured
+  const contextOpts = {
+    userAgent:
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
+      '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    viewport:   { width: 1280, height: 900 },
+    locale:     'en-US',
+    timezoneId: 'America/New_York',
+    extraHTTPHeaders: { 'Accept-Language': 'en-US,en;q=0.9' },
+  }
+
+  if (DECODO_USER && DECODO_PASS) {
+    contextOpts.proxy = {
+      server:   PROXY_SERVER,
+      username: DECODO_USER,
+      password: DECODO_PASS,
+    }
+    console.log('[scraper] Using Decodo residential proxy')
+  } else {
+    console.log('[scraper] No proxy configured — direct connection')
+  }
+
+  const browser = await chromium.launch(launchOpts)
   try {
-    browser = await chromium.launch({
-      headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-blink-features=AutomationControlled',
-        '--disable-infobars',
-        '--window-size=1280,900',
-      ],
-    })
+    const context = await browser.newContext(contextOpts)
 
-    const context = await browser.newContext({
-      userAgent:
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
-        '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-      viewport:    { width: 1280, height: 900 },
-      locale:      'en-US',
-      timezoneId:  'America/New_York',
-      extraHTTPHeaders: { 'Accept-Language': 'en-US,en;q=0.9' },
-    })
-
-    // Hide webdriver flag
+    // Hide automation signals
     await context.addInitScript(() => {
       Object.defineProperty(navigator, 'webdriver', { get: () => false })
-      Object.defineProperty(navigator, 'plugins',   { get: () => [1, 2, 3, 4, 5] })
-      Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] })
+      Object.defineProperty(navigator, 'plugins',   { get: () => [1,2,3,4,5] })
+      Object.defineProperty(navigator, 'languages', { get: () => ['en-US','en'] })
       window.chrome = { runtime: {} }
     })
 
     const allReviews  = []
     const seenIds     = new Set()
-    let reviewApiBase = null  // captured XHR base URL
+    let reviewApiBase = null
 
-    // Intercept ALL JSON responses and fish for reviews + capture review API URL
+    // Intercept all JSON responses from etsy.com
     context.on('response', async (response) => {
       try {
         const url = response.url()
@@ -86,62 +103,55 @@ async function scrapeReviews(listingUrl, maxPages = 30) {
         const ct = response.headers()['content-type'] ?? ''
         if (!ct.includes('json')) return
 
-        const body = await response.text().catch(() => null)
-        if (!body || body.length < 10) return
+        console.log(`[xhr] ${response.status()} ${url.slice(0, 120)}`)
 
-        // Log every JSON endpoint so we can see what Etsy is calling
-        console.log(`[xhr] ${response.status()} ${url.slice(0, 100)}`)
+        const body = await response.text().catch(() => null)
+        if (!body) return
 
         let json
         try { json = JSON.parse(body) } catch { return }
 
-        // Capture the review endpoint URL
         if (!reviewApiBase && (url.includes('review') || url.includes('Review'))) {
           reviewApiBase = url
-          console.log('[intercept] Captured review endpoint:', url)
+          console.log('[intercept] Review endpoint:', url)
         }
 
         const reviews = collectReviews(json)
-        if (reviews.length > 0) {
-          console.log(`[intercept] +${reviews.length} reviews from ${url.slice(0, 80)}`)
-          for (const r of reviews) {
-            const key = r.id ?? r.review.slice(0, 40)
-            if (!seenIds.has(key)) { seenIds.add(key); allReviews.push(r) }
-          }
+        for (const r of reviews) {
+          const key = r.id ?? r.review.slice(0, 40)
+          if (!seenIds.has(key)) { seenIds.add(key); allReviews.push(r) }
         }
+        if (reviews.length) console.log(`[intercept] +${reviews.length} reviews (total ${allReviews.length})`)
       } catch {}
     })
 
     const page = await context.newPage()
+    const res  = await page.goto(listingUrl, { waitUntil: 'domcontentloaded', timeout: 45000 })
+    console.log('[scraper] HTTP status:', res?.status())
 
-    console.log('[scraper] Loading page:', listingUrl)
-    const response = await page.goto(listingUrl, { waitUntil: 'domcontentloaded', timeout: 45000 })
-    console.log('[scraper] Page status:', response?.status())
+    if (res?.status() === 403 || res?.status() === 429) {
+      throw new Error(`Etsy blocked the request (${res.status()}) — proxy may be needed`)
+    }
 
-    // Wait for reviews section to load
     await page.waitForTimeout(4000)
 
-    // Try to scroll to reviews section to trigger lazy loading
-    await page.evaluate(() => {
-      const el = document.querySelector('[data-reviews-section], #reviews, [class*="review"]')
-      if (el) el.scrollIntoView()
-      else window.scrollTo(0, document.body.scrollHeight / 2)
-    })
+    // Scroll to trigger lazy-loaded reviews
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight / 2))
     await page.waitForTimeout(2000)
 
-    console.log(`[scraper] After first page load: ${allReviews.length} reviews captured`)
+    console.log(`[scraper] After page load: ${allReviews.length} reviews`)
 
-    // ── If we captured the review API, paginate directly ────────────────────
+    // ── Paginate via captured XHR endpoint ──────────────────────────────────
     if (reviewApiBase) {
-      const base    = buildBaseReviewUrl(reviewApiBase, listingId)
+      const base    = buildBaseUrl(reviewApiBase, listingId)
       const cookies = await context.cookies('https://www.etsy.com')
       const cookieHeader = cookies.map(c => `${c.name}=${c.value}`).join('; ')
 
-      console.log('[scraper] Paginating via XHR endpoint:', base)
+      console.log('[scraper] Paginating:', base)
 
       for (let p = 2; p <= maxPages; p++) {
         const apiUrl = `${base}&page=${p}`
-        const res = await fetch(apiUrl, {
+        const r = await fetch(apiUrl, {
           headers: {
             'Cookie':           cookieHeader,
             'User-Agent':       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36',
@@ -150,41 +160,38 @@ async function scrapeReviews(listingUrl, maxPages = 30) {
             'Referer':          listingUrl,
             'x-requested-with': 'XMLHttpRequest',
           },
-        }).catch(e => { console.log(`[scraper] fetch error page ${p}:`, e.message); return null })
+        }).catch(() => null)
 
-        if (!res || !res.ok) {
-          console.log(`[scraper] Page ${p} returned ${res?.status ?? 'no response'}, stopping`)
-          break
-        }
+        if (!r?.ok) { console.log(`[scraper] Page ${p}: ${r?.status ?? 'error'}, stopping`); break }
 
-        const json = await res.json().catch(() => null)
+        const json = await r.json().catch(() => null)
         if (!json) break
 
         const reviews = collectReviews(json)
-        if (reviews.length === 0) { console.log(`[scraper] Page ${p}: 0 reviews, stopping`); break }
+        if (!reviews.length) { console.log(`[scraper] Page ${p}: 0 reviews, done`); break }
 
-        for (const r of reviews) {
-          const key = r.id ?? r.review.slice(0, 40)
-          if (!seenIds.has(key)) { seenIds.add(key); allReviews.push(r) }
+        for (const rv of reviews) {
+          const key = rv.id ?? rv.review.slice(0, 40)
+          if (!seenIds.has(key)) { seenIds.add(key); allReviews.push(rv) }
         }
         console.log(`[scraper] Page ${p}: +${reviews.length} (total ${allReviews.length})`)
-        await new Promise(r => setTimeout(r, 300))
+        await new Promise(r => setTimeout(r, 400))
       }
     } else {
-      // ── Fallback: click through review pages in DOM ──────────────────────
-      console.log('[scraper] No XHR endpoint captured — using DOM pagination')
+      // DOM fallback
+      console.log('[scraper] No XHR captured — DOM pagination fallback')
       await domPaginate(page, allReviews, seenIds, maxPages)
     }
 
-    console.log(`[scraper] Final total: ${allReviews.length} reviews`)
+    console.log(`[scraper] Done: ${allReviews.length} total reviews`)
     return allReviews
 
   } finally {
-    if (browser) await browser.close()
+    await browser.close()
   }
 }
 
-function buildBaseReviewUrl(captured, listingId) {
+function buildBaseUrl(captured, listingId) {
   try {
     const u = new URL(captured)
     u.searchParams.delete('page')
@@ -199,28 +206,25 @@ function buildBaseReviewUrl(captured, listingId) {
 
 async function domPaginate(page, allReviews, seenIds, maxPages) {
   for (let p = 2; p <= maxPages; p++) {
-    const domReviews = await page.evaluate(() => {
+    const reviews = await page.evaluate(() => {
       const results = []
-      document.querySelectorAll('[data-review-region], [class*="review-card"], [class*="ReviewCard"]').forEach(card => {
-        const ratingEl = card.querySelector('[aria-label*="star"], [aria-label*="Star"]')
-        const textEl   = card.querySelector('p')
-        if (!ratingEl || !textEl) return
-        const m = (ratingEl.getAttribute('aria-label') ?? '').match(/(\d)/)
-        if (!m) return
-        const text = textEl.innerText?.trim()
-        if (text && text.length > 5) results.push({ rating: parseInt(m[1]), review: text, id: null, date: '' })
+      document.querySelectorAll('[data-review-region], [class*="review-card"]').forEach(card => {
+        const rEl = card.querySelector('[aria-label*="star"], [aria-label*="Star"]')
+        const tEl = card.querySelector('p')
+        if (!rEl || !tEl) return
+        const m = (rEl.getAttribute('aria-label') ?? '').match(/(\d)/)
+        const text = tEl.innerText?.trim()
+        if (m && text?.length > 5) results.push({ rating: parseInt(m[1]), review: text, id: null, date: '' })
       })
       return results
     })
-
-    for (const r of domReviews) {
+    for (const r of reviews) {
       const key = r.review.slice(0, 40)
       if (!seenIds.has(key)) { seenIds.add(key); allReviews.push(r) }
     }
-
-    const nextBtn = page.locator('[data-wt-test-id="pagination-button-next"], a[rel="next"]').first()
-    if (!await nextBtn.isVisible().catch(() => false)) break
-    await nextBtn.click()
+    const next = page.locator('[data-wt-test-id="pagination-button-next"], a[rel="next"]').first()
+    if (!await next.isVisible().catch(() => false)) break
+    await next.click()
     await page.waitForTimeout(2500)
   }
 }
@@ -239,7 +243,7 @@ app.post('/scrape', async (req, res) => {
     const reviews = await scrapeReviews(url, max_pages ?? 30)
     res.json({ reviews, total: reviews.length })
   } catch (err) {
-    console.error('[scrape error]', err)
+    console.error('[error]', err.message)
     res.status(500).json({ error: err.message })
   }
 })
