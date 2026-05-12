@@ -1274,13 +1274,13 @@ export default function LandingPage() {
                 {
                   name: 'Starter', price: 9.99, credits: 720, analyses: '≈ 30 analyses/mo',
                   desc: 'For sellers with a few active listings',
-                  features: ['720 credits every month', 'Credits roll over (unused credits stack)', 'Buy extra credits anytime', 'All analysis features', 'Review monitoring (coming soon)', 'Competitor watchlist'],
+                  features: ['720 credits every month', 'Credits roll over (unused credits stack)', 'Buy extra credits anytime', 'All analysis features', 'Review monitoring & alerts', 'Competitor watchlist'],
                   popular: false, plan: 'starter'
                 },
                 {
                   name: 'Pro', price: 19.99, credits: 2400, analyses: '≈ 100 analyses/mo',
                   desc: 'For serious sellers managing multiple products',
-                  features: ['2,400 credits every month', 'Credits roll over (unused credits stack)', 'Buy extra credits anytime', 'Re-analyze free (no credits)', 'Review monitoring (coming soon)', 'Competitor watchlist + alerts', 'Priority email support'],
+                  features: ['2,400 credits every month', 'Credits roll over (unused credits stack)', 'Buy extra credits anytime', 'Re-analyze free (no credits)', 'Review monitoring & weekly digest', 'Competitor watchlist + alerts', 'Priority email support'],
                   popular: true, plan: 'pro'
                 },
               ].map(sub => (

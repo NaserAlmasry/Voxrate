@@ -10,23 +10,28 @@ const dmSans = DM_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Voxrate - AI Review Analyzer for Sellers",
-  description: "Analyze product reviews with Voxrate. Find buyer complaints, product strengths, SEO gaps, and exact fixes for Etsy listings and online shops.",
+  title: "Voxrate – Etsy Review Analyzer | Find What's Costing You Sales",
+  description: "Paste any Etsy listing URL and get a full AI analysis of your reviews — top complaints, buyer keywords, SEO gaps, and exact fixes. First analysis free.",
   keywords: [
-    "review analyzer",
-    "AI review analysis",
     "Etsy review analyzer",
-    "product review analysis",
-    "customer feedback tool",
-    "seller analytics",
-    "listing optimization",
+    "Etsy listing analyzer",
+    "Etsy seller tools",
+    "Etsy listing optimization",
+    "AI review analysis",
+    "Etsy SEO tool",
+    "Etsy competitor analysis",
+    "review sentiment analysis",
+    "Etsy shop improvement",
+    "product review analyzer",
+    "listing rewriter Etsy",
+    "Etsy shop health score",
   ],
   icons: {
     icon: "/favicon.png",
   },
   openGraph: {
-    title: "Voxrate - AI Review Analyzer for Sellers",
-    description: "Find buyer complaints, product strengths, SEO gaps, and exact fixes from your product reviews.",
+    title: "Voxrate – Etsy Review Analyzer | Find What's Costing You Sales",
+    description: "Paste any Etsy listing URL and get a full AI analysis — complaints, buyer keywords, SEO gaps, and exact fixes. First analysis free.",
     url: "https://voxrate.app",
     siteName: "Voxrate",
     images: [
@@ -42,8 +47,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Voxrate - AI Review Analyzer for Sellers",
-    description: "Find buyer complaints, product strengths, SEO gaps, and exact fixes from your product reviews.",
+    title: "Voxrate – Etsy Review Analyzer | Find What's Costing You Sales",
+    description: "Paste any Etsy listing URL and get a full AI analysis — complaints, buyer keywords, SEO gaps, and exact fixes. First analysis free.",
     images: ["https://voxrate.app/og"],
   },
   metadataBase: new URL("https://voxrate.app"),
