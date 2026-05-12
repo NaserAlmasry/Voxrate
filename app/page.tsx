@@ -622,7 +622,7 @@ export default function LandingPage() {
               Get exact <span className="font-bold underline decoration-orange-400 decoration-2 underline-offset-4">fixes.</span>
             </h1>
           </div>
-          <p className="text-sm text-neutral-500 mb-8 max-w-xl mx-auto">The Etsy review analyzer that turns customer feedback into specific, actionable improvements — in under 60 seconds</p>
+          <p className="text-sm text-neutral-500 mb-8 max-w-xl mx-auto">The Etsy review analyzer that turns customer feedback into specific, actionable improvements</p>
 
           <div className="max-w-2xl mx-auto">
             <div className={`flex flex-col sm:flex-row gap-2 p-2 bg-white rounded-2xl border shadow-sm transition-colors ${heroUrlError ? 'border-red-300' : 'border-neutral-200'}`}>
@@ -682,7 +682,7 @@ export default function LandingPage() {
                 <h2 className="text-3xl md:text-4xl font-bold italic text-neutral-900 pl-6" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
                   1,000 reviews.<br />Decisions in one page.
                 </h2>
-                <p className="text-xs text-neutral-400 mt-2 pl-6 not-italic" style={{ fontFamily: "'DM Sans', sans-serif" }}>— what Voxrate gives you in under 60 seconds</p>
+                <p className="text-xs text-neutral-400 mt-2 pl-6 not-italic" style={{ fontFamily: "'DM Sans', sans-serif" }}>— what Voxrate gives you</p>
               </div>
             </div>
           </div>
@@ -1102,7 +1102,7 @@ export default function LandingPage() {
       <section id="how-it-works" className="py-24 px-6 bg-white border-y border-neutral-200">
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-3xl md:text-4xl font-bold mb-3">How it works</h2>
-          <p className="text-sm text-neutral-600 mb-14">From listing URL to full action plan in under 60 seconds</p>
+          <p className="text-sm text-neutral-600 mb-14">From listing URL to full action plan</p>
 
           <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-0">
             {[
@@ -1571,7 +1571,7 @@ export default function LandingPage() {
       <section className="py-24 px-6 bg-gradient-to-b from-[#FAF9F6] to-orange-50">
         <div className="max-w-3xl mx-auto text-center">
           <h2 className="text-4xl md:text-5xl font-bold mb-3">Stop guessing.<br />Start selling smarter.</h2>
-          <p className="text-neutral-600 text-sm mb-10">See exactly what your buyers love, what they complain about, and how to fix it — in under 60 seconds.</p>
+          <p className="text-neutral-600 text-sm mb-10">See exactly what your buyers love, what they complain about, and how to fix it.</p>
           <div className={`flex flex-col sm:flex-row gap-2 p-2 bg-white rounded-2xl border shadow-sm max-w-xl mx-auto transition-colors ${ctaUrlError ? 'border-red-300' : 'border-neutral-200'}`}>
             <input type="url" value={ctaUrl} onChange={e => { setCtaUrl(e.target.value); setCtaUrlError('') }}
               onKeyDown={e => e.key === 'Enter' && analyzeCta()}

@@ -437,6 +437,12 @@ function DashboardHomeInner() {
             </div>
           )}
 
+          {!loading && (
+            <p className="text-[11px] text-neutral-400 mb-2">
+              Estimated time: <span className="font-medium text-neutral-500">2–4 minutes</span>
+            </p>
+          )}
+
           <div className="flex gap-2">
             <input
               ref={inputRef}

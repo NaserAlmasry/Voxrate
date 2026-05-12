@@ -12,124 +12,153 @@ import OnboardingModal from '@/app/components/OnboardingModal'
 import ErrorBoundary from '@/app/components/ErrorBoundary'
 import { ToastProvider } from '@/app/components/Toast'
 
-const NAV_ITEMS = [
+type NavItem = { label: string; href: string; icon: React.ReactNode }
+type NavGroup = { section?: string; items: NavItem[] }
+
+const NAV_GROUPS: NavGroup[] = [
   {
-    label: 'Analyze',
-    href: '/dashboard',
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-      </svg>
-    ),
+    items: [
+      {
+        label: 'Analyze',
+        href: '/dashboard',
+        icon: (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+        ),
+      },
+    ],
   },
   {
-    label: 'Library',
-    href: '/dashboard/library',
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-        <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
-      </svg>
-    ),
+    section: 'Optimize',
+    items: [
+      {
+        label: 'Rewrite Listing',
+        href: '/dashboard/rewrite',
+        icon: (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+          </svg>
+        ),
+      },
+      {
+        label: 'Build Listing',
+        href: '/dashboard/listing-builder',
+        icon: (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/>
+          </svg>
+        ),
+      },
+      {
+        label: 'Grade Listing',
+        href: '/dashboard/grade',
+        icon: (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+          </svg>
+        ),
+      },
+      {
+        label: 'Reply to Reviews',
+        href: '/dashboard/reply',
+        icon: (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+        ),
+      },
+    ],
   },
   {
-    label: 'Reply',
-    href: '/dashboard/reply',
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-      </svg>
-    ),
+    section: 'Compete',
+    items: [
+      {
+        label: 'Competitor',
+        href: '/dashboard/competitor',
+        icon: (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>
+          </svg>
+        ),
+      },
+      {
+        label: 'Watchlist',
+        href: '/dashboard/watchlist',
+        icon: (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+        ),
+      },
+      {
+        label: 'Monitor',
+        href: '/dashboard/monitor',
+        icon: (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+          </svg>
+        ),
+      },
+    ],
   },
   {
-    label: 'Competitor',
-    href: '/dashboard/competitor',
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>
-      </svg>
-    ),
+    section: 'My Shop',
+    items: [
+      {
+        label: 'Shop Health',
+        href: '/dashboard/shop-health',
+        icon: (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+            <polyline points="9 22 9 12 15 12 15 22"/>
+          </svg>
+        ),
+      },
+      {
+        label: 'Library',
+        href: '/dashboard/library',
+        icon: (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+            <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+          </svg>
+        ),
+      },
+      {
+        label: 'History',
+        href: '/dashboard/history',
+        icon: (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <polyline points="12 6 12 12 16 14"/>
+          </svg>
+        ),
+      },
+    ],
   },
   {
-    label: 'Grade',
-    href: '/dashboard/grade',
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
-      </svg>
-    ),
-  },
-  {
-    label: 'Builder',
-    href: '/dashboard/listing-builder',
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-      </svg>
-    ),
-  },
-  {
-    label: 'Watchlist',
-    href: '/dashboard/watchlist',
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-        <circle cx="12" cy="12" r="3"/>
-      </svg>
-    ),
-  },
-  {
-    label: 'Rewrite',
-    href: '/dashboard/rewrite',
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-      </svg>
-    ),
-  },
-  {
-    label: 'Monitor',
-    href: '/dashboard/monitor',
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-        <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-      </svg>
-    ),
-  },
-  {
-    label: 'Shop',
-    href: '/dashboard/shop-health',
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-        <polyline points="9 22 9 12 15 12 15 22"/>
-      </svg>
-    ),
-  },
-  {
-    label: 'History',
-    href: '/dashboard/history',
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="10"/>
-        <polyline points="12 6 12 12 16 14"/>
-      </svg>
-    ),
-  },
-  {
-    label: 'Settings',
-    href: '/dashboard/settings',
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="3"/>
-        <path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/>
-        <path d="M12 2v2m0 16v2M2 12h2m16 0h2"/>
-      </svg>
-    ),
+    items: [
+      {
+        label: 'Settings',
+        href: '/dashboard/settings',
+        icon: (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/>
+            <path d="M12 2v2m0 16v2M2 12h2m16 0h2"/>
+          </svg>
+        ),
+      },
+    ],
   },
 ]
+
+// Flat list used for breadcrumb lookup
+const NAV_ITEMS = NAV_GROUPS.flatMap(g => g.items)
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false)
@@ -293,33 +322,69 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </button>
         </div>
 
-        <nav className="flex-1 py-4 space-y-1 px-2">
-          {NAV_ITEMS.map(item => {
-            const isActive = pathname === item.href
+        <nav className="flex-1 py-3 px-2 overflow-y-auto">
+          {NAV_GROUPS.map((group, gi) => {
             return (
-              <a
-                key={item.href}
-                href={item.href}
-                onClick={() => setMobileOpen(false)}
-                aria-label={collapsed ? item.label : undefined}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                  isActive
-                    ? 'bg-orange-50 text-orange-600'
-                    : 'text-neutral-600 hover:bg-neutral-100 hover:text-black'
-                }`}
-              >
-                <span className="flex-shrink-0">{item.icon}</span>
-                {!collapsed && <span className="nav-label">{item.label}</span>}
-              </a>
+              <div key={gi} className={gi > 0 ? 'mt-1' : ''}>
+                {/* Section header */}
+                {group.section && !collapsed && (
+                  <p className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-neutral-400 select-none">
+                    {group.section}
+                  </p>
+                )}
+                {group.section && collapsed && <div className="my-2 mx-3 border-t border-neutral-100" />}
+
+                {group.items.map(item => {
+                  const isActive = pathname === item.href
+                  const isAnalyze = item.href === '/dashboard'
+
+                  if (isAnalyze) {
+                    return (
+                      <a
+                        key={item.href}
+                        href={item.href}
+                        onClick={() => setMobileOpen(false)}
+                        aria-label={collapsed ? item.label : undefined}
+                        className={`glow flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all mb-1 ${
+                          isActive
+                            ? 'bg-orange-500 text-white shadow-sm'
+                            : 'bg-orange-50 text-orange-600 hover:bg-orange-500 hover:text-white'
+                        }`}
+                      >
+                        <span className="flex-shrink-0">{item.icon}</span>
+                        {!collapsed && <span className="nav-label">{item.label}</span>}
+                      </a>
+                    )
+                  }
+
+                  return (
+                    <a
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setMobileOpen(false)}
+                      aria-label={collapsed ? item.label : undefined}
+                      className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-colors ${
+                        isActive
+                          ? 'bg-orange-50 text-orange-600'
+                          : 'text-neutral-500 hover:bg-neutral-100 hover:text-black'
+                      }`}
+                    >
+                      <span className="flex-shrink-0">{item.icon}</span>
+                      {!collapsed && <span className="nav-label">{item.label}</span>}
+                    </a>
+                  )
+                })}
+              </div>
             )
           })}
+
           {/* Admin link — only visible to admins */}
           {isAdmin && (
             <a
               href="/dashboard/admin"
               onClick={() => setMobileOpen(false)}
               aria-label={collapsed ? 'Admin' : undefined}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors mt-1 ${
+              className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-colors mt-1 ${
                 pathname === '/dashboard/admin'
                   ? 'bg-red-50 text-red-600'
                   : 'text-red-400 hover:bg-red-50 hover:text-red-600'
