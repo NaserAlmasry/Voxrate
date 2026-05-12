@@ -217,7 +217,13 @@ async function decodoFetch(url: string, useJs = false): Promise<string> {
   if (!html) {
     const keys = Object.keys(json).join(',') || 'none'
     const resultKeys = json.results?.[0] ? Object.keys(json.results[0]).join(',') : 'none'
-    console.warn(`[Decodo] Empty content. responseKeys=${keys} firstResultKeys=${resultKeys}`)
+    const message = typeof json.message === 'string' ? json.message : 'No content returned'
+    console.warn(
+      `[Decodo] Empty content. status=${json.status ?? 'unknown'} ` +
+      `statusCode=${json.status_code ?? 'unknown'} message=${message} ` +
+      `taskId=${json.task_id ?? 'none'} responseKeys=${keys} firstResultKeys=${resultKeys}`,
+    )
+    throw new Error(`Decodo returned no content: ${message}`)
   }
 
   console.log(`[Decodo] Got ${html.length} chars from ${url}`)
