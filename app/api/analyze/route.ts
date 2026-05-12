@@ -258,9 +258,20 @@ async function scrapeFirstPage(
 ): Promise<{ renderedHtml: string; rawHtml: string }> {
   // Raw HTML for review extraction — avoids React rehydration overwriting page 1.
   // JS rendering is best-effort metadata enrichment and should not block raw reviews.
+  if (sessionId) {
+    try {
+      const rawHtml = await decodoFetch(url, false, { sessionId })
+      const renderedHtml = await decodoFetch(url, true, { sessionId }).catch(() => rawHtml)
+      console.log(`[Decodo] First page — rendered=${renderedHtml.length} raw=${rawHtml.length} chars`)
+      return { renderedHtml, rawHtml }
+    } catch (err) {
+      console.warn(`[Decodo] Session first page failed, retrying without session: ${err}`)
+    }
+  }
+
   const [rawResult, renderedResult] = await Promise.allSettled([
-    decodoFetch(url, false, { sessionId }),
-    decodoFetch(url, true, { sessionId }),
+    decodoFetch(url, false),
+    decodoFetch(url, true),
   ])
 
   const rawHtml = rawResult.status === 'fulfilled' ? rawResult.value : ''
@@ -274,7 +285,11 @@ async function scrapeFirstPage(
 
 async function scrapePage(url: string, sessionId?: string): Promise<string> {
   // Raw HTML for all paginated pages — server-renders the correct page number
-  return decodoFetch(url, false, { sessionId })
+  if (!sessionId) return decodoFetch(url, false)
+  return decodoFetch(url, false, { sessionId }).catch((err) => {
+    console.warn(`[Decodo] Session page fetch failed, retrying without session: ${err}`)
+    return decodoFetch(url, false)
+  })
 }
 
 // ── JSON-LD extraction ────────────────────────────────────────
