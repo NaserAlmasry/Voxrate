@@ -11,6 +11,7 @@ const DECODO_USER   = process.env.DECODO_PROXY_USER // e.g. "user-abc123"
 const DECODO_PASS   = process.env.DECODO_PROXY_PASS // e.g. "password"
 // Decodo residential proxy endpoint
 const PROXY_SERVER  = 'http://gate.decodo.com:10000'
+const proxyConfigured = Boolean(DECODO_USER && DECODO_PASS)
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -69,12 +70,12 @@ async function scrapeReviews(listingUrl, maxPages = 30) {
   }
 
   if (DECODO_USER && DECODO_PASS) {
-    contextOpts.proxy = {
+    launchOpts.proxy = {
       server:   PROXY_SERVER,
       username: DECODO_USER,
       password: DECODO_PASS,
     }
-    console.log('[scraper] Using Decodo residential proxy')
+    console.log(`[scraper] Using Decodo residential proxy (${PROXY_SERVER}, user=${DECODO_USER.slice(0, 3)}***)`)
   } else {
     console.log('[scraper] No proxy configured — direct connection')
   }
@@ -248,6 +249,12 @@ async function domPaginate(page, allReviews, seenIds, maxPages) {
 // ─── routes ──────────────────────────────────────────────────────────────────
 
 app.get('/health', (_, res) => res.json({ ok: true }))
+app.get('/debug', (_, res) => res.json({
+  ok: true,
+  proxyConfigured,
+  proxyServer: PROXY_SERVER,
+  proxyUserPrefix: DECODO_USER ? `${DECODO_USER.slice(0, 3)}***` : null,
+}))
 
 app.post('/scrape', async (req, res) => {
   const { url, secret, max_pages } = req.body ?? {}
@@ -260,7 +267,12 @@ app.post('/scrape', async (req, res) => {
     res.json({ reviews, total: reviews.length })
   } catch (err) {
     console.error('[error]', err.message)
-    res.status(500).json({ error: err.message })
+    res.status(500).json({
+      error: err.message,
+      proxyConfigured,
+      proxyServer: PROXY_SERVER,
+      proxyUserPrefix: DECODO_USER ? `${DECODO_USER.slice(0, 3)}***` : null,
+    })
   }
 })
 
