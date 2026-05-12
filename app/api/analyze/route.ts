@@ -528,6 +528,55 @@ async function fetchReviewsFromInternalApi(
   return allReviews
 }
 
+// ── Playwright microservice scraper ──────────────────────────
+// Calls the self-hosted scraper service (scraper/ directory).
+// Set SCRAPER_URL + SCRAPER_SECRET env vars to enable this path.
+// This is the most reliable scraper — real browser + XHR interception.
+
+async function fetchReviewsViaPlaywright(
+  productUrl: string,
+): Promise<Array<{ rating: number; text: string; date: string }> | null> {
+  const scraperUrl = process.env.SCRAPER_URL
+  const secret     = process.env.SCRAPER_SECRET
+  if (!scraperUrl || !secret) return null
+
+  console.log(`[Playwright] Calling scraper service for ${productUrl}`)
+
+  try {
+    const res = await fetch(`${scraperUrl}/scrape`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: productUrl, secret, max_pages: 30 }),
+      signal: AbortSignal.timeout(120_000),
+    })
+
+    if (!res.ok) {
+      const err = await res.text()
+      console.error(`[Playwright] Service error ${res.status}: ${err.slice(0, 200)}`)
+      return null
+    }
+
+    const data = await res.json()
+    const raw: any[] = data.reviews ?? []
+    if (raw.length === 0) {
+      console.log('[Playwright] Service returned 0 reviews')
+      return null
+    }
+
+    const reviews = raw.map((r: any) => ({
+      rating: Math.min(5, Math.max(1, Math.round(r.rating ?? 5))),
+      text: String(r.review ?? r.text ?? '').replace(/<[^>]*>/g, '').trim(),
+      date: r.date ?? '',
+    })).filter(r => r.text.length > 5)
+
+    console.log(`[Playwright] Got ${reviews.length} reviews from service`)
+    return reviews
+  } catch (err) {
+    console.error('[Playwright] Service call failed:', err)
+    return null
+  }
+}
+
 // ── Multi-page scraper ────────────────────────────────────────
 // Pagination fix: switched pages 2+ to raw HTML (no JS rendering).
 // JS rendering caused React to re-hydrate from page 1 state, ignoring
@@ -537,6 +586,15 @@ async function fetchReviewsFromInternalApi(
 async function scrapeAllReviews(
   productUrl: string,
 ): Promise<{ reviews: Array<{ rating: number; text: string; date: string }>; rawHtml: string }> {
+
+  // ── Playwright microservice (if SCRAPER_URL is set) ─────
+  const playwrightReviews = await fetchReviewsViaPlaywright(productUrl)
+  if (playwrightReviews && playwrightReviews.length >= 5) {
+    // Still scrape first page for product metadata (JSON-LD)
+    const firstPage = await scrapeFirstPage(productUrl).catch(() => ({ rawHtml: '' }))
+    console.log(`[Scraper] Playwright path — ${playwrightReviews.length} reviews`)
+    return { reviews: playwrightReviews, rawHtml: firstPage.rawHtml }
+  }
 
   // ── Official Etsy API (if key is present) ────────────────
   if (process.env.ETSY_API_KEY) {
