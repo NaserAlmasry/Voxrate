@@ -598,8 +598,9 @@ export default function LandingPage() {
             <button onClick={() => { setAuthModalMode({ step: 'auth', authMode: 'login' }); setShowAuthModal(true) }}
               className="text-sm text-neutral-600 hover:text-black hidden sm:block transition-colors bg-transparent border-none cursor-pointer p-0">Login</button>
             <button onClick={() => setShowAuthModal(true)}
-              className="glow px-5 py-2.5 text-sm font-medium rounded-full bg-black text-white hover:bg-neutral-800 transition-colors">
+              className="glow px-5 py-2.5 text-sm font-medium rounded-full bg-black text-white hover:bg-neutral-800 transition-colors flex items-center gap-2">
               Start free
+              <span className="hidden sm:inline text-[10px] bg-orange-500 text-white px-1.5 py-0.5 rounded-full font-semibold leading-none">FREE</span>
             </button>
           </div>
         </div>
@@ -612,6 +613,9 @@ export default function LandingPage() {
             <span className="bdot w-1.5 h-1.5 rounded-full bg-orange-500" />
             TURN REVIEWS INTO REVENUE
           </div>
+          <p className="text-base text-neutral-500 mb-4 max-w-lg mx-auto">
+            You're getting reviews. You don't know what they're actually costing you.
+          </p>
           <div className="min-h-[180px] md:min-h-[220px] flex flex-col items-center justify-center mb-6 hero-fade">
             <h1 className="text-4xl md:text-6xl font-bold tracking-normal leading-[1.2]">
               Analyze your reviews.<br />
@@ -628,7 +632,10 @@ export default function LandingPage() {
                 onKeyDown={e => e.key === 'Enter' && analyzeHero()}
                 placeholder="Paste your Etsy product URL..."
                 className="flex-1 px-4 py-3 text-base bg-transparent outline-none placeholder:text-neutral-400" />
-              <button onClick={analyzeHero} className="glow px-6 py-3 bg-black text-white font-medium rounded-xl whitespace-nowrap">Analyze →</button>
+              <button onClick={analyzeHero} className="glow px-6 py-3 bg-black text-white font-medium rounded-xl whitespace-nowrap">
+                <span className="block leading-tight">Analyze →</span>
+                <span className="block text-[10px] text-neutral-400 font-normal leading-tight mt-0.5">First analysis free</span>
+              </button>
             </div>
             {heroUrlError && <p className="text-xs text-red-500 mt-2 text-left px-1">{heroUrlError}</p>}
 
@@ -649,8 +656,13 @@ export default function LandingPage() {
               )}
             </div>
 
-            <div className="mt-6 flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-neutral-600">
-              {['Free to try', 'No credit card required', 'Specific fixes, not guesses'].map(t => (
+            <div className="mt-5 inline-flex items-center gap-2 px-4 py-2 bg-green-50 border border-green-200 rounded-full">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              <span className="text-xs text-green-700 font-medium">First analysis is completely free — no credit card, no commitment</span>
+            </div>
+
+            <div className="mt-4 flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-neutral-500">
+              {['No credit card required', 'Results in under 60 seconds', 'Specific fixes, not guesses'].map(t => (
                 <span key={t} className="flex items-center gap-1.5">
                   <span className="w-1 h-1 rounded-full bg-green-500" />{t}
                 </span>
@@ -1460,6 +1472,20 @@ export default function LandingPage() {
               </div>
             </div>
           </div>
+          <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4 scroll-fade">
+            {[
+              { stat: '71%', label: 'fewer returns', sub: 'after fixing the top complaint' },
+              { stat: '2.7→4.7', label: 'avg star rating', sub: 'within 60 days of fixes' },
+              { stat: '19%', label: 'of buyers affected', sub: 'by the #1 complaint alone' },
+              { stat: '<60s', label: 'to full action plan', sub: 'from paste to fix list' },
+            ].map(({ stat, label, sub }) => (
+              <div key={stat} className="bg-white border border-neutral-200 rounded-2xl p-4 text-center">
+                <p className="text-2xl font-black text-orange-600">{stat}</p>
+                <p className="text-xs font-semibold text-neutral-700 mt-0.5">{label}</p>
+                <p className="text-[10px] text-neutral-400 mt-0.5 leading-snug">{sub}</p>
+              </div>
+            ))}
+          </div>
           <p className="text-xs text-neutral-400 text-center mt-4">Illustrative example based on the demo listing — your results depend on your listing and review volume.</p>
         </div>
       </section>
@@ -1470,6 +1496,7 @@ export default function LandingPage() {
           <div className="text-center mb-12 scroll-fade">
             <p className="text-xs font-semibold text-orange-600 uppercase tracking-widest mb-2">Is this for you?</p>
             <h2 className="text-3xl md:text-4xl font-bold mb-3">Who gets the most out of Voxrate</h2>
+            <p className="text-sm text-neutral-500 max-w-xl mx-auto">Best results come from listings with 20+ reviews — the more reviews, the more precise the patterns.</p>
           </div>
           <div className="grid md:grid-cols-3 gap-5 scroll-fade">
             {[
@@ -1514,6 +1541,24 @@ export default function LandingPage() {
             ))}
           </div>
 
+          <div className="mt-8 bg-neutral-50 border border-neutral-200 rounded-2xl p-5 scroll-fade">
+            <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-3">Not the right fit if...</p>
+            <div className="grid md:grid-cols-3 gap-3">
+              {[
+                "You haven't launched yet and have zero reviews",
+                "You sell on platforms other than Etsy (Shopify, Amazon) — Etsy-specific scraping only",
+                "You're looking for keyword research before buyers find you — use Marmalead or eRank for that",
+              ].map((item, i) => (
+                <div key={i} className="flex items-start gap-2 text-xs text-neutral-500">
+                  <span className="w-4 h-4 rounded-full bg-neutral-200 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#737373" strokeWidth="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </span>
+                  {item}
+                </div>
+              ))}
+            </div>
+          </div>
+
         </div>
       </section>
 
@@ -1541,6 +1586,7 @@ export default function LandingPage() {
             <button onClick={analyzeCta} className="glow px-6 py-3 bg-black text-white font-medium rounded-xl whitespace-nowrap">Analyze →</button>
           </div>
           {ctaUrlError && <p className="text-xs text-red-500 mt-2">{ctaUrlError}</p>}
+          <p className="mt-5 text-xs text-neutral-500">First analysis is free · No credit card · Cancel anytime</p>
         </div>
       </section>
 
