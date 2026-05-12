@@ -157,23 +157,33 @@ async function fetchReviewsViaEtsyApi(
 // Uses DECODO_API_KEY env var (Basic auth token from dashboard).
 // session_id keeps the same IP/cookies across paginated requests.
 
-async function decodoFetch(url: string): Promise<string> {
+async function decodoFetch(url: string, useJs = false): Promise<string> {
   const token = process.env.DECODO_API_KEY
   if (!token) throw new Error('DECODO_API_KEY not set')
 
-  console.log(`[Decodo] Fetching: ${url}`)
+  console.log(`[Decodo] Fetching (js=${useJs}): ${url}`)
 
-  const body: Record<string, any> = {
-    url,
-    proxy_pool:      'premium',
-    headless:        'html',
-    geo:             'us',
-    locale:          'en-us',
-    device_type:     'desktop',
-    javascript:      true,
-    javascript_wait: 5000,
-    wait_for:        'networkidle2',
-  }
+  // Try raw HTML first — cheaper, faster, and avoids React rehydration overwriting
+  // page content. Fall back to JS rendering only for the first page (metadata).
+  const body: Record<string, any> = useJs
+    ? {
+        url,
+        proxy_pool:      'premium',
+        headless:        'html',
+        geo:             'us',
+        locale:          'en-us',
+        device_type:     'desktop',
+        javascript:      true,
+        javascript_wait: 5000,
+        wait_for:        'networkidle2',
+      }
+    : {
+        url,
+        proxy_pool:  'premium',
+        geo:         'us',
+        locale:      'en-us',
+        device_type: 'desktop',
+      }
 
   const response = await fetch('https://scraper-api.decodo.com/v2/scrape', {
     method: 'POST',
@@ -205,13 +215,17 @@ async function decodoFetch(url: string): Promise<string> {
 
 // First-page scrape: JS-rendered so both JSON-LD and aria-label reviews are present.
 async function scrapeFirstPage(url: string): Promise<{ renderedHtml: string; rawHtml: string }> {
-  const html = await decodoFetch(url)
-  console.log(`[Decodo] First page — ${html.length} chars`)
-  return { renderedHtml: html, rawHtml: html }
+  // JS rendering for first page to get product metadata (JSON-LD, title, rating)
+  const renderedHtml = await decodoFetch(url, true)
+  // Raw HTML for review extraction — avoids React rehydration overwriting page 1
+  const rawHtml = await decodoFetch(url, false).catch(() => renderedHtml)
+  console.log(`[Decodo] First page — rendered=${renderedHtml.length} raw=${rawHtml.length} chars`)
+  return { renderedHtml, rawHtml }
 }
 
 async function scrapePage(url: string): Promise<string> {
-  return decodoFetch(url)
+  // Raw HTML for all paginated pages — server-renders the correct page number
+  return decodoFetch(url, false)
 }
 
 // ── JSON-LD extraction ────────────────────────────────────────
