@@ -107,6 +107,9 @@ function DashboardHomeInner() {
   const supabase = createClient()
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const controllerRef = useRef<AbortController | null>(null)
+
+  // Abort any in-flight request on unmount
+  useEffect(() => () => { controllerRef.current?.abort() }, [])
   const [showCancelWarning, setShowCancelWarning] = useState(false)
   const [isCsv, setIsCsv] = useState(false)
   const cancelledRef = useRef(false)

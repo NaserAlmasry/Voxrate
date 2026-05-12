@@ -77,7 +77,12 @@ export async function POST(request: NextRequest) {
           const credits = parseInt(session.metadata?.credits || '0', 10)
           if (credits > 0 && credits <= MAX_PACK_CREDITS) {
             console.log(`[Webhook] Adding ${credits} credits to user ${userId} (pack)`)
-            await supabase.rpc('add_credits', { p_user_id: userId, p_amount: credits })
+            const { error: rpcError } = await supabase.rpc('add_credits', { p_user_id: userId, p_amount: credits })
+            if (rpcError) {
+              console.error(`[Webhook] add_credits RPC failed:`, rpcError.message)
+              await supabase.from('processed_webhook_events').delete().eq('stripe_event_id', event.id)
+              return NextResponse.json({ error: 'Credit update failed' }, { status: 500 })
+            }
             console.log(`[Webhook] ✅ ${credits} credits added`)
           } else if (credits > MAX_PACK_CREDITS) {
             console.error(`[Webhook] Suspicious credit amount ${credits} — rejected`)
@@ -94,14 +99,25 @@ export async function POST(request: NextRequest) {
 
           console.log(`[Webhook] Upgrading user ${userId} to ${plan} + ${credits} credits`)
 
-          await supabase.from('users').update({
+          const { error: updateError } = await supabase.from('users').update({
             plan,
             stripe_customer_id:     session.customer as string,
             stripe_subscription_id: session.subscription as string,
           }).eq('id', userId)
 
+          if (updateError) {
+            console.error(`[Webhook] User plan update failed:`, updateError.message)
+            await supabase.from('processed_webhook_events').delete().eq('stripe_event_id', event.id)
+            return NextResponse.json({ error: 'Plan update failed' }, { status: 500 })
+          }
+
           if (credits > 0 && credits <= MAX_SUB_CREDITS) {
-            await supabase.rpc('add_credits', { p_user_id: userId, p_amount: credits })
+            const { error: rpcError } = await supabase.rpc('add_credits', { p_user_id: userId, p_amount: credits })
+            if (rpcError) {
+              console.error(`[Webhook] add_credits RPC failed on subscription:`, rpcError.message)
+              await supabase.from('processed_webhook_events').delete().eq('stripe_event_id', event.id)
+              return NextResponse.json({ error: 'Credit update failed' }, { status: 500 })
+            }
           } else if (credits > MAX_SUB_CREDITS) {
             console.error(`[Webhook] Suspicious subscription credit amount ${credits} — rejected`)
           }
@@ -129,9 +145,19 @@ export async function POST(request: NextRequest) {
         if (!['starter', 'pro'].includes(plan)) break
 
         console.log(`[Webhook] Monthly renewal for user ${userId} — adding ${credits} credits`)
-        await supabase.from('users').update({ plan }).eq('id', userId)
+        const { error: renewUpdateError } = await supabase.from('users').update({ plan }).eq('id', userId)
+        if (renewUpdateError) {
+          console.error(`[Webhook] Renewal plan update failed:`, renewUpdateError.message)
+          await supabase.from('processed_webhook_events').delete().eq('stripe_event_id', event.id)
+          return NextResponse.json({ error: 'Plan update failed' }, { status: 500 })
+        }
         if (credits > 0 && credits <= 2400) {
-          await supabase.rpc('add_credits', { p_user_id: userId, p_amount: credits })
+          const { error: rpcError } = await supabase.rpc('add_credits', { p_user_id: userId, p_amount: credits })
+          if (rpcError) {
+            console.error(`[Webhook] add_credits RPC failed on renewal:`, rpcError.message)
+            await supabase.from('processed_webhook_events').delete().eq('stripe_event_id', event.id)
+            return NextResponse.json({ error: 'Credit update failed' }, { status: 500 })
+          }
         } else if (credits > 2400) {
           console.error(`[Webhook] Suspicious renewal credit amount ${credits} — rejected`)
         }

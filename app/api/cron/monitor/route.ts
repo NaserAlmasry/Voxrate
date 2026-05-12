@@ -76,22 +76,21 @@ export async function GET(request: NextRequest) {
       const { reportId } = await res.json()
       if (!reportId) continue
 
-      // Wait briefly for report to be written
-      await new Promise(r => setTimeout(r, 3000))
+      // Poll until report is completed (analysis takes 2–4 min)
+      let newReport: any = null
+      for (let attempt = 0; attempt < 30; attempt++) {
+        await new Promise(r => setTimeout(r, 10000))
+        const { data } = await supabase
+          .from('reports')
+          .select('health_score, full_report, status')
+          .eq('id', reportId)
+          .single()
+        if (data?.status === 'completed') { newReport = data; break }
+        if (data?.status === 'failed') break
+      }
 
-      // Fetch the new report
-      const { data: newReport } = await supabase
-        .from('reports')
-        .select('health_score, full_report, status')
-        .eq('id', reportId)
-        .single()
-
-      if (!newReport || newReport.status === 'pending') {
-        // Report not ready — skip alert, update checked time
-        await supabase
-          .from('monitored_listings')
-          .update({ last_checked_at: now.toISOString() })
-          .eq('id', listing.id)
+      if (!newReport) {
+        console.error(`[Cron] Report ${reportId} never completed for ${listing.product_url}`)
         continue
       }
 

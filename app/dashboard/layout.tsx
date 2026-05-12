@@ -191,24 +191,27 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [])
 
   useEffect(() => {
-    if (window.location.search.includes('upgraded=true')) {
-      setShowUpgradeBanner(true)
-      window.history.replaceState({}, '', window.location.pathname)
-      let attempts = 0
-      const poll = setInterval(async () => {
-        attempts++
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) { clearInterval(poll); return }
-        const { data } = await supabase.from('users').select('plan, credits').eq('id', user.id).single()
-        if (data?.plan && data.plan !== 'free') {
-          setPlan(data.plan)
-          if (data?.credits != null) setCredits(data.credits)
-          clearInterval(poll)
-          // Banner stays up 4s after plan confirmed so user sees their actual plan name
-          setTimeout(() => setShowUpgradeBanner(false), 4000)
-        }
-        if (attempts >= 10) { clearInterval(poll); setShowUpgradeBanner(false) }
-      }, 1500)
+    if (!window.location.search.includes('upgraded=true')) return
+    setShowUpgradeBanner(true)
+    window.history.replaceState({}, '', window.location.pathname)
+    let attempts = 0
+    let bannerTimer: ReturnType<typeof setTimeout> | null = null
+    const poll = setInterval(async () => {
+      attempts++
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { clearInterval(poll); return }
+      const { data } = await supabase.from('users').select('plan, credits').eq('id', user.id).single()
+      if (data?.plan && data.plan !== 'free') {
+        setPlan(data.plan)
+        if (data?.credits != null) setCredits(data.credits)
+        clearInterval(poll)
+        bannerTimer = setTimeout(() => setShowUpgradeBanner(false), 4000)
+      }
+      if (attempts >= 10) { clearInterval(poll); setShowUpgradeBanner(false) }
+    }, 1500)
+    return () => {
+      clearInterval(poll)
+      if (bannerTimer) clearTimeout(bannerTimer)
     }
   }, [])
 
