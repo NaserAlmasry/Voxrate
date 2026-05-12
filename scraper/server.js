@@ -10,7 +10,10 @@ const SECRET        = process.env.SCRAPER_SECRET   || 'dev-secret'
 const DECODO_USER   = process.env.DECODO_PROXY_USER // e.g. "user-abc123"
 const DECODO_PASS   = process.env.DECODO_PROXY_PASS // e.g. "password"
 // Decodo residential proxy endpoint. Override when switching protocol/port.
-const PROXY_SERVER  = process.env.DECODO_PROXY_SERVER || 'http://gate.decodo.com:10000'
+const PROXY_SERVER_RAW = process.env.DECODO_PROXY_SERVER || 'http://gate.decodo.com:10000'
+const PROXY_SERVER = PROXY_SERVER_RAW.startsWith('socks5h://')
+  ? PROXY_SERVER_RAW.replace(/^socks5h:\/\//, 'socks5://')
+  : PROXY_SERVER_RAW
 const proxyConfigured = Boolean(DECODO_USER && DECODO_PASS)
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
