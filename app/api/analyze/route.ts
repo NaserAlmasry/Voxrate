@@ -157,16 +157,22 @@ async function fetchReviewsViaEtsyApi(
 // Uses DECODO_API_KEY env var (Basic auth token from dashboard).
 // session_id keeps the same IP/cookies across paginated requests.
 
-async function decodoFetch(url: string, sessionId?: string, headless: 'html' | 'raw' = 'html'): Promise<string> {
+async function decodoFetch(url: string, sessionId?: string): Promise<string> {
   const token = process.env.DECODO_API_KEY
   if (!token) throw new Error('DECODO_API_KEY not set')
 
-  console.log(`[Decodo] Fetching (${headless}): ${url}`)
+  console.log(`[Decodo] Fetching: ${url}`)
 
-  const body: Record<string, string> = {
+  const body: Record<string, any> = {
     url,
-    proxy_pool: 'premium',
-    headless,
+    proxy_pool:       'premium',
+    headless:         'html',
+    geo:              'us',
+    locale:           'en-us',
+    device_type:      'desktop',
+    javascript:       true,
+    javascript_wait:  5000,
+    wait_for:         'networkidle2',
   }
   if (sessionId) body.session_id = sessionId
 
@@ -208,10 +214,7 @@ async function scrapeFirstPage(url: string): Promise<{ renderedHtml: string; raw
 }
 
 async function scrapePage(url: string, sessionId?: string): Promise<string> {
-  // Use raw HTML for pagination pages — JS rendering causes React to re-hydrate
-  // from page 1 state, ignoring the ?reviews_page=N URL param entirely.
-  // Raw HTML gets Etsy's server-rendered content which respects the param.
-  return decodoFetch(url, sessionId, 'raw')
+  return decodoFetch(url, sessionId)
 }
 
 // ── JSON-LD extraction ────────────────────────────────────────
