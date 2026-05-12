@@ -598,9 +598,8 @@ export default function LandingPage() {
             <button onClick={() => { setAuthModalMode({ step: 'auth', authMode: 'login' }); setShowAuthModal(true) }}
               className="text-sm text-neutral-600 hover:text-black hidden sm:block transition-colors bg-transparent border-none cursor-pointer p-0">Login</button>
             <button onClick={() => setShowAuthModal(true)}
-              className="glow px-5 py-2.5 text-sm font-medium rounded-full bg-black text-white hover:bg-neutral-800 transition-colors flex items-center gap-2">
+              className="glow px-5 py-2.5 text-sm font-medium rounded-full bg-black text-white hover:bg-neutral-800 transition-colors">
               Start free
-              <span className="hidden sm:inline text-[10px] bg-orange-500 text-white px-1.5 py-0.5 rounded-full font-semibold leading-none">FREE</span>
             </button>
           </div>
         </div>
