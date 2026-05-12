@@ -21,9 +21,8 @@ export async function POST(request: NextRequest) {
   if (!limit.allowed) return NextResponse.json({ error: 'Too many requests.' }, { status: 429 })
 
   const { data: userData } = await supabase.from('users').select('plan, ai_listing_uses').eq('id', user.id).single()
-  const plan           = userData?.plan             || 'free'
-  const aiListingUses  = userData?.ai_listing_uses  ?? 0
-  if (plan === 'free' && aiListingUses >= 1) {
+  const plan = userData?.plan || 'free'
+  if (plan === 'free' && (userData?.ai_listing_uses ?? 0) >= 1) {
     return NextResponse.json({ error: 'Free plan includes 1 listing generation. Upgrade to continue using this feature.', upgrade: true }, { status: 403 })
   }
 
@@ -87,7 +86,9 @@ Return ONLY valid JSON:
     return NextResponse.json({ error: 'Failed to generate listing. Please try again.' }, { status: 500 })
   }
 
-  await supabase.from('users').update({ ai_listing_uses: aiListingUses + 1 }).eq('id', user.id)
+  if (plan === 'free') {
+    await supabase.rpc('increment_ai_listing_uses', { p_user_id: user.id, p_limit: 1 })
+  }
 
   return NextResponse.json(parsed)
 }

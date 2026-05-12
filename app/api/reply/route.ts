@@ -25,9 +25,8 @@ export async function POST(request: NextRequest) {
     }
 
     const { data: userData } = await supabase.from('users').select('plan, ai_reply_uses').eq('id', user.id).single()
-    const plan        = userData?.plan           || 'free'
-    const aiReplyUses = userData?.ai_reply_uses  ?? 0
-    if (plan === 'free' && aiReplyUses >= 1) {
+    const plan = userData?.plan || 'free'
+    if (plan === 'free' && (userData?.ai_reply_uses ?? 0) >= 1) {
       return NextResponse.json({ error: 'Free plan includes 1 reply generation. Upgrade to continue using this feature.', upgrade: true }, { status: 403 })
     }
 
@@ -93,7 +92,9 @@ Return ONLY valid JSON in this exact format:
       return NextResponse.json({ error: 'Failed to generate replies. Please try again.' }, { status: 500 })
     }
 
-    await supabase.from('users').update({ ai_reply_uses: aiReplyUses + 1 }).eq('id', user.id)
+    if (plan === 'free') {
+      await supabase.rpc('increment_ai_reply_uses', { p_user_id: user.id, p_limit: 1 })
+    }
 
     return NextResponse.json({ replies: parsed.replies })
 
