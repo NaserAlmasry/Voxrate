@@ -162,7 +162,7 @@ export async function sendMonitorAlert({
     </div>
 
     <div style="padding:24px;">
-      <h1 style="font-size:16px;font-weight:700;color:#111;margin:0 0 4px;">${productName}</h1>
+      <h1 style="font-size:16px;font-weight:700;color:#111;margin:0 0 4px;">${h(productName)}</h1>
       <p style="font-size:12px;color:#6b7280;margin:0 0 20px;">Health score ${diffText}</p>
 
       <div style="display:flex;gap:16px;margin-bottom:20px;">

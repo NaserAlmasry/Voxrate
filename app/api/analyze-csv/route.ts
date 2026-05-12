@@ -1015,7 +1015,7 @@ Return ONLY: { "complaints": [ { "title": "...", "severity": "CRITICAL|MEDIUM|LO
   const topStrengthTitle  = strengthsData.strengths?.[0]?.title   || 'product quality'
 
   // [ROUTING-4] Only 3s sleep before 8b Call 4
-  await sleep(SLEEP_AFTER_70B)
+  await sleep(SLEEP_AFTER_8B)
 
   // ── Call 4: SUMMARY — llama-3.1-8b-instant ───────────────
   // [ROUTING-4] Switched to 8b — formats pre-calculated values into JSON.
