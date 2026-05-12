@@ -1,125 +1,107 @@
-'use client'
+import type { Metadata } from 'next'
+import Link from 'next/link'
 
-// ============================================================
-// PRIVACY POLICY — voxrate/app/privacy/page.tsx
-// ============================================================
+export const metadata: Metadata = {
+  title: 'Privacy Policy — Voxrate',
+  description: 'Privacy Policy for Voxrate.',
+}
 
 export default function PrivacyPage() {
   return (
-    <div className="min-h-screen bg-[#FAF9F6]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap');`}</style>
-
-      {/* Navbar */}
-      <nav className="border-b border-neutral-200 bg-white px-6 h-16 flex items-center justify-between">
-        <a href="/">
-  <img src="/logo.png" alt="Voxrate" height={28} style={{ objectFit: 'contain', maxWidth: 130 }} />
-</a>
-        <a href="/privacy" target="_blank" className="hover:text-black transition-colors">Privacy</a>
-      </nav>
-
-      {/* Content */}
+    <div className="min-h-screen bg-white">
       <div className="max-w-3xl mx-auto px-6 py-16">
-        <h1 className="text-3xl font-bold mb-2">Privacy Policy</h1>
-        <p className="text-sm text-neutral-400 mb-10">Last updated: April 21, 2026</p>
-
-        <div className="space-y-8 text-sm text-neutral-700 leading-relaxed">
+        <Link href="/" className="text-sm text-neutral-400 hover:text-black transition-colors mb-10 inline-block">← Back to Voxrate</Link>
+        <h1 className="text-3xl font-bold text-neutral-900 mb-2">Privacy Policy</h1>
+        <p className="text-sm text-neutral-400 mb-12">Last updated: May 12, 2026</p>
+        <div className="space-y-10 text-sm text-neutral-700 leading-relaxed">
 
           <section>
             <h2 className="text-base font-semibold text-neutral-900 mb-3">1. Who We Are</h2>
-            <p>Voxrate ("we", "our", or "us") operates the website voxrate.app and provides an AI-powered review analysis tool for Etsy sellers. If you have any questions about this Privacy Policy, contact us at <a href="mailto:hello@voxrate.app" className="text-orange-600 hover:underline">hello@voxrate.app</a>.</p>
+            <p>Voxrate ("we", "us", "our") is an AI-powered review analysis platform for Etsy sellers. For privacy inquiries, contact us at <a href="mailto:info@voxrate.app" className="underline text-black">info@voxrate.app</a>.</p>
           </section>
 
           <section>
-            <h2 className="text-base font-semibold text-neutral-900 mb-3">2. Information We Collect</h2>
-            <p className="mb-3">We collect the following information when you use Voxrate:</p>
+            <h2 className="text-base font-semibold text-neutral-900 mb-3">2. What Data We Collect</h2>
             <ul className="list-disc pl-5 space-y-2">
-              <li><strong>Account information:</strong> Your name and email address collected via Google OAuth when you sign in.</li>
-              <li><strong>Product URLs:</strong> Etsy product URLs you submit for analysis.</li>
-              <li><strong>Analysis data:</strong> Reports generated from your product reviews, stored in your account history.</li>
-              <li><strong>Usage data:</strong> How you interact with the service (pages visited, features used).</li>
-              <li><strong>Payment information:</strong> Processed securely by Stripe. We do not store your card details.</li>
-              <li><strong>Notes:</strong> Any private notes you add to your reports.</li>
+              <li><span className="font-medium text-neutral-800">Account data:</span> Email address, name, and authentication provider (Google or email/password) when you create an account.</li>
+              <li><span className="font-medium text-neutral-800">Usage data:</span> Etsy listing URLs you analyze, analysis results, credit balance, and subscription status.</li>
+              <li><span className="font-medium text-neutral-800">Payment data:</span> Payment processing is handled entirely by Stripe. We never see or store your card details.</li>
+              <li><span className="font-medium text-neutral-800">Technical data:</span> IP address (for rate limiting), browser type, and pages visited (via Vercel Analytics).</li>
+              <li><span className="font-medium text-neutral-800">Error data:</span> Crash reports and error logs via Sentry, which may include browser and OS information.</li>
             </ul>
           </section>
 
           <section>
-            <h2 className="text-base font-semibold text-neutral-900 mb-3">3. How We Use Your Information</h2>
+            <h2 className="text-base font-semibold text-neutral-900 mb-3">3. How We Use Your Data</h2>
             <ul className="list-disc pl-5 space-y-2">
-              <li>To provide and operate the Voxrate service</li>
-              <li>To generate AI-powered analysis reports from public Etsy review data</li>
-              <li>To process payments via Stripe</li>
-              <li>To send you important service updates and account notifications</li>
-              <li>To improve our product and fix issues</li>
-              <li>To enforce our Terms of Service and prevent abuse</li>
+              <li>To provide and improve the Service</li>
+              <li>To process payments and manage your subscription</li>
+              <li>To send transactional emails (account confirmation, weekly digests, monitoring alerts)</li>
+              <li>To detect and prevent abuse, fraud, and security threats</li>
+              <li>To understand how users interact with the platform (analytics)</li>
             </ul>
+            <p className="mt-3">We do not sell your data to third parties. We do not use your data for advertising.</p>
           </section>
 
           <section>
-            <h2 className="text-base font-semibold text-neutral-900 mb-3">4. Data We Scrape</h2>
-            <p>Voxrate analyzes publicly available product reviews from Etsy. We do not store personal information about individual reviewers. We only process and store the analysis results (patterns, themes, scores) for your account.</p>
+            <h2 className="text-base font-semibold text-neutral-900 mb-3">4. Data Storage and Security</h2>
+            <p>Your data is stored on servers in the <span className="font-medium text-neutral-800">United States (AWS us-east-1)</span> via Supabase. All data is encrypted in transit (TLS 1.3) and at rest (AES-256). We use industry-standard security practices including Row Level Security (RLS) to ensure users can only access their own data.</p>
           </section>
 
           <section>
             <h2 className="text-base font-semibold text-neutral-900 mb-3">5. Third-Party Services</h2>
-            <p className="mb-3">We use the following third-party services:</p>
-            <ul className="list-disc pl-5 space-y-2">
-              <li><strong>Google OAuth:</strong> For authentication. Governed by Google's Privacy Policy.</li>
-              <li><strong>Supabase:</strong> For secure database storage of your account and reports.</li>
-              <li><strong>Stripe:</strong> For payment processing. Governed by Stripe's Privacy Policy.</li>
-              <li><strong>ZenRows:</strong> For web scraping of public Etsy data.</li>
-              <li><strong>Groq / Anthropic:</strong> For AI analysis of review content.</li>
+            <p>We use the following third-party services to operate Voxrate:</p>
+            <ul className="list-disc pl-5 mt-2 space-y-1">
+              <li><span className="font-medium text-neutral-800">Supabase</span> — database, authentication, and file storage</li>
+              <li><span className="font-medium text-neutral-800">Stripe</span> — payment processing</li>
+              <li><span className="font-medium text-neutral-800">Groq / Anthropic</span> — AI analysis (listing content is sent to these services)</li>
+              <li><span className="font-medium text-neutral-800">Vercel</span> — hosting and analytics</li>
+              <li><span className="font-medium text-neutral-800">Sentry</span> — error monitoring</li>
+              <li><span className="font-medium text-neutral-800">Upstash Redis</span> — rate limiting</li>
             </ul>
+            <p className="mt-3">Each service has its own privacy policy. By using Voxrate, you acknowledge that your data may be processed by these services.</p>
           </section>
 
           <section>
-            <h2 className="text-base font-semibold text-neutral-900 mb-3">6. Data Retention</h2>
-            <p>We retain your account data and reports for as long as your account is active. If you delete your account, your data will be removed within 30 days. You can request deletion at any time by contacting <a href="mailto:hello@voxrate.app" className="text-orange-600 hover:underline">hello@voxrate.app</a>.</p>
+            <h2 className="text-base font-semibold text-neutral-900 mb-3">6. Cookies</h2>
+            <p>Voxrate uses cookies solely for authentication (session management via Supabase). We do not use tracking or advertising cookies. You can disable cookies in your browser but this will prevent you from logging in.</p>
           </section>
 
           <section>
-            <h2 className="text-base font-semibold text-neutral-900 mb-3">7. Data Security</h2>
-            <p>We use industry-standard security measures including encrypted connections (HTTPS), row-level security in our database, and secure authentication. However, no method of transmission over the internet is 100% secure.</p>
-          </section>
-
-          <section>
-            <h2 className="text-base font-semibold text-neutral-900 mb-3">8. Your Rights</h2>
-            <p className="mb-3">You have the right to:</p>
-            <ul className="list-disc pl-5 space-y-2">
+            <h2 className="text-base font-semibold text-neutral-900 mb-3">7. Your Rights (GDPR)</h2>
+            <p>If you are located in the European Economic Area, you have the right to:</p>
+            <ul className="list-disc pl-5 mt-2 space-y-1">
               <li>Access the personal data we hold about you</li>
               <li>Request correction of inaccurate data</li>
-              <li>Request deletion of your account and data</li>
-              <li>Export your report data</li>
+              <li>Request deletion of your data ("right to be forgotten")</li>
+              <li>Object to or restrict processing of your data</li>
+              <li>Request a portable copy of your data</li>
             </ul>
-            <p className="mt-3">To exercise these rights, contact us at <a href="mailto:hello@voxrate.app" className="text-orange-600 hover:underline">hello@voxrate.app</a>.</p>
+            <p className="mt-3">To exercise any of these rights, email <a href="mailto:info@voxrate.app" className="underline text-black">info@voxrate.app</a>. We will respond within 30 days. You may also delete your account directly from the Settings page, which removes your data immediately.</p>
           </section>
 
           <section>
-            <h2 className="text-base font-semibold text-neutral-900 mb-3">9. Cookies</h2>
-            <p>We use essential cookies only for authentication and session management. We do not use tracking or advertising cookies.</p>
+            <h2 className="text-base font-semibold text-neutral-900 mb-3">8. Data Retention</h2>
+            <p>We retain your data for as long as your account is active. If you delete your account, your personal data is removed within 30 days. Analysis reports may be retained in anonymized form for product improvement.</p>
           </section>
 
           <section>
-            <h2 className="text-base font-semibold text-neutral-900 mb-3">10. Children's Privacy</h2>
-            <p>Voxrate is not intended for users under the age of 16. We do not knowingly collect data from children.</p>
+            <h2 className="text-base font-semibold text-neutral-900 mb-3">9. Children's Privacy</h2>
+            <p>Voxrate is not intended for use by children under the age of 13. We do not knowingly collect personal data from children. If you believe a child has provided us with personal data, contact us at <a href="mailto:info@voxrate.app" className="underline text-black">info@voxrate.app</a>.</p>
           </section>
 
           <section>
-            <h2 className="text-base font-semibold text-neutral-900 mb-3">11. Changes to This Policy</h2>
-            <p>We may update this Privacy Policy from time to time. We will notify you of significant changes by email or by posting a notice on the site. Continued use of Voxrate after changes means you accept the updated policy.</p>
+            <h2 className="text-base font-semibold text-neutral-900 mb-3">10. Changes to This Policy</h2>
+            <p>We may update this Privacy Policy from time to time. We will notify you of material changes via email or an in-app notice. Continued use of the Service after changes constitutes acceptance.</p>
           </section>
 
           <section>
-            <h2 className="text-base font-semibold text-neutral-900 mb-3">12. Contact</h2>
-            <p>For any privacy-related questions or requests, contact us at: <a href="mailto:hello@voxrate.app" className="text-orange-600 hover:underline">hello@voxrate.app</a></p>
+            <h2 className="text-base font-semibold text-neutral-900 mb-3">11. Contact</h2>
+            <p>For any privacy-related questions or requests, contact us at <a href="mailto:info@voxrate.app" className="underline text-black">info@voxrate.app</a>.</p>
           </section>
 
         </div>
       </div>
-
-      {/* Footer */}
-      <footer className="border-t border-neutral-200 bg-white py-6 px-6 text-center">
-        <p className="text-xs text-neutral-400">© 2026 Voxrate · <a href="/terms" className="hover:text-black transition-colors">Terms of Service</a> · <a href="/privacy" className="hover:text-black transition-colors">Privacy Policy</a></p>
-      </footer>
     </div>
   )
 }

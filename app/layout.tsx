@@ -31,7 +31,7 @@ export const metadata: Metadata = {
     siteName: "Voxrate",
     images: [
       {
-        url: "https://voxrate.app/og-image.png",
+        url: "https://voxrate.app/og",
         width: 1200,
         height: 630,
         alt: "Voxrate – AI Review Analyzer for Etsy Sellers",
@@ -44,7 +44,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Voxrate - AI Review Analyzer for Sellers",
     description: "Find buyer complaints, product strengths, SEO gaps, and exact fixes from your product reviews.",
-    images: ["https://voxrate.app/og-image.png"],
+    images: ["https://voxrate.app/og"],
   },
   metadataBase: new URL("https://voxrate.app"),
   alternates: {
