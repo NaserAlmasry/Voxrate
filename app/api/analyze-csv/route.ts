@@ -44,6 +44,7 @@ import {
 } from '@/app/lib/domain-knowledge'
 import { extractPatterns, buildSmartSample } from '@/app/lib/pattern-extractor'
 import { calculateSeoScore } from '@/app/lib/seo-scorer'
+import { sendReportComplete } from '@/app/lib/email'
 
 export const maxDuration = 180
 
@@ -1291,7 +1292,18 @@ export async function POST(request: NextRequest) {
         last_analyzed_at:       new Date().toISOString(),
       }).eq('id', reportId)
 
-      await supabase.rpc('increment_analyses_count', { user_id: user.id })
+      const { error: countError } = await supabase.rpc('increment_analyses_count', { user_id: user.id })
+      if (countError) console.error('[CSV] increment_analyses_count failed:', countError.message)
+
+      // Fire-and-forget completion email
+      if (user.email) {
+        sendReportComplete({
+          to:          user.email,
+          productName: productInfo.name,
+          healthScore: analysis.healthScore,
+          reportId,
+        }).catch(e => console.error('[CSV] Completion email failed:', e.message))
+      }
 
       return NextResponse.json({
         success:       true,

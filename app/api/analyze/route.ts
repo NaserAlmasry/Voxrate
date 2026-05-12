@@ -54,6 +54,7 @@ import {
 } from '@/app/lib/domain-knowledge'
 import { extractPatterns, buildSmartSample } from '@/app/lib/pattern-extractor'
 import { calculateSeoScore } from '@/app/lib/seo-scorer'
+import { sendReportComplete } from '@/app/lib/email'
 
 export const maxDuration = 300
 
@@ -1323,6 +1324,16 @@ export async function POST(request: NextRequest) {
       await supabase
         .from('usage_logs')
         .insert({ user_id: user.id, report_id: reportId, tokens_used: 0 })
+
+      // Fire-and-forget completion email (skip for cron re-analyses)
+      if (!isReAnalyze && user.email) {
+        sendReportComplete({
+          to:          user.email,
+          productName: product.title,
+          healthScore: analysis.healthScore,
+          reportId,
+        }).catch(e => console.error('[Analyze] Completion email failed:', e.message))
+      }
 
       console.log(`[Pipeline] Complaints ready. Redirecting. Report: ${reportId}`)
 

@@ -104,6 +104,61 @@ export async function sendWeeklyDigest({
   })
 }
 
+export async function sendReportComplete({
+  to,
+  productName,
+  healthScore,
+  reportId,
+}: {
+  to: string
+  productName: string
+  healthScore: number
+  reportId: string
+}) {
+  if (!resend) return
+
+  const SITE_URL  = process.env.NEXT_PUBLIC_SITE_URL || 'https://voxrate.app'
+  const reportUrl = `${SITE_URL}/dashboard/report/${reportId}`
+  const scoreColor = healthScore >= 66 ? '#22c55e' : healthScore >= 38 ? '#f97316' : '#ef4444'
+  const scoreLabel = healthScore >= 66 ? 'Great shape' : healthScore >= 38 ? 'Needs work' : 'Critical issues'
+
+  await resend.emails.send({
+    from:    'Voxrate <reports@voxrate.app>',
+    to,
+    subject: `Your report is ready — ${productName}`,
+    html: `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f9fafb;margin:0;padding:24px;">
+  <div style="max-width:520px;margin:0 auto;background:#fff;border-radius:16px;border:1px solid #e5e7eb;overflow:hidden;">
+    <div style="background:#111;padding:20px 24px;">
+      <span style="font-size:18px;font-weight:900;color:#fff;">Voxrate</span>
+      <span style="display:block;font-size:11px;color:#6b7280;margin-top:2px;">Your analysis is ready</span>
+    </div>
+    <div style="padding:24px;">
+      <h1 style="font-size:16px;font-weight:700;color:#111;margin:0 0 4px;">${h(productName)}</h1>
+      <p style="font-size:12px;color:#6b7280;margin:0 0 24px;">Your review analysis has finished. Here's the summary.</p>
+      <div style="text-align:center;padding:24px;background:#f9fafb;border-radius:12px;border:1px solid #e5e7eb;margin-bottom:20px;">
+        <p style="font-size:11px;color:#9ca3af;margin:0 0 4px;text-transform:uppercase;letter-spacing:0.05em;">Health Score</p>
+        <p style="font-size:52px;font-weight:900;color:${scoreColor};margin:0;line-height:1;">${healthScore}</p>
+        <p style="font-size:11px;color:${scoreColor};margin:4px 0 0;font-weight:600;">${scoreLabel}</p>
+      </div>
+      <a href="${reportUrl}" style="display:block;text-align:center;padding:14px;background:#f97316;color:#fff;text-decoration:none;border-radius:10px;font-size:13px;font-weight:700;">
+        View full report →
+      </a>
+    </div>
+    <div style="padding:16px 24px;border-top:1px solid #f3f4f6;text-align:center;">
+      <p style="font-size:11px;color:#9ca3af;margin:0;">
+        <a href="${SITE_URL}" style="color:#f97316;text-decoration:none;">Voxrate</a> — Etsy review intelligence
+      </p>
+    </div>
+  </div>
+</body>
+</html>`,
+  })
+}
+
 export async function sendMonitorAlert({
   to,
   productName,
