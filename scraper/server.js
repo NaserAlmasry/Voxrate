@@ -95,6 +95,22 @@ async function scrapeReviews(listingUrl, maxPages = 30) {
     const seenIds     = new Set()
     let reviewApiBase = null
 
+    // Save residential proxy bandwidth. Reviews come from document + XHR/JSON.
+    await context.route('**/*', (route) => {
+      const request = route.request()
+      const type = request.resourceType()
+      const url = request.url()
+
+      if (
+        ['image', 'media', 'font', 'stylesheet'].includes(type) ||
+        /google-analytics|googletagmanager|doubleclick|facebook|pinterest|bing\.com|tiktok/i.test(url)
+      ) {
+        return route.abort()
+      }
+
+      return route.continue()
+    })
+
     // Intercept all JSON responses from etsy.com
     context.on('response', async (response) => {
       try {
