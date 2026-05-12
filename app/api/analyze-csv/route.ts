@@ -645,9 +645,15 @@ async function analyzeWithGroq(
   const patterns       = extractPatterns(reviews)
   const sampledReviews = buildSmartSample(reviews, patterns, 200)
 
+  const sanitizeReview = (t: string) =>
+    t.replace(/ignore\s+(previous|all|above|prior)\s+(instructions?|prompts?|context)/gi, '[…]')
+     .replace(/you\s+are\s+(now|a|an)\s+/gi, '[…]')
+     .replace(/system\s*:/gi, '[…]')
+     .replace(/assistant\s*:/gi, '[…]')
+
   const reviewText = sampledReviews
     .map(r =>
-      `[${r.rating}★] ${r.text.slice(0, MAX_REVIEW_CHARS).trimEnd()}` +
+      `[${r.rating}★] ${sanitizeReview(r.text).slice(0, MAX_REVIEW_CHARS).trimEnd()}` +
       (r.text.length > MAX_REVIEW_CHARS ? '…' : ''),
     )
     .join('\n')
@@ -658,15 +664,15 @@ async function analyzeWithGroq(
   const fiveStarReviews = sampledReviews.filter(r => r.rating === 5).slice(0, 10)
 
   const negReviewText = (negativeReviews.length > 0 ? negativeReviews : sampledReviews.slice(0, 20))
-    .map(r => `[${r.rating}★] ${r.text.slice(0, 200).trimEnd()}${r.text.length > 200 ? '…' : ''}`)
+    .map(r => `[${r.rating}★] ${sanitizeReview(r.text).slice(0, 200).trimEnd()}${r.text.length > 200 ? '…' : ''}`)
     .join('\n')
 
   const posReviewText = (positiveReviews.length > 0 ? positiveReviews : sampledReviews.slice(0, 25))
-    .map(r => `[${r.rating}★] ${r.text.slice(0, 200).trimEnd()}${r.text.length > 200 ? '…' : ''}`)
+    .map(r => `[${r.rating}★] ${sanitizeReview(r.text).slice(0, 200).trimEnd()}${r.text.length > 200 ? '…' : ''}`)
     .join('\n')
 
   const fiveStarText = (fiveStarReviews.length > 0 ? fiveStarReviews : positiveReviews.slice(0, 10))
-    .map(r => `[5★] ${r.text.slice(0, 180).trimEnd()}${r.text.length > 180 ? '…' : ''}`)
+    .map(r => `[5★] ${sanitizeReview(r.text).slice(0, 180).trimEnd()}${r.text.length > 180 ? '…' : ''}`)
     .join('\n')
 
   console.log(`[Parallel] Review splits — neg: ${negativeReviews.length}, pos: ${positiveReviews.length}, 5★: ${fiveStarReviews.length}`)

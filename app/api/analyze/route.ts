@@ -657,9 +657,16 @@ async function analyzeWithGroq(
   const patterns       = extractPatterns(reviews)
   const sampledReviews = buildSmartSample(reviews, patterns, 200)
 
+  // Strip any LLM instruction-like patterns from review text before inserting into prompts
+  const sanitizeReview = (t: string) =>
+    t.replace(/ignore\s+(previous|all|above|prior)\s+(instructions?|prompts?|context)/gi, '[…]')
+     .replace(/you\s+are\s+(now|a|an)\s+/gi, '[…]')
+     .replace(/system\s*:/gi, '[…]')
+     .replace(/assistant\s*:/gi, '[…]')
+
   const reviewText = sampledReviews
     .map(r =>
-      `[${r.rating}★] ${r.text.slice(0, 300).trimEnd()}` +
+      `[${r.rating}★] ${sanitizeReview(r.text).slice(0, 300).trimEnd()}` +
       (r.text.length > 300 ? '…' : ''),
     )
     .join('\n')
@@ -675,7 +682,7 @@ async function analyzeWithGroq(
     : sampledReviews.slice(0, 20)
   )
     .map(r =>
-      `[${r.rating}★] ${r.text.slice(0, 200).trimEnd()}` +
+      `[${r.rating}★] ${sanitizeReview(r.text).slice(0, 200).trimEnd()}` +
       (r.text.length > 200 ? '…' : ''),
     )
     .join('\n')
@@ -685,7 +692,7 @@ async function analyzeWithGroq(
     : sampledReviews.slice(0, 25)
   )
     .map(r =>
-      `[${r.rating}★] ${r.text.slice(0, 200).trimEnd()}` +
+      `[${r.rating}★] ${sanitizeReview(r.text).slice(0, 200).trimEnd()}` +
       (r.text.length > 200 ? '…' : ''),
     )
     .join('\n')
@@ -695,7 +702,7 @@ async function analyzeWithGroq(
     : positiveReviews.slice(0, 10)
   )
     .map(r =>
-      `[5★] ${r.text.slice(0, 180).trimEnd()}` +
+      `[5★] ${sanitizeReview(r.text).slice(0, 180).trimEnd()}` +
       (r.text.length > 180 ? '…' : ''),
     )
     .join('\n')
@@ -989,8 +996,11 @@ async function analyzeFreePreview(
   const sampledReviews  = buildSmartSample(reviews, patterns, 60)
   const negativeReviews = sampledReviews.filter(r => r.rating <= 2).slice(0, 18)
   const positiveReviews = sampledReviews.filter(r => r.rating >= 4).slice(0, 12)
+  const sanitizeFree = (t: string) =>
+    t.replace(/ignore\s+(previous|all|above|prior)\s+(instructions?|prompts?|context)/gi, '[…]')
+     .replace(/system\s*:/gi, '[…]').replace(/assistant\s*:/gi, '[…]')
   const reviewText = [...negativeReviews, ...positiveReviews]
-    .map(r => `[${r.rating}★] ${r.text.slice(0, 180).trimEnd()}${r.text.length > 180 ? '…' : ''}`)
+    .map(r => `[${r.rating}★] ${sanitizeFree(r.text).slice(0, 180).trimEnd()}${r.text.length > 180 ? '…' : ''}`)
     .join('\n')
 
   const seoAnalysis = calculateSeoScore(reviews, product.title)
