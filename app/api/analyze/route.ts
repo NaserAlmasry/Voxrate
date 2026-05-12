@@ -151,40 +151,35 @@ async function fetchReviewsViaEtsyApi(
   return allReviews
 }
 
-// ── Firecrawl fetcher ─────────────────────────────────────────
-// Firecrawl renders JS pages via headless Chrome and returns clean HTML.
-// Uses FIRECRAWL_API_KEY env var.
+// ── Decodo fetcher ────────────────────────────────────────────
+// Decodo Web Scraping API — Premium proxies + JS rendering.
+// Uses DECODO_API_KEY env var (Basic auth token from dashboard).
 
-async function firecrawlFetch(url: string): Promise<string> {
-  const apiKey = process.env.FIRECRAWL_API_KEY
-  if (!apiKey) throw new Error('FIRECRAWL_API_KEY not set')
+async function decodoFetch(url: string): Promise<string> {
+  const token = process.env.DECODO_API_KEY
+  if (!token) throw new Error('DECODO_API_KEY not set')
 
-  console.log(`[Firecrawl] Fetching: ${url}`)
+  console.log(`[Decodo] Fetching: ${url}`)
 
-  const response = await fetch('https://api.firecrawl.dev/v1/scrape', {
+  const response = await fetch('https://scraper-api.decodo.com/v2/scrape', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${apiKey}`,
+      'Accept':        'application/json',
+      'Authorization': `Basic ${token}`,
       'Content-Type':  'application/json',
     },
     body: JSON.stringify({
       url,
-      formats: ['rawHtml'],
-      waitFor: 5000,
-      actions: [
-        { type: 'scroll', direction: 'down', amount: 5000 },
-        { type: 'wait', milliseconds: 2000 },
-        { type: 'scroll', direction: 'down', amount: 5000 },
-        { type: 'wait', milliseconds: 1000 },
-      ],
+      proxy_pool: 'premium',
+      headless:   'html',
     }),
     signal: AbortSignal.timeout(120_000),
   })
 
   if (!response.ok) {
     const errText = await response.text()
-    console.error(`[Firecrawl] HTTP ${response.status}: ${errText.slice(0, 200)}`)
-    if ([401, 403, 422, 429, 500].includes(response.status)) {
+    console.error(`[Decodo] HTTP ${response.status}: ${errText.slice(0, 200)}`)
+    if ([401, 403, 422, 429, 500, 502].includes(response.status)) {
       throw new Error(
         'Etsy blocked this request. Please try again in 1–2 minutes, or upload a CSV of your reviews instead.',
       )
@@ -193,25 +188,20 @@ async function firecrawlFetch(url: string): Promise<string> {
   }
 
   const json = await response.json()
-  if (!json.success) {
-    console.error(`[Firecrawl] Not successful:`, JSON.stringify(json).slice(0, 200))
-    throw new Error('Scraping failed. Please try again.')
-  }
-
-  const html = json.data?.rawHtml || json.data?.html || ''
-  console.log(`[Firecrawl] Got ${html.length} chars from ${url}`)
+  const html = json.content || ''
+  console.log(`[Decodo] Got ${html.length} chars from ${url}`)
   return html
 }
 
 // First-page scrape: JS-rendered so both JSON-LD and aria-label reviews are present.
 async function scrapeFirstPage(url: string): Promise<{ renderedHtml: string; rawHtml: string }> {
-  const html = await firecrawlFetch(url)
-  console.log(`[Firecrawl] First page — ${html.length} chars`)
+  const html = await decodoFetch(url)
+  console.log(`[Decodo] First page — ${html.length} chars`)
   return { renderedHtml: html, rawHtml: html }
 }
 
 async function scrapePage(url: string): Promise<string> {
-  return firecrawlFetch(url)
+  return decodoFetch(url)
 }
 
 // ── JSON-LD extraction ────────────────────────────────────────
