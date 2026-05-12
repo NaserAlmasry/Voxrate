@@ -99,6 +99,7 @@ function DashboardHomeInner() {
   const [error, setError] = useState('')
   const [cachedReport, setCachedReport] = useState<{ id: string; productName: string } | null>(null)
   const [analysesCount, setAnalysesCount] = useState(0)
+  const [credits, setCredits] = useState<number | null>(null)
   const [latestReport, setLatestReport] = useState<any>(null)
   const [simulatingUser, setSimulatingUser] = useState(false)
   const [userPlan, setUserPlan] = useState('free')
@@ -167,7 +168,7 @@ function DashboardHomeInner() {
       localStorage.removeItem('pendingUrl')
       setUrl(pendingUrl)
       // Small delay so state settles before triggering
-      setTimeout(() => {
+      const pendingTimer = setTimeout(() => {
         if (!pendingUrl.includes('etsy.com/listing/')) return
         cancelledRef.current = false
         setLoading(true); setError('')
@@ -188,6 +189,7 @@ function DashboardHomeInner() {
             if (err?.name !== 'AbortError') { setError('Something went wrong.'); setLoading(false) }
           })
       }, 300)
+      return () => clearTimeout(pendingTimer)
     }
 
     const csvContent = localStorage.getItem('pendingCsvContent')
@@ -227,7 +229,8 @@ function DashboardHomeInner() {
             if (!res.ok) { setError(data.error || 'CSV analysis failed.'); setLoading(false); setIsCsv(false); return }
             window.location.href = `/dashboard/report/${data.reportId}`
           } catch (err: any) {
-            if (!cancelledRef.current && err?.name !== 'AbortError') { setError('Something went wrong. Please try again.'); setLoading(false) }
+            if (!cancelledRef.current && err?.name !== 'AbortError') { setError('Something went wrong. Please try again.') }
+            setLoading(false); setIsCsv(false)
           }
         }
         runLandingCsv()
@@ -242,10 +245,11 @@ function DashboardHomeInner() {
         if (!user?.id) { setLoading(false); return }
 
         const { data: userData } = await supabase
-          .from('users').select('analyses_count, plan, is_admin').eq('id', user.id).single()
+          .from('users').select('analyses_count, plan, is_admin, credits').eq('id', user.id).single()
 
         if (userData) {
           setAnalysesCount(userData.analyses_count || 0)
+          setCredits(userData.credits ?? 0)
           if (userData.plan) setUserPlan(userData.plan)
           if (userData.is_admin === true) setIsAdminUser(true)
         }
@@ -342,7 +346,7 @@ function DashboardHomeInner() {
       if (csvPrice.trim()) fd.append('price', csvPrice.trim())
       const res = await fetch('/api/analyze-csv', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' }, signal: controller.signal })
       const data = await res.json()
-      if (!res.ok) { setError(data.error || 'Analysis failed.'); setLoading(false); return }
+      if (!res.ok) { setError(data.error || 'Analysis failed.'); setLoading(false); setIsCsv(false); return }
       window.location.href = `/dashboard/report/${data.reportId}`
     } catch {
       setLoading(false); setIsCsv(false)
@@ -393,6 +397,21 @@ function DashboardHomeInner() {
           {analysesCount === 0 ? 'Ready to analyze your first product?' : `You've run ${analysesCount} ${analysesCount === 1 ? 'analysis' : 'analyses'} so far.`}
         </p>
       </div>
+
+      {/* ── Free trial warning ── */}
+      {userPlan === 'free' && !simulatingUser && credits !== null && credits < 24 && (
+        <div className="flex items-center justify-between gap-3 p-4 bg-orange-50 border border-orange-200 rounded-2xl">
+          <div className="flex items-center gap-2.5">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f97316" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <p className="text-xs text-orange-800">
+              <span className="font-semibold">You're out of free credits.</span> Get more to keep analyzing.
+            </p>
+          </div>
+          <a href="/#pricing" className="flex-shrink-0 px-3 py-1.5 bg-orange-500 text-white text-xs font-semibold rounded-lg hover:bg-orange-600 transition-colors">
+            Get credits →
+          </a>
+        </div>
+      )}
 
       {/* ── Main Input ── */}
       <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden">

@@ -5,6 +5,7 @@ import { createClient } from '@/app/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import EmptyState from '@/app/components/EmptyState'
 import { CardRowSkeleton } from '@/app/components/Skeleton'
+import { useToast } from '@/app/components/Toast'
 
 function scoreColor(n: number) {
   if (n <= 37) return { text: 'text-red-500',    bg: 'bg-red-50',    border: 'border-red-100'    }
@@ -77,6 +78,7 @@ export default function LibraryPage() {
   const [reanalyzing, setReanalyzing] = useState<string | null>(null)
   const router  = useRouter()
   const supabase = createClient()
+  const toast   = useToast()
 
   useEffect(() => {
     const load = async () => {
@@ -141,13 +143,13 @@ export default function LibraryPage() {
       })
       const data = await res.json()
       if (!res.ok) {
-        alert(data.error || 'Analysis failed. Please try again.')
+        toast(data.error || 'Analysis failed. Please try again.', 'error')
         setReanalyzing(null)
         return
       }
       router.push(`/dashboard/report/${data.reportId}`)
     } catch {
-      alert('Something went wrong. Please try again.')
+      toast('Something went wrong. Please try again.', 'error')
       setReanalyzing(null)
     }
   }

@@ -110,9 +110,13 @@ export default function AuthModal({ onClose, initialStep = 'plan', initialAuthMo
       setLoading(false)
       if (error) { setError(error.message); return }
       // If email confirmation is off, session is set — redirect to dashboard
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session) { window.location.href = redirectUrl(selection).replace(window.location.origin, '') || '/dashboard' }
-      else setError('Account created — check your email to confirm before signing in.')
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session) { window.location.href = redirectUrl(selection).replace(window.location.origin, '') || '/dashboard' }
+        else setError('Account created — check your email to confirm before signing in.')
+      } catch {
+        setError('Account created — check your email to confirm before signing in.')
+      }
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
       setLoading(false)

@@ -24,7 +24,7 @@ export default function CheckoutRedirectHandler() {
 
     router.replace('/dashboard')
 
-    setTimeout(async () => {
+    const timerId = setTimeout(async () => {
       try {
         let body: object | null = null
 
@@ -48,6 +48,8 @@ export default function CheckoutRedirectHandler() {
         console.error('[CheckoutRedirect] Fetch error:', err)
       }
     }, 500)
+
+    return () => clearTimeout(timerId)
   }, [searchParams, router])
 
   return null // invisible component, no UI

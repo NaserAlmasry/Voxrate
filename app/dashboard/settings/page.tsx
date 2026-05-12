@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/app/lib/supabase/client'
 import CheckoutButton from '@/app/components/CheckoutButton'
+import { useToast } from '@/app/components/Toast'
 
 const CREDIT_PACKS = [
   { id: 'starter_pack', credits: 120, price: '$5.99',  analyses: '5 analyses',  label: 'Starter Pack' },
@@ -20,6 +21,7 @@ export default function SettingsPage() {
   const [portalLoading, setPortalLoading] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
   const supabase = createClient()
+  const toast    = useToast()
 
   const loadUser = async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -39,7 +41,8 @@ export default function SettingsPage() {
     loadUser()
     if (window.location.search.includes('upgraded=true')) {
       window.history.replaceState({}, '', '/dashboard/settings')
-      setTimeout(() => loadUser(), 2000)
+      const t = setTimeout(() => loadUser(), 2000)
+      return () => clearTimeout(t)
     }
   }, [])
 
@@ -52,9 +55,9 @@ export default function SettingsPage() {
       })
       const data = await response.json()
       if (data.url) window.location.href = data.url
-      else alert('Could not open billing portal. Please try again.')
+      else toast('Could not open billing portal. Please try again.', 'error')
     } catch {
-      alert('Something went wrong. Please try again.')
+      toast('Something went wrong. Please try again.', 'error')
     } finally {
       setPortalLoading(false)
     }
@@ -271,10 +274,10 @@ export default function SettingsPage() {
                         window.location.href = '/?deleted=1'
                       } else {
                         const data = await res.json()
-                        alert(data.error || 'Failed to delete account. Please contact support.')
+                        toast(data.error || 'Failed to delete account. Please contact support.', 'error')
                       }
                     } catch {
-                      alert('Something went wrong. Please contact support.')
+                      toast('Something went wrong. Please contact support.', 'error')
                     }
                   }}
                   className="px-4 py-2 text-xs font-medium bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"

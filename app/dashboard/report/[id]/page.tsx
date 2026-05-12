@@ -423,6 +423,7 @@ export default function ReportPage() {
   const [notes, setNotes]                           = useState('')
   const [notesSaving, setNotesSaving]               = useState(false)
   const [notesSaved, setNotesSaved]                 = useState(false)
+  const [notesPersisted, setNotesPersisted]         = useState(false)
   const [notesEditing, setNotesEditing]             = useState(false)
   const [expandedCards, setExpandedCards]           = useState<Set<number>>(new Set([0]))
   const [expandedTopActions, setExpandedTopActions] = useState<Set<number>>(new Set())
@@ -619,6 +620,7 @@ export default function ReportPage() {
     if (report?.notes && !notes) {
       setNotes(report.notes)
       setNotesSaved(true)
+      setNotesPersisted(true)
       setNotesEditing(false)
     }
     if (report) {
@@ -690,11 +692,11 @@ export default function ReportPage() {
       if (res.ok && data.reportId) {
         router.push(`/dashboard/report/${data.reportId}`)
       } else {
-        alert(data.error || 'Re-analysis failed. Please try again.')
+        toast(data.error || 'Re-analysis failed. Please try again.', 'error')
         setReanalyzing(false)
       }
     } catch {
-      alert('Something went wrong. Please try again.')
+      toast('Something went wrong. Please try again.', 'error')
       setReanalyzing(false)
     }
   }
@@ -723,9 +725,14 @@ export default function ReportPage() {
 
   const saveNotes = async () => {
     setNotesSaving(true)
-    await supabase.from('reports').update({ notes }).eq('id', reportId)
+    const { error } = await supabase.from('reports').update({ notes }).eq('id', reportId)
     setNotesSaving(false)
+    if (error) {
+      toast('Failed to save notes. Please try again.', 'error')
+      return
+    }
     setNotesSaved(true)
+    setNotesPersisted(true)
     setTimeout(() => setNotesSaved(false), 2500)
   }
 
@@ -766,7 +773,7 @@ export default function ReportPage() {
   const handlePrint = useCallback(() => {
     if (!report || !fr) return
     const printWindow = window.open('', '_blank', 'width=900,height=1200')
-    if (!printWindow) return
+    if (!printWindow) { toast('Pop-up blocked — please allow pop-ups for this site and try again.', 'error'); return }
     const printContent = buildPrintHTML(report, fr)
     printWindow.document.write(`<!DOCTYPE html>
 <html>
@@ -1238,7 +1245,7 @@ export default function ReportPage() {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-2 overflow-x-auto pb-1">
+      <div className="flex gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
         {TABS.map(tab => {
           const sectionKey = tab.id === 'improvements' ? 'strengths' : tab.id === 'marketing' ? 'seo' : tab.id
           const isLoading  = loadingSection === sectionKey || (loadingSection === 'seo' && tab.id === 'marketing')
@@ -1653,7 +1660,7 @@ export default function ReportPage() {
             {isPro && <span className="text-xs text-orange-600 font-medium">Pro</span>}
           </div>
           {isPro ? (
-            notesSaved && notes && !notesEditing ? (
+            notesPersisted && notes && !notesEditing ? (
               <div className="flex items-start justify-between gap-3 p-3 bg-neutral-50 rounded-xl">
                 <p className="text-sm text-neutral-700 leading-relaxed flex-1">{notes}</p>
                 <button onClick={() => setNotesEditing(true)} className="flex-shrink-0 p-1.5 text-neutral-400 hover:text-black transition-colors rounded-lg hover:bg-neutral-200">
@@ -1667,7 +1674,7 @@ export default function ReportPage() {
               <>
                 <textarea
                   value={notes}
-                  onChange={e => { setNotes(e.target.value); setNotesSaved(false) }}
+                  onChange={e => { setNotes(e.target.value); setNotesSaved(false); if (!e.target.value) setNotesPersisted(false) }}
                   placeholder="Add private notes — what to fix first, ideas, action items..."
                   rows={3}
                   className="w-full px-3 py-2.5 text-sm border border-neutral-200 rounded-xl outline-none focus:border-orange-400 transition-colors resize-none placeholder:text-neutral-400"

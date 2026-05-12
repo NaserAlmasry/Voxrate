@@ -57,16 +57,20 @@ export default function GradePage() {
     setGrading(true)
     setError('')
     setResult(null)
-
-    const res = await fetch('/api/grade', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-      body:    JSON.stringify({ title, tags, description, price }),
-    })
-    const data = await res.json()
-    if (!res.ok) { setError(data.error || 'Failed to grade'); setGrading(false); return }
-    setResult(data)
-    setGrading(false)
+    try {
+      const res = await fetch('/api/grade', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        body:    JSON.stringify({ title, tags, description, price }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error || 'Failed to grade listing. Please try again.'); return }
+      setResult(data)
+    } catch {
+      setError('Something went wrong. Please check your connection and try again.')
+    } finally {
+      setGrading(false)
+    }
   }
 
   const oc = result ? (GRADE_COLORS[result.overallGrade] || GRADE_COLORS['C']) : null

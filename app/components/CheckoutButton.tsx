@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { createClient } from '@/app/lib/supabase/client'
+import { useToast } from '@/app/components/Toast'
 
 interface CheckoutButtonProps {
   plan?: 'starter' | 'pro'
@@ -14,6 +15,7 @@ interface CheckoutButtonProps {
 export default function CheckoutButton({ plan, billing, pack, label, className }: CheckoutButtonProps) {
   const [loading, setLoading] = useState(false)
   const supabase = createClient()
+  const toast    = useToast()
 
   const handleClick = async () => {
     setLoading(true)
@@ -40,9 +42,9 @@ export default function CheckoutButton({ plan, billing, pack, label, className }
       } else if (plan && billing) {
         await startCheckout(plan, billing)
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('[Checkout] Error:', error)
-      alert('Something went wrong. Please try again.')
+      toast(error?.message || 'Something went wrong. Please try again.', 'error')
       setLoading(false)
     }
   }
@@ -61,7 +63,7 @@ export async function startCheckout(plan: string, billing: string) {
     body: JSON.stringify({ type: 'subscription', plan, billing }),
   })
   const data = await response.json()
-  if (!response.ok) { alert(data.error || 'Something went wrong.'); return }
+  if (!response.ok) throw new Error(data.error || 'Something went wrong.')
   window.location.href = data.url
 }
 
@@ -72,6 +74,6 @@ export async function startCreditPackCheckout(pack: string) {
     body: JSON.stringify({ type: 'credit_pack', pack }),
   })
   const data = await response.json()
-  if (!response.ok) { alert(data.error || 'Something went wrong.'); return }
+  if (!response.ok) throw new Error(data.error || 'Something went wrong.')
   window.location.href = data.url
 }

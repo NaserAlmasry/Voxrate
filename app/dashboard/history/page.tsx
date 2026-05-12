@@ -21,6 +21,7 @@ function scoreColor(n: number) {
 export default function HistoryPage() {
   const [reports, setReports] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [userEmail, setUserEmail] = useState('')
   const [userPlan, setUserPlan] = useState('free')
   const [simulatingUser, setSimulatingUser] = useState(false)
@@ -63,6 +64,7 @@ export default function HistoryPage() {
 
         if (error) {
           console.error('[History] Supabase error:', error)
+          setLoadError('Failed to load your history. Please refresh the page.')
           setLoading(false)
           clearTimeout(timeout)
           return
@@ -92,6 +94,7 @@ export default function HistoryPage() {
 
       } catch (err) {
         console.error('[History] Unexpected error:', err)
+        setLoadError('Something went wrong. Please refresh the page.')
       } finally {
         setLoading(false)
         clearTimeout(timeout)
@@ -111,6 +114,17 @@ export default function HistoryPage() {
         <h1 className="text-xl font-semibold mb-6">Report history</h1>
         <div className="space-y-3">
           {[1, 2, 3].map(i => <CardRowSkeleton key={i} />)}
+        </div>
+      </div>
+    )
+  }
+
+  if (loadError) {
+    return (
+      <div className="max-w-3xl mx-auto">
+        <h1 className="text-xl font-semibold mb-6">Report history</h1>
+        <div className="bg-red-50 border border-red-100 rounded-2xl p-6 text-center">
+          <p className="text-sm text-red-600">{loadError}</p>
         </div>
       </div>
     )

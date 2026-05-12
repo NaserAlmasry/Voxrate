@@ -157,16 +157,16 @@ async function fetchReviewsViaEtsyApi(
 // Uses DECODO_API_KEY env var (Basic auth token from dashboard).
 // session_id keeps the same IP/cookies across paginated requests.
 
-async function decodoFetch(url: string, sessionId?: string): Promise<string> {
+async function decodoFetch(url: string, sessionId?: string, headless: 'html' | 'raw' = 'html'): Promise<string> {
   const token = process.env.DECODO_API_KEY
   if (!token) throw new Error('DECODO_API_KEY not set')
 
-  console.log(`[Decodo] Fetching: ${url}`)
+  console.log(`[Decodo] Fetching (${headless}): ${url}`)
 
   const body: Record<string, string> = {
     url,
     proxy_pool: 'premium',
-    headless:   'html',
+    headless,
   }
   if (sessionId) body.session_id = sessionId
 
@@ -208,7 +208,10 @@ async function scrapeFirstPage(url: string): Promise<{ renderedHtml: string; raw
 }
 
 async function scrapePage(url: string, sessionId?: string): Promise<string> {
-  return decodoFetch(url, sessionId)
+  // Use raw HTML for pagination pages — JS rendering causes React to re-hydrate
+  // from page 1 state, ignoring the ?reviews_page=N URL param entirely.
+  // Raw HTML gets Etsy's server-rendered content which respects the param.
+  return decodoFetch(url, sessionId, 'raw')
 }
 
 // ── JSON-LD extraction ────────────────────────────────────────
@@ -233,6 +236,75 @@ function extractJsonLd(html: string): any {
 
   console.warn('[Parser] No valid JSON-LD found in HTML')
   return null
+}
+
+// ── Etsy embedded page-state extraction ──────────────────────
+// Etsy embeds full app state in <script type="application/json"> tags.
+// These often contain far more reviews than the JSON-LD (which caps at ~10).
+// We try several known key patterns from Etsy's React app state.
+
+function extractReviewsFromPageState(
+  html: string,
+): Array<{ rating: number; text: string; date: string }> {
+  const reviews: Array<{ rating: number; text: string; date: string }> = []
+
+  // Find all application/json script blocks
+  const jsonBlocks = html.match(/<script type="application\/json"[^>]*>([\s\S]*?)<\/script>/gi) || []
+  // Also check for __NEXT_DATA__ and similar patterns
+  const nextData = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i)
+  const blocks: string[] = [...jsonBlocks, ...(nextData ? [nextData[0]] : [])]
+
+  for (const block of blocks) {
+    let json: any
+    try {
+      const content = block.replace(/<script[^>]*>/, '').replace('</script>', '').trim()
+      if (content.length < 50) continue
+      json = JSON.parse(content)
+    } catch { continue }
+
+    // Walk the JSON tree looking for review-shaped objects
+    const found = extractReviewObjects(json, 0)
+    for (const r of found) {
+      if (r.text.length > 10) reviews.push(r)
+    }
+    if (reviews.length > 0) break
+  }
+
+  return reviews
+}
+
+function extractReviewObjects(
+  obj: any,
+  depth: number,
+): Array<{ rating: number; text: string; date: string }> {
+  if (depth > 12 || !obj || typeof obj !== 'object') return []
+  const results: Array<{ rating: number; text: string; date: string }> = []
+
+  if (Array.isArray(obj)) {
+    for (const item of obj) {
+      results.push(...extractReviewObjects(item, depth + 1))
+    }
+    return results
+  }
+
+  // Looks like a review object — Etsy uses various key names
+  const text = obj.review || obj.reviewBody || obj.body || obj.content || obj.text || ''
+  const rating = obj.rating || obj.reviewRating?.ratingValue || obj.stars || 0
+  if (typeof text === 'string' && text.length > 10 && typeof rating === 'number') {
+    results.push({
+      rating: Math.min(5, Math.max(1, Math.round(rating))),
+      text: text.replace(/<[^>]*>/g, '').replace(/&#39;/g, "'").replace(/&amp;/g, '&').trim(),
+      date: obj.datePublished || obj.create_timestamp
+        ? (obj.datePublished || new Date(obj.create_timestamp * 1000).toISOString().slice(0, 10))
+        : '',
+    })
+    return results
+  }
+
+  for (const key of Object.keys(obj)) {
+    results.push(...extractReviewObjects(obj[key], depth + 1))
+  }
+  return results
 }
 
 // ── Product + review parsers ──────────────────────────────────
@@ -388,24 +460,82 @@ function sampleReviews(
   return sampled
 }
 
+// ── Etsy internal review API ──────────────────────────────────
+// Etsy's own frontend loads reviews via their internal REST API.
+// No API key required — just browser-like headers. Returns clean JSON.
+// Find the exact URL by opening any listing in DevTools > Network > XHR.
+
+async function fetchReviewsFromInternalApi(
+  listingId: string,
+): Promise<Array<{ rating: number; text: string; date: string }> | null> {
+  const allReviews: Array<{ rating: number; text: string; date: string }> = []
+  const LIMIT = 100
+  let page = 1
+  let total = Infinity
+
+  const headers = {
+    'accept':           'application/json, text/javascript, */*; q=0.01',
+    'accept-language':  'en-US,en;q=0.9',
+    'referer':          `https://www.etsy.com/listing/${listingId}`,
+    'user-agent':       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    'x-requested-with': 'XMLHttpRequest',
+  }
+
+  while (allReviews.length < total && allReviews.length < 400) {
+    const url = `https://www.etsy.com/api/v3/ajax/bespoke/member/listings/${listingId}/reviews?language=en&limit=${LIMIT}&page=${page}&rating=`
+    try {
+      const res = await fetch(url, {
+        headers,
+        signal: AbortSignal.timeout(20_000),
+      })
+      if (!res.ok) {
+        console.log(`[InternalAPI] HTTP ${res.status} — not available, falling back`)
+        return null
+      }
+      const json = await res.json()
+      const results: any[] = json?.reviews ?? json?.results ?? []
+      if (results.length === 0) break
+      total = json?.count ?? json?.total_results ?? total
+
+      for (const r of results) {
+        const text = (r.review || r.text || '').replace(/<[^>]*>/g, '').trim()
+        if (text.length > 5) {
+          allReviews.push({
+            rating: r.rating ?? 5,
+            text,
+            date: r.create_timestamp
+              ? new Date(r.create_timestamp * 1000).toISOString().slice(0, 10)
+              : r.created_timestamp || '',
+          })
+        }
+      }
+
+      console.log(`[InternalAPI] page=${page} fetched=${results.length} total=${allReviews.length}/${total}`)
+      page++
+      if (results.length < LIMIT) break
+      await new Promise(r => setTimeout(r, 400))
+    } catch (err) {
+      console.log(`[InternalAPI] Failed: ${err} — falling back`)
+      return null
+    }
+  }
+
+  if (allReviews.length === 0) return null
+  console.log(`[InternalAPI] Done — ${allReviews.length} reviews`)
+  return allReviews
+}
+
 // ── Multi-page scraper ────────────────────────────────────────
-//
-// How Etsy review pagination actually works:
-//   - ?reviews_page=N tells Etsy's server to render a different page of reviews.
-//   - 'rawHtml' only has 4-7 reviews in JSON-LD (no aria-labels for ratings).
-//   - 'html' (JS-rendered) has reviews with aria-label="N out of 5 stars" but
-//     ignores the ?reviews_page param on page 1 (React hydrates from server state).
-//   - The fix: use 'html' format WITH ?reviews_page=N — Etsy server-renders
-//     page N's reviews, React hydrates them, and we get aria-label ratings too.
+// Pagination fix: switched pages 2+ to raw HTML (no JS rendering).
+// JS rendering caused React to re-hydrate from page 1 state, ignoring
+// the ?reviews_page=N URL param. Raw HTML gets Etsy's server-rendered
+// content which correctly reflects the requested page number.
 
 async function scrapeAllReviews(
   productUrl: string,
 ): Promise<{ reviews: Array<{ rating: number; text: string; date: string }>; rawHtml: string }> {
 
-  // ── Etsy API path (preferred) ─────────────────────────────
-  // If ETSY_API_KEY is set we skip Firecrawl entirely and use the official API.
-  // We still need one Firecrawl call to get product metadata (title, price, etc.)
-  // from the rawHtml JSON-LD, so we do that in parallel.
+  // ── Official Etsy API (if key is present) ────────────────
   if (process.env.ETSY_API_KEY) {
     const listingId = extractListingId(productUrl)
     if (listingId) {
@@ -414,15 +544,38 @@ async function scrapeAllReviews(
           fetchReviewsViaEtsyApi(listingId),
           scrapeFirstPage(productUrl).catch(() => ({ renderedHtml: '', rawHtml: '' })),
         ])
-        console.log(`[Scraper] Etsy API path — ${apiReviews.length} reviews`)
+        console.log(`[Scraper] Official API path — ${apiReviews.length} reviews`)
         return { reviews: apiReviews, rawHtml: firstPage.rawHtml }
       } catch (err) {
-        console.warn(`[Scraper] Etsy API failed, falling back to scrape.do:`, err)
+        console.warn(`[Scraper] Official API failed, falling back:`, err)
       }
     }
   }
 
-  // ── scrape.do fallback (no Etsy API key) ─────────────────
+  // ── Fetch first page + try internal API in parallel ──────
+  // Scrape the first page to get product metadata (rawHtml JSON-LD)
+  // and simultaneously attempt Etsy's internal AJAX endpoint for reviews.
+  const listingId = extractListingId(productUrl)
+
+  const [firstPageResult, internalReviews] = await Promise.allSettled([
+    scrapeFirstPage(productUrl),
+    listingId ? fetchReviewsFromInternalApi(listingId) : Promise.resolve(null),
+  ])
+
+  const firstPage = firstPageResult.status === 'fulfilled'
+    ? firstPageResult.value
+    : { renderedHtml: '', rawHtml: '', sessionId: '' }
+
+  const internalResult = internalReviews.status === 'fulfilled' ? internalReviews.value : null
+
+  // If internal API returned enough reviews, use it — no pagination scraping needed
+  if (internalResult && internalResult.length >= 5) {
+    console.log(`[Scraper] Internal API path — ${internalResult.length} reviews`)
+    return { reviews: internalResult, rawHtml: firstPage.rawHtml }
+  }
+  console.log(`[Scraper] Internal API returned ${internalResult?.length ?? 0} reviews — using Decodo scraping`)
+
+  // ── Decodo HTML scraping fallback ────────────────────────
   const allReviews: Array<{ rating: number; text: string; date: string }> = []
   const seenTexts = new Set<string>()
 
@@ -430,9 +583,12 @@ async function scrapeAllReviews(
     const data    = extractJsonLd(html)
     let reviews   = parseReviews(data)
     if (reviews.length === 0) reviews = parseReviewsFromHtml(html)
+    // Also try Etsy's embedded page-state JSON which often has more reviews
+    const stateReviews = extractReviewsFromPageState(html)
+    const combined = [...reviews, ...stateReviews]
     let added = 0
-    for (const r of reviews) {
-      if (!seenTexts.has(r.text)) {
+    for (const r of combined) {
+      if (r.text && !seenTexts.has(r.text)) {
         seenTexts.add(r.text)
         allReviews.push(r)
         added++
@@ -442,11 +598,9 @@ async function scrapeAllReviews(
   }
 
   // ── First page ────────────────────────────────────────────
-  // renderedHtml has the JS-rendered reviews; rawHtml has the JSON-LD total count.
-  const { renderedHtml, rawHtml, sessionId } = await scrapeFirstPage(productUrl)
+  const { renderedHtml, rawHtml, sessionId } = firstPage
 
-  const firstAdded = ingestHtml(renderedHtml)
-  // Also try rawHtml in case rendered parse missed something
+  ingestHtml(renderedHtml)
   ingestHtml(rawHtml)
 
   // Read total review count from rawHtml JSON-LD (it's stripped from renderedHtml)
