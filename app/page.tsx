@@ -656,13 +656,8 @@ export default function LandingPage() {
               )}
             </div>
 
-            <div className="mt-5 inline-flex items-center gap-2 px-4 py-2 bg-green-50 border border-green-200 rounded-full">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-              <span className="text-xs text-green-700 font-medium">First analysis is completely free — no credit card, no commitment</span>
-            </div>
-
-            <div className="mt-4 flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-neutral-500">
-              {['No credit card required', 'Results in under 60 seconds', 'Specific fixes, not guesses'].map(t => (
+            <div className="mt-6 flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-neutral-500">
+              {['First analysis free', 'No credit card required', 'Specific fixes, not guesses'].map(t => (
                 <span key={t} className="flex items-center gap-1.5">
                   <span className="w-1 h-1 rounded-full bg-green-500" />{t}
                 </span>
@@ -1546,8 +1541,8 @@ export default function LandingPage() {
             <div className="grid md:grid-cols-3 gap-3">
               {[
                 "You haven't launched yet and have zero reviews",
-                "You sell on platforms other than Etsy (Shopify, Amazon) — Etsy-specific scraping only",
-                "You're looking for keyword research before buyers find you — use Marmalead or eRank for that",
+                "You sell on platforms other than Etsy — analysis is built around Etsy listings and review structure",
+                "You're looking for keyword research before buyers find you — Voxrate works with what buyers say after they buy, not search volume",
               ].map((item, i) => (
                 <div key={i} className="flex items-start gap-2 text-xs text-neutral-500">
                   <span className="w-4 h-4 rounded-full bg-neutral-200 flex items-center justify-center flex-shrink-0 mt-0.5">
