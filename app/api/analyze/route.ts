@@ -169,11 +169,13 @@ async function firecrawlFetch(url: string): Promise<string> {
     },
     body: JSON.stringify({
       url,
-      formats: ['html'],
-      waitFor: 3000,
+      formats: ['rawHtml'],
+      waitFor: 5000,
       actions: [
-        { type: 'scroll', direction: 'down', amount: 3000 },
-        { type: 'wait', milliseconds: 1500 },
+        { type: 'scroll', direction: 'down', amount: 5000 },
+        { type: 'wait', milliseconds: 2000 },
+        { type: 'scroll', direction: 'down', amount: 5000 },
+        { type: 'wait', milliseconds: 1000 },
       ],
     }),
     signal: AbortSignal.timeout(120_000),
@@ -196,7 +198,7 @@ async function firecrawlFetch(url: string): Promise<string> {
     throw new Error('Scraping failed. Please try again.')
   }
 
-  const html = json.data?.html || ''
+  const html = json.data?.rawHtml || json.data?.html || ''
   console.log(`[Firecrawl] Got ${html.length} chars from ${url}`)
   return html
 }
