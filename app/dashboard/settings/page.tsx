@@ -194,6 +194,46 @@ export default function SettingsPage() {
         </div>
       )}
 
+      {/* Data & Privacy */}
+      <div className="bg-white rounded-2xl border border-neutral-200 p-6">
+        <h2 className="text-sm font-semibold text-neutral-700 mb-4">Data & privacy</h2>
+        <div className="space-y-3">
+          <div className="flex items-start gap-3">
+            <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-neutral-700">Data storage location</p>
+              <p className="text-xs text-neutral-400 mt-0.5">Your account data, reports, and analyses are stored on servers in <span className="font-medium text-neutral-600">United States (AWS us-east-1)</span> via Supabase.</p>
+            </div>
+          </div>
+          <div className="flex items-start gap-3">
+            <div className="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center flex-shrink-0">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-neutral-700">Data encryption</p>
+              <p className="text-xs text-neutral-400 mt-0.5">All data is encrypted in transit (TLS 1.3) and at rest (AES-256). Payment data is handled exclusively by Stripe — we never store card details.</p>
+            </div>
+          </div>
+          <div className="flex items-start gap-3">
+            <div className="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center flex-shrink-0">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f97316" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-neutral-700">What we store</p>
+              <p className="text-xs text-neutral-400 mt-0.5">Your email, analyses you've run, credits balance, and subscription status. We do not sell your data to third parties.</p>
+            </div>
+          </div>
+          <div className="pt-2 border-t border-neutral-100">
+            <p className="text-xs text-neutral-400">
+              To request a copy of your data or permanent deletion, contact{' '}
+              <a href="mailto:info@voxrate.app" className="text-black underline font-medium">info@voxrate.app</a>
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Account actions */}
       <div className="bg-white rounded-2xl border border-neutral-200 p-6">
         <h2 className="text-sm font-semibold text-neutral-700 mb-4">Account actions</h2>
