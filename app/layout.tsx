@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { DM_Sans } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
+import { ToastProvider } from "@/app/components/Toast";
 import "./globals.css";
 
 const dmSans = DM_Sans({
@@ -70,7 +71,9 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${dmSans.variable} h-full antialiased`}>
       <body className="min-h-full">
-        {children}
+        <ToastProvider>
+          {children}
+        </ToastProvider>
         <Analytics />
       </body>
     </html>
