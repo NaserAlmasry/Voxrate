@@ -644,27 +644,36 @@ async function fetchReviewsFromDeepDiveApi(
   const allReviews: Array<{ rating: number; text: string; date: string }> = []
   const seenTexts = new Set<string>()
   const endpoint = 'https://www.etsy.com/api/v3/ajax/bespoke/member/neu/specs/deep_dive_reviews'
+  const specPath = 'Etsy\\Modules\\ListingPage\\Reviews\\DeepDive\\AsyncApiSpec'
 
   for (let page = 1; page <= 40 && allReviews.length < 400; page++) {
-    const payload = {
-      log_performance_metrics: true,
-      specs: {
-        deep_dive_reviews: [
-          'Etsy\\Modules\\ListingPage\\Reviews\\DeepDive\\AsyncApiSpec',
-          {
-            listing_id: parseInt(listingId),
-            shop_id: parseInt(shopId),
-            scope: 'listingReviews',
-            page,
-            sort_option: 'Relevancy',
-            tag_filters: [],
-            should_lazy_load_images: false,
-            should_show_variations: false,
-          },
-        ],
-      },
-      runtime_analysis: false,
+    const specParams = {
+      listing_id: parseInt(listingId),
+      shop_id: parseInt(shopId),
+      scope: 'listingReviews',
+      page,
+      sort_option: 'Relevancy',
+      tag_filters: [],
+      should_lazy_load_images: false,
+      should_show_variations: false,
     }
+    const payloads = [
+      {
+        log_performance_metrics: true,
+        specs: { deep_dive_reviews: [specPath, specParams] },
+        runtime_analysis: false,
+      },
+      {
+        log_performance_metrics: true,
+        specs: {
+          deep_dive_reviews: {
+            module_path: 'neu/specs/deep_dive_reviews',
+            ...specParams,
+          },
+        },
+        runtime_analysis: false,
+      },
+    ]
 
     try {
       const headers: Record<string, string> = {
@@ -677,36 +686,53 @@ async function fetchReviewsFromDeepDiveApi(
       }
       if (csrf) headers['x-csrf-token'] = csrf
 
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(25_000),
-      })
+      let reviewHtml = ''
+      let lastStatus = 0
 
-      if (!res.ok) {
-        console.log(`[DeepDiveAPI] HTTP ${res.status} on page ${page} — falling back`)
-        return allReviews.length > 0 ? allReviews : null
+      for (let variant = 0; variant < payloads.length; variant++) {
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(payloads[variant]),
+          signal: AbortSignal.timeout(25_000),
+        })
+
+        lastStatus = res.status
+        if (!res.ok) continue
+
+        const json = await res.json()
+        const candidate = json?.output?.deep_dive_reviews
+        if (typeof candidate === 'string' && candidate.length > 0) {
+          reviewHtml = candidate
+          if (variant > 0) {
+            console.log(`[DeepDiveAPI] page=${page} used payload variant ${variant + 1}`)
+          }
+          break
+        }
       }
 
-      const json = await res.json()
-      const reviewHtml = json?.output?.deep_dive_reviews
-      if (typeof reviewHtml !== 'string' || reviewHtml.length === 0) {
-        console.log(`[DeepDiveAPI] Page ${page}: no review HTML, stopping`)
+      if (!reviewHtml) {
+        console.log(`[DeepDiveAPI] Page ${page}: no review HTML, lastStatus=${lastStatus}, stopping`)
         break
       }
 
       const reviews = parseReviewsFromDeepDiveHtml(reviewHtml)
       let added = 0
+      let duplicates = 0
       for (const review of reviews) {
         if (review.text && !seenTexts.has(review.text)) {
           seenTexts.add(review.text)
           allReviews.push(review)
           added++
+        } else if (review.text) {
+          duplicates++
         }
       }
 
-      console.log(`[DeepDiveAPI] page=${page} +${added} reviews (total ${allReviews.length})`)
+      console.log(
+        `[DeepDiveAPI] page=${page} html=${reviewHtml.length} ` +
+        `parsed=${reviews.length} added=${added} dupes=${duplicates} total=${allReviews.length}`,
+      )
       if (added === 0) break
       await new Promise(r => setTimeout(r, 400))
     } catch (err) {
