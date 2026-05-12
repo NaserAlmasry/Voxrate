@@ -433,6 +433,46 @@ function parseReviewsFromHtml(html: string) {
   return reviews
 }
 
+function decodeHtmlText(text: string) {
+  return text
+    .replace(/<[^>]*>/g, '')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function parseReviewsFromDeepDiveHtml(html: string) {
+  const reviews = parseReviewsFromHtml(html)
+  if (reviews.length > 0) return reviews
+
+  const safeHtml = html.length > 1_000_000 ? html.slice(0, 1_000_000) : html
+  const cards = safeHtml.match(/<div[^>]*(?:class="[^"]*review-card[^"]*"|data-review-region="[^"]+")[\s\S]*?(?=<div[^>]*(?:class="[^"]*review-card[^"]*"|data-review-region="[^"]+")|$)/gi) || []
+
+  for (const card of cards) {
+    const ratingMatch =
+      card.match(/name="rating"[^>]*value="(\d)"/i) ||
+      card.match(/aria-label="(\d)\s+out\s+of\s+5\s+stars?"/i)
+    const textMatch =
+      card.match(/<p[^>]*data-review-text[^>]*>([\s\S]*?)<\/p>/i) ||
+      card.match(/<div[^>]*class="[^"]*wt-text-body[^"]*"[^>]*>([\s\S]*?)<\/div>/i) ||
+      card.match(/<p[^>]*class="[^"]*wt-text-body[^"]*"[^>]*>([\s\S]*?)<\/p>/i)
+
+    const text = textMatch ? decodeHtmlText(textMatch[1]) : ''
+    if (text.length > 10) {
+      reviews.push({
+        rating: ratingMatch ? parseInt(ratingMatch[1]) || 5 : 5,
+        text,
+        date: '',
+      })
+    }
+  }
+
+  return reviews
+}
+
 // ── Review sampling ───────────────────────────────────────────
 //
 // Tiered by total review count. Within each star bucket, reviews are
@@ -564,6 +604,122 @@ async function fetchReviewsFromInternalApi(
   return allReviews
 }
 
+function extractDeepDiveParams(html: string, listingId: string) {
+  const shopId =
+    html.match(/"shopId"\s*:\s*"?(\d+)"?/i)?.[1] ||
+    html.match(/"shop_id"\s*:\s*"?(\d+)"?/i)?.[1] ||
+    html.match(/shop_id[\\"]*\s*[:=]\s*[\\"]?(\d+)/i)?.[1] ||
+    null
+
+  const csrf =
+    html.match(/<meta[^>]+name="csrf_nonce"[^>]+content="([^"]+)"/i)?.[1] ||
+    html.match(/<meta[^>]+content="([^"]+)"[^>]+name="csrf_nonce"/i)?.[1] ||
+    html.match(/"csrf_nonce"\s*:\s*"([^"]+)"/i)?.[1] ||
+    html.match(/"csrf_token"\s*:\s*"([^"]+)"/i)?.[1] ||
+    null
+
+  if (!shopId) {
+    console.log(`[DeepDiveAPI] Missing shop_id in first-page HTML for listing ${listingId}`)
+  }
+  if (!csrf) {
+    console.log(`[DeepDiveAPI] Missing csrf_nonce in first-page HTML for listing ${listingId}`)
+  }
+
+  return { shopId, csrf }
+}
+
+async function fetchReviewsFromDeepDiveApi(
+  listingId: string,
+  productUrl: string,
+  firstPageHtml: string,
+): Promise<Array<{ rating: number; text: string; date: string }> | null> {
+  if (!firstPageHtml) {
+    console.log('[DeepDiveAPI] No first-page HTML available — skipping')
+    return null
+  }
+
+  const { shopId, csrf } = extractDeepDiveParams(firstPageHtml, listingId)
+  if (!shopId) return null
+
+  const allReviews: Array<{ rating: number; text: string; date: string }> = []
+  const seenTexts = new Set<string>()
+  const endpoint = 'https://www.etsy.com/api/v3/ajax/bespoke/member/neu/specs/deep_dive_reviews'
+
+  for (let page = 1; page <= 40 && allReviews.length < 400; page++) {
+    const payload = {
+      log_performance_metrics: true,
+      specs: {
+        deep_dive_reviews: [
+          'Etsy\\Modules\\ListingPage\\Reviews\\DeepDive\\AsyncApiSpec',
+          {
+            listing_id: parseInt(listingId),
+            shop_id: parseInt(shopId),
+            scope: 'listingReviews',
+            page,
+            sort_option: 'Relevancy',
+            tag_filters: [],
+            should_lazy_load_images: false,
+            should_show_variations: false,
+          },
+        ],
+      },
+      runtime_analysis: false,
+    }
+
+    try {
+      const headers: Record<string, string> = {
+        'accept':           'application/json, text/plain, */*',
+        'accept-language':  'en-US,en;q=0.9',
+        'content-type':     'application/json',
+        'referer':          productUrl,
+        'user-agent':       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'x-requested-with': 'XMLHttpRequest',
+      }
+      if (csrf) headers['x-csrf-token'] = csrf
+
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(25_000),
+      })
+
+      if (!res.ok) {
+        console.log(`[DeepDiveAPI] HTTP ${res.status} on page ${page} — falling back`)
+        return allReviews.length > 0 ? allReviews : null
+      }
+
+      const json = await res.json()
+      const reviewHtml = json?.output?.deep_dive_reviews
+      if (typeof reviewHtml !== 'string' || reviewHtml.length === 0) {
+        console.log(`[DeepDiveAPI] Page ${page}: no review HTML, stopping`)
+        break
+      }
+
+      const reviews = parseReviewsFromDeepDiveHtml(reviewHtml)
+      let added = 0
+      for (const review of reviews) {
+        if (review.text && !seenTexts.has(review.text)) {
+          seenTexts.add(review.text)
+          allReviews.push(review)
+          added++
+        }
+      }
+
+      console.log(`[DeepDiveAPI] page=${page} +${added} reviews (total ${allReviews.length})`)
+      if (added === 0) break
+      await new Promise(r => setTimeout(r, 400))
+    } catch (err) {
+      console.log(`[DeepDiveAPI] Failed on page ${page}: ${err}`)
+      return allReviews.length > 0 ? allReviews : null
+    }
+  }
+
+  if (allReviews.length === 0) return null
+  console.log(`[DeepDiveAPI] Done — ${allReviews.length} reviews`)
+  return allReviews
+}
+
 // ── Playwright microservice scraper ──────────────────────────
 // Calls the self-hosted scraper service (scraper/ directory).
 // Set SCRAPER_URL + SCRAPER_SECRET env vars to enable this path.
@@ -670,7 +826,18 @@ async function scrapeAllReviews(
     console.log(`[Scraper] Internal API path — ${internalResult.length} reviews`)
     return { reviews: internalResult, rawHtml: firstPage.rawHtml }
   }
-  console.log(`[Scraper] Internal API returned ${internalResult?.length ?? 0} reviews — using Decodo scraping`)
+  console.log(`[Scraper] Internal API returned ${internalResult?.length ?? 0} reviews — trying DeepDive API`)
+
+  const firstPageHtml = firstPage.rawHtml || firstPage.renderedHtml
+  const deepDiveReviews = listingId
+    ? await fetchReviewsFromDeepDiveApi(listingId, productUrl, firstPageHtml)
+    : null
+
+  if (deepDiveReviews && deepDiveReviews.length > 0) {
+    console.log(`[Scraper] DeepDive API path — ${deepDiveReviews.length} reviews`)
+    return { reviews: deepDiveReviews, rawHtml: firstPage.rawHtml }
+  }
+  console.log(`[Scraper] DeepDive API returned ${deepDiveReviews?.length ?? 0} reviews — using Decodo scraping`)
 
   // ── Decodo HTML scraping fallback ────────────────────────
   const allReviews: Array<{ rating: number; text: string; date: string }> = []
