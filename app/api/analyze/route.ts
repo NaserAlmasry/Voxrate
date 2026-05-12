@@ -283,13 +283,9 @@ async function scrapeFirstPage(
   return { renderedHtml, rawHtml }
 }
 
-async function scrapePage(url: string, sessionId?: string): Promise<string> {
+async function scrapePage(url: string): Promise<string> {
   // Raw HTML for all paginated pages — server-renders the correct page number
-  if (!sessionId) return decodoFetch(url, false)
-  return decodoFetch(url, false, { sessionId }).catch((err) => {
-    console.warn(`[Decodo] Session page fetch failed, retrying without session: ${err}`)
-    return decodoFetch(url, false)
-  })
+  return decodoFetch(url, false)
 }
 
 // ── JSON-LD extraction ────────────────────────────────────────
@@ -961,6 +957,10 @@ async function scrapeAllReviews(
   // ── First page ────────────────────────────────────────────
   const { renderedHtml, rawHtml } = firstPage
 
+  if (!renderedHtml && !rawHtml) {
+    throw new Error('Could not fetch Etsy listing HTML. Please try again in a few minutes or upload a CSV.')
+  }
+
   ingestHtml(renderedHtml)
   ingestHtml(rawHtml)
 
@@ -981,19 +981,27 @@ async function scrapeAllReviews(
   // ?reviews_page=N tells Etsy's server which review page to render.
   // Combined with 'html' format (JS-rendered DOM), we get aria-label star
   // ratings AND different reviews per page. ~10 reviews per page.
-  const REVIEWS_PER_PAGE    = 10
-  const MAX_BUDGET          = 400
-  const MAX_CONSECUTIVE_EMPTY = 3
+  const REVIEWS_PER_PAGE    = 4
+  const MAX_BUDGET          = 300
+  const MAX_CONSECUTIVE_EMPTY = 2
+  const MAX_PAGE_ERRORS = 2
+  const SCRAPE_DEADLINE_MS = 210_000
 
   const maxPages = totalReviews > 0
-    ? Math.min(40, Math.ceil(Math.min(totalReviews, MAX_BUDGET) / REVIEWS_PER_PAGE))
-    : 40
+    ? Math.min(75, Math.ceil(Math.min(totalReviews, MAX_BUDGET) / REVIEWS_PER_PAGE))
+    : 20
 
   console.log(`[Scraper] Paginating up to ${maxPages} pages via ?reviews_page=N`)
 
   let consecutiveEmpty = 0
+  let pageErrors = 0
+  const startedAt = Date.now()
 
   for (let page = 2; page <= maxPages; page++) {
+    if (Date.now() - startedAt > SCRAPE_DEADLINE_MS) {
+      console.log(`[Scraper] Hit scrape deadline with ${allReviews.length} reviews, stopping`)
+      break
+    }
     if (allReviews.length >= MAX_BUDGET) {
       console.log(`[Scraper] Hit ${MAX_BUDGET} review budget, stopping`)
       break
@@ -1001,7 +1009,7 @@ async function scrapeAllReviews(
 
     try {
       const pageUrl = `${productUrl}?reviews_page=${page}`
-      const html    = await scrapePage(pageUrl, decodoSessionId)
+      const html    = await scrapePage(pageUrl)
       const added   = ingestHtml(html)
 
       console.log(`[Scraper] Page ${page}: +${added} reviews (total ${allReviews.length})`)
@@ -1019,6 +1027,11 @@ async function scrapeAllReviews(
       await new Promise((r) => setTimeout(r, 800))
     } catch (err) {
       console.error(`[Scraper] Page ${page} error:`, err)
+      pageErrors++
+      if (pageErrors >= MAX_PAGE_ERRORS) {
+        console.log(`[Scraper] ${MAX_PAGE_ERRORS} page errors — stopping`)
+        break
+      }
       consecutiveEmpty++
       if (consecutiveEmpty >= MAX_CONSECUTIVE_EMPTY) break
     }
@@ -1804,7 +1817,7 @@ export async function POST(request: NextRequest) {
       // scrapeAllReviews fetches the first page itself (both rawHtml + rendered html)
       // and returns the rawHtml so we can extract product metadata without an extra request.
       const { reviews: rawReviews, rawHtml: firstRawHtml } =
-        await withRetry(() => scrapeAllReviews(productUrl))
+        await withRetry(() => scrapeAllReviews(productUrl), 0)
 
       const firstData      = extractJsonLd(firstRawHtml)
       const product        = parseProduct(firstData, productUrl)
