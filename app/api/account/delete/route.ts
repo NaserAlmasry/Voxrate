@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
+import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { createClient } from '@/app/lib/supabase/server'
 import { checkCsrf } from '@/app/lib/csrf'
 
@@ -44,6 +45,17 @@ export async function POST(request: NextRequest) {
       .from('users')
       .update({ plan: 'deleted', analyses_count: -1, deleted_at: new Date().toISOString() })
       .eq('id', user.id)
+
+    // Invalidate all sessions immediately so the JWT cannot be reused
+    try {
+      const adminClient = createAdminClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      )
+      await adminClient.auth.admin.deleteUser(user.id)
+    } catch (err: any) {
+      console.error('[DeleteAccount] Session invalidation error:', err.message)
+    }
 
     return NextResponse.json({ success: true })
 

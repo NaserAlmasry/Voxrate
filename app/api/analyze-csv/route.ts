@@ -1233,6 +1233,7 @@ export async function POST(request: NextRequest) {
     console.log(`[CSV] productDescription received: ${description ? description.slice(0, 80) + '...' : 'NONE'}`)
 
     if (!file)                       return NextResponse.json({ error: 'No file uploaded' }, { status: 400 })
+    const safeFileName = file.name.replace(/[^a-zA-Z0-9._\- ]/g, '').slice(0, 100) || 'upload.csv'
     if (!file.name.endsWith('.csv') && file.type !== 'text/csv' && file.type !== 'application/csv') {
       return NextResponse.json({ error: 'Please upload a .csv file' }, { status: 400 })
     }
@@ -1255,14 +1256,14 @@ export async function POST(request: NextRequest) {
 
     const { data: reportRow, error: reportError } = await supabase
       .from('reports')
-      .insert({ user_id: user.id, product_url: `csv:${file.name}`, product_name: rawName?.trim() || file.name.replace('.csv', '').replace(/_/g, ' '), status: 'pending' })
+      .insert({ user_id: user.id, product_url: `csv:${safeFileName}`, product_name: rawName?.trim() || safeFileName.replace('.csv', '').replace(/_/g, ' '), status: 'pending' })
       .select().single()
 
     if (reportError) throw reportError
     const reportId = reportRow.id
 
     const productInfo: ProductInfo = {
-      name:        rawName?.trim() || file.name.replace('.csv', '').replace(/_/g, ' '),
+      name:        rawName?.trim() || safeFileName.replace('.csv', '').replace(/_/g, ' '),
       category:    category?.trim() || 'General',
       price:       price?.trim() || undefined,
       description: description?.trim() || undefined,

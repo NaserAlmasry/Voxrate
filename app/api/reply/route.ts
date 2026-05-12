@@ -3,7 +3,7 @@ import Groq from 'groq-sdk'
 import { createClient } from '@/app/lib/supabase/server'
 import { enforceRateLimit } from '@/app/lib/rate-limit'
 import { checkCsrf } from '@/app/lib/csrf'
-import { looksLikeNonsense, looksLikeReview } from '@/app/lib/text-validation'
+import { looksLikeNonsense } from '@/app/lib/text-validation'
 import { getClientIp } from '@/app/lib/ip'
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
@@ -43,10 +43,6 @@ export async function POST(request: NextRequest) {
 
     if (looksLikeNonsense(reviewText)) {
       return NextResponse.json({ error: 'This doesn\'t look like real text. Please paste an actual customer review.' }, { status: 400 })
-    }
-
-    if (!looksLikeReview(reviewText)) {
-      return NextResponse.json({ error: 'This doesn\'t look like a product review. Please paste what the customer actually wrote about your product.' }, { status: 400 })
     }
 
     const tone = rating <= 2 ? 'empathetic and professional, focused on making things right' : 'warm and appreciative'

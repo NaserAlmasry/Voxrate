@@ -139,7 +139,8 @@ export async function PATCH(request: NextRequest) {
   const reportId = typeof body?.reportId === 'string' ? body.reportId : undefined
   const newScore = typeof body?.newScore === 'number' ? body.newScore : undefined
 
-  if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (!id || !UUID_RE.test(id)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 })
 
   const updates: Record<string, any> = {}
   if (note     !== undefined) updates.note             = note
@@ -172,7 +173,8 @@ export async function DELETE(request: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { id } = await request.json()
-  if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (!id || !UUID_RE.test(id)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 })
 
   await supabase.from('watchlist').delete().eq('id', id).eq('user_id', user.id)
   return NextResponse.json({ success: true })

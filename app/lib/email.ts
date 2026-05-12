@@ -2,6 +2,10 @@ import { Resend } from 'resend'
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
 
+function h(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
 export async function sendWeeklyDigest({
   to,
   listings,
@@ -37,8 +41,8 @@ export async function sendWeeklyDigest({
     <div style="border:1px solid #e5e7eb;border-radius:12px;padding:14px 16px;margin-bottom:10px;">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
         <div style="flex:1;min-width:0;">
-          <p style="font-size:13px;font-weight:700;color:#111;margin:0 0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${l.productName}</p>
-          ${l.topComplaint ? `<p style="font-size:11px;color:#9ca3af;margin:0;">Top issue: ${l.topComplaint}</p>` : ''}
+          <p style="font-size:13px;font-weight:700;color:#111;margin:0 0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${h(l.productName)}</p>
+          ${l.topComplaint ? `<p style="font-size:11px;color:#9ca3af;margin:0;">Top issue: ${h(l.topComplaint)}</p>` : ''}
         </div>
         <div style="text-align:right;flex-shrink:0;">
           <p style="font-size:22px;font-weight:900;color:${scoreColor(l.currentScore)};margin:0;line-height:1;">${l.currentScore}</p>
@@ -127,15 +131,16 @@ export async function sendMonitorAlert({
 
   const scoreColor = newScore >= 66 ? '#22c55e' : newScore >= 38 ? '#f97316' : '#ef4444'
   const diffText   = dropped ? `dropped ${Math.abs(diff)} points` : `improved ${diff} points`
+  const safeProductName = productName.replace(/[^\w\s\-.,!?']/g, '')
   const subject    = dropped
-    ? `Alert: "${productName}" health score dropped to ${newScore}`
-    : `Good news: "${productName}" improved to ${newScore}`
+    ? `Alert: "${safeProductName}" health score dropped to ${newScore}`
+    : `Good news: "${safeProductName}" improved to ${newScore}`
 
   const complaintsHtml = newComplaints.length > 0
     ? `<div style="margin:16px 0;padding:14px;background:#fff5f5;border:1px solid #fca5a5;border-radius:10px;">
         <p style="font-size:12px;font-weight:700;color:#dc2626;margin:0 0 8px;">New complaints detected:</p>
         <ul style="margin:0;padding-left:16px;">
-          ${newComplaints.map(c => `<li style="font-size:12px;color:#374151;margin-bottom:4px;">${c}</li>`).join('')}
+          ${newComplaints.map(c => `<li style="font-size:12px;color:#374151;margin-bottom:4px;">${h(c)}</li>`).join('')}
         </ul>
        </div>`
     : ''
