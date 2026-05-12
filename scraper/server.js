@@ -9,8 +9,8 @@ const PORT          = process.env.PORT || 3001
 const SECRET        = process.env.SCRAPER_SECRET   || 'dev-secret'
 const DECODO_USER   = process.env.DECODO_PROXY_USER // e.g. "user-abc123"
 const DECODO_PASS   = process.env.DECODO_PROXY_PASS // e.g. "password"
-// Decodo residential proxy endpoint
-const PROXY_SERVER  = 'http://gate.decodo.com:10000'
+// Decodo residential proxy endpoint. Override when switching protocol/port.
+const PROXY_SERVER  = process.env.DECODO_PROXY_SERVER || 'http://gate.decodo.com:10000'
 const proxyConfigured = Boolean(DECODO_USER && DECODO_PASS)
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -58,7 +58,6 @@ async function scrapeReviews(listingUrl, maxPages = 30) {
     ],
   }
 
-  // Use residential proxy if credentials are configured
   const contextOpts = {
     userAgent:
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
