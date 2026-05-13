@@ -12,7 +12,7 @@ const DECODO_USER = process.env.DECODO_PROXY_USER
 const DECODO_PASS = process.env.DECODO_PROXY_PASS
 
 // Strip http:// prefix — Playwright wants just host:port in proxy.server
-const PROXY_SERVER_RAW = process.env.DECODO_PROXY_SERVER || 'gate.decodo.com:10000'
+const PROXY_SERVER_RAW = process.env.DECODO_PROXY_SERVER || 'us.decodo.com:10001'
 const PROXY_SERVER = PROXY_SERVER_RAW.replace(/^https?:\/\//, '')
 
 const proxyConfigured = Boolean(DECODO_USER && DECODO_PASS)
@@ -25,9 +25,7 @@ const proxyConfigured = Boolean(DECODO_USER && DECODO_PASS)
 
 function buildProxyUsername(sessionId) {
   if (!DECODO_USER) return null
-  let u = `${DECODO_USER}-country-US`
-  if (sessionId) u += `-session-${sessionId}`
-  return u
+  return `${DECODO_USER}-sessionduration-10`
 }
 
 // ── undici ProxyAgent for Node fetch calls ────────────────────
@@ -176,7 +174,7 @@ async function scrapeReviews(listingUrl, maxPages = 30) {
     })
 
     const page = await context.newPage()
-    const res  = await page.goto(listingUrl, { waitUntil: 'domcontentloaded', timeout: 45000 })
+    const res = await page.goto(listingUrl, { waitUntil: 'domcontentloaded', timeout: 90000 })
     console.log('[scraper] HTTP status:', res?.status())
 
     if (res?.status() === 403 || res?.status() === 429) {
