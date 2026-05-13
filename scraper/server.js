@@ -1,26 +1,46 @@
 // Voxrate scraper — Playwright + Decodo residential proxy
-const express  = require('express')
+const express      = require('express')
 const { chromium } = require('playwright')
+const { ProxyAgent, fetch: proxyFetch } = require('undici')
 
-const app    = express()
+const app = express()
 app.use(express.json())
 
-const PORT          = process.env.PORT || 3001
-const SECRET        = process.env.SCRAPER_SECRET   || 'dev-secret'
-const DECODO_USER   = process.env.DECODO_PROXY_USER // e.g. "user-abc123"
-const DECODO_PASS   = process.env.DECODO_PROXY_PASS // e.g. "password"
-// Decodo residential proxy endpoint. Override when switching protocol/port.
-const PROXY_SERVER_RAW = process.env.DECODO_PROXY_SERVER || 'http://gate.decodo.com:10000'
-const PROXY_SERVER = PROXY_SERVER_RAW.startsWith('socks5h://')
-  ? PROXY_SERVER_RAW.replace(/^socks5h:\/\//, 'socks5://')
-  : PROXY_SERVER_RAW
+const PORT        = process.env.PORT          || 3001
+const SECRET      = process.env.SCRAPER_SECRET || 'dev-secret'
+const DECODO_USER = process.env.DECODO_PROXY_USER
+const DECODO_PASS = process.env.DECODO_PROXY_PASS
+
+// Strip http:// prefix — Playwright wants just host:port in proxy.server
+const PROXY_SERVER_RAW = process.env.DECODO_PROXY_SERVER || 'gate.decodo.com:10000'
+const PROXY_SERVER = PROXY_SERVER_RAW.replace(/^https?:\/\//, '')
+
 const proxyConfigured = Boolean(DECODO_USER && DECODO_PASS)
 
-if (proxyConfigured && /^socks5:\/\//i.test(PROXY_SERVER)) {
-  console.warn('[scraper] SOCKS5 with username/password is not supported here. Use http://gate.decodo.com:PORT instead.')
+// ── Decodo residential proxy username format ──────────────────
+// Decodo encodes targeting params INTO the username:
+//   sp2pq9xo68-country-US              → rotating US residential IP
+//   sp2pq9xo68-country-US-session-abc  → sticky session (same IP)
+// This is different from datacenter proxies that use plain credentials.
+
+function buildProxyUsername(sessionId) {
+  if (!DECODO_USER) return null
+  let u = `${DECODO_USER}-country-US`
+  if (sessionId) u += `-session-${sessionId}`
+  return u
 }
 
-// ─── helpers ─────────────────────────────────────────────────────────────────
+// ── undici ProxyAgent for Node fetch calls ────────────────────
+// Used for paginated review API calls — keeps them on residential IPs.
+
+function buildProxyAgent(sessionId) {
+  const username = buildProxyUsername(sessionId)
+  if (!username || !DECODO_PASS) return null
+  const proxyUrl = `http://${username}:${DECODO_PASS}@${PROXY_SERVER}`
+  return new ProxyAgent(proxyUrl)
+}
+
+// ─── helpers ──────────────────────────────────────────────────
 
 function extractListingId(url) {
   const m = url.match(/listing\/(\d+)/)
@@ -35,7 +55,10 @@ function collectReviews(obj, found = [], depth = 0) {
   }
   const text   = obj.review ?? obj.reviewBody ?? obj.body ?? obj.text ?? obj.content ?? null
   const rating = obj.rating ?? obj.reviewRating?.ratingValue ?? obj.stars ?? null
-  if (typeof text === 'string' && text.length > 5 && typeof rating === 'number' && rating >= 1 && rating <= 5) {
+  if (
+    typeof text === 'string' && text.length > 5 &&
+    typeof rating === 'number' && rating >= 1 && rating <= 5
+  ) {
     found.push({
       rating: Math.round(rating),
       review: text.replace(/<[^>]*>/g, '').trim(),
@@ -49,11 +72,14 @@ function collectReviews(obj, found = [], depth = 0) {
   return found
 }
 
-// ─── scrape ───────────────────────────────────────────────────────────────────
+// ─── scrape ───────────────────────────────────────────────────
 
 async function scrapeReviews(listingUrl, maxPages = 30) {
   const listingId = extractListingId(listingUrl)
   if (!listingId) throw new Error('Could not extract listing ID')
+
+  // Unique session ID so all requests for this listing use the same residential IP
+  const sessionId = `vox-${listingId}-${Date.now()}`
 
   const launchOpts = {
     headless: true,
@@ -75,16 +101,17 @@ async function scrapeReviews(listingUrl, maxPages = 30) {
     extraHTTPHeaders: { 'Accept-Language': 'en-US,en;q=0.9' },
   }
 
-  if (DECODO_USER && DECODO_PASS) {
-    if (/^socks5:\/\//i.test(PROXY_SERVER)) {
-      throw new Error('Authenticated SOCKS5 proxy is not supported in this scraper. Switch DECODO_PROXY_SERVER to http://gate.decodo.com:PORT.')
-    }
+  if (proxyConfigured) {
+    // KEY FIX: Decodo residential proxy requires the geo/session params
+    // encoded IN the username, not as separate fields.
+    // Wrong:  username: "sp2pq9xo68"  ← plain username, gets datacenter IP
+    // Right:  username: "sp2pq9xo68-country-US-session-abc123" ← residential IP
     launchOpts.proxy = {
-      server:   PROXY_SERVER,
-      username: DECODO_USER,
+      server:   `http://${PROXY_SERVER}`,
+      username: buildProxyUsername(sessionId),
       password: DECODO_PASS,
     }
-    console.log(`[scraper] Using Decodo residential proxy (${PROXY_SERVER}, user=${DECODO_USER.slice(0, 3)}***)`)
+    console.log(`[scraper] Proxy: ${PROXY_SERVER} | user: ${buildProxyUsername(sessionId).slice(0, 10)}***`)
   } else {
     console.log('[scraper] No proxy configured — direct connection')
   }
@@ -96,8 +123,8 @@ async function scrapeReviews(listingUrl, maxPages = 30) {
     // Hide automation signals
     await context.addInitScript(() => {
       Object.defineProperty(navigator, 'webdriver', { get: () => false })
-      Object.defineProperty(navigator, 'plugins',   { get: () => [1,2,3,4,5] })
-      Object.defineProperty(navigator, 'languages', { get: () => ['en-US','en'] })
+      Object.defineProperty(navigator, 'plugins',   { get: () => [1, 2, 3, 4, 5] })
+      Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] })
       window.chrome = { runtime: {} }
     })
 
@@ -105,23 +132,20 @@ async function scrapeReviews(listingUrl, maxPages = 30) {
     const seenIds     = new Set()
     let reviewApiBase = null
 
-    // Save residential proxy bandwidth. Reviews come from document + XHR/JSON.
+    // Block unnecessary resources to save proxy bandwidth
     await context.route('**/*', (route) => {
-      const request = route.request()
-      const type = request.resourceType()
-      const url = request.url()
-
+      const type = route.request().resourceType()
+      const url  = route.request().url()
       if (
         ['image', 'media', 'font', 'stylesheet'].includes(type) ||
         /google-analytics|googletagmanager|doubleclick|facebook|pinterest|bing\.com|tiktok/i.test(url)
       ) {
         return route.abort()
       }
-
       return route.continue()
     })
 
-    // Intercept all JSON responses from etsy.com
+    // Intercept JSON responses from Etsy to capture reviews from XHR
     context.on('response', async (response) => {
       try {
         const url = response.url()
@@ -160,24 +184,27 @@ async function scrapeReviews(listingUrl, maxPages = 30) {
     }
 
     await page.waitForTimeout(4000)
-
-    // Scroll to trigger lazy-loaded reviews
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight / 2))
     await page.waitForTimeout(2000)
 
     console.log(`[scraper] After page load: ${allReviews.length} reviews`)
 
-    // ── Paginate via captured XHR endpoint ──────────────────────────────────
+    // ── Paginate via captured XHR endpoint ──────────────────
     if (reviewApiBase) {
       const base    = buildBaseUrl(reviewApiBase, listingId)
       const cookies = await context.cookies('https://www.etsy.com')
       const cookieHeader = cookies.map(c => `${c.name}=${c.value}`).join('; ')
 
+      // Build a ProxyAgent for pagination fetches so they also go through
+      // the residential proxy — not the bare Railway server IP
+      const agent = buildProxyAgent(sessionId)
+
       console.log('[scraper] Paginating:', base)
 
       for (let p = 2; p <= maxPages; p++) {
         const apiUrl = `${base}&page=${p}`
-        const r = await fetch(apiUrl, {
+
+        const fetchOpts = {
           headers: {
             'Cookie':           cookieHeader,
             'User-Agent':       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36',
@@ -186,7 +213,17 @@ async function scrapeReviews(listingUrl, maxPages = 30) {
             'Referer':          listingUrl,
             'x-requested-with': 'XMLHttpRequest',
           },
-        }).catch(() => null)
+        }
+
+        // KEY FIX: pagination fetch was using bare Node fetch (Railway IP)
+        // Now uses undici ProxyAgent to route through residential proxy
+        const fetchFn = agent ? proxyFetch : fetch
+        if (agent) fetchOpts.dispatcher = agent
+
+        const r = await fetchFn(apiUrl, fetchOpts).catch((err) => {
+          console.log(`[scraper] Page ${p} fetch error: ${err.message}`)
+          return null
+        })
 
         if (!r?.ok) { console.log(`[scraper] Page ${p}: ${r?.status ?? 'error'}, stopping`); break }
 
@@ -204,7 +241,6 @@ async function scrapeReviews(listingUrl, maxPages = 30) {
         await new Promise(r => setTimeout(r, 400))
       }
     } else {
-      // DOM fallback
       console.log('[scraper] No XHR captured — DOM pagination fallback')
       await domPaginate(page, allReviews, seenIds, maxPages)
     }
@@ -255,7 +291,7 @@ async function domPaginate(page, allReviews, seenIds, maxPages) {
   }
 }
 
-// ─── routes ──────────────────────────────────────────────────────────────────
+// ─── routes ──────────────────────────────────────────────────
 
 app.get('/health', (_, res) => res.json({ ok: true }))
 app.get('/debug', (_, res) => res.json({
