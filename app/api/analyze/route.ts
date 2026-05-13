@@ -1,43 +1,38 @@
 // ============================================================
 // app/api/analyze/route.ts
 //
-// CHANGES IN THIS VERSION — model routing only, prompts untouched:
+// PROXY FIX (this version):
+//  [PROXY-1] Removed Web Scraping API (scraper-api.decodo.com) entirely.
+//            It was returning 613 "could not scrape" on Etsy — unfixable.
+//  [PROXY-2] All HTTP requests to Etsy now route through your Decodo
+//            Residential Proxy (us.decodo.com:10000) via undici ProxyAgent.
+//            Residential IPs are not blocklisted by Etsy; datacenter IPs are.
+//  [PROXY-3] fetchReviewsFromInternalApi() was making a naked fetch from
+//            the Vercel datacenter IP — Etsy sees it instantly and 404s.
+//            Now proxied through residential endpoint.
+//  [PROXY-4] fetchReviewsFromDeepDiveApi() direct fetch fallback also proxied.
+//  [PROXY-5] Geo rotation added: us → gb → ca → au. If one IP pool is
+//            temporarily rate-limited, the next geo retries automatically.
+//  [PROXY-6] Session pinning: all requests for a single listing share the
+//            same session_id so Etsy sees one consistent "user" browsing.
 //
-//  [ROUTING-1] Call 1 (Complaints):   llama-3.3-70b-versatile  — unchanged
-//  [ROUTING-2] Call 2 (Strengths):    llama-3.3-70b-versatile  — unchanged
-//  [ROUTING-3] Call 3 (SEO+Marketing):llama-3.1-8b-instant     — was 70b
-//              max_tokens: 2000 → 800 (output is short, 800 is generous)
-//              fiveStarText: 20 reviews → 10 reviews (verbatim copy only)
-//  [ROUTING-4] Call 4 (Summary):      llama-3.1-8b-instant     — was 70b
-//              max_tokens: 1500 → 600 (3 sentences + JSON, 600 is plenty)
-//  [ROUTING-5] callGroq() split into callGroq70b() and callGroq8b()
-//              so each call explicitly uses the right model
+// REQUIRED: npm install undici
+// ENV VARS NEEDED:
+//   DECODO_USERNAME   — e.g. sp2pq9xo68   (from Decodo dashboard)
+//   DECODO_PASSWORD   — your proxy password
+//   DECODO_PROXY_HOST — us.decodo.com     (or gate.decodo.com)
+//   DECODO_PROXY_PORT — 10000
 //
-//  Speed improvement: Calls 3+4 on 8b-instant are ~3-4x faster than 70b.
-//  Combined saves ~15-20 seconds per paid analysis.
-//
-//  Token improvement: ~15-25% fewer tokens per paid analysis.
-//  Groq rate limits are per-model, so 8b calls use a separate bucket.
-//
-//  Prompts: NOT changed. All prompt text is identical to previous version.
-//
-// SCRAPER FIX (this version):
-//  [SCRAPER-1] REVIEWS_PER_PAGE changed from 8 → 4 (Etsy's actual JSON-LD output)
-//              This doubles maxPages, fixing under-scraping on large products.
-//  [SCRAPER-2] Pagination param fixed: ?page=N → ?reviews_page=N
-//              ?page=N has no effect on Etsy reviews; ?reviews_page=N is correct
-//              Dropped &sort_order=most_recent which was causing repeated pages
-//  [SCRAPER-3] consecutiveEmptyPages counter — stops after 3 pages with no new
-//              reviews instead of blindly continuing or doing a useless continue.
-//  [SCRAPER-4] maxPages raised to 100 (was 50) to handle 400-review budget
-//              correctly at 4 reviews/page.
-//  [SCRAPER-5] Fixed dead-code bug: _metaData/_totalReviews/_maxPages/_reviewsPerPage
-//              were all underscore-prefixed locals that shadowed nothing — now
-//              properly named and actually used.
+// MODEL ROUTING — unchanged from previous version:
+//  [ROUTING-1] Call 1 (Complaints):    llama-3.3-70b-versatile
+//  [ROUTING-2] Call 2 (Strengths):     llama-3.3-70b-versatile
+//  [ROUTING-3] Call 3 (SEO+Marketing): llama-3.1-8b-instant
+//  [ROUTING-4] Call 4 (Summary):       llama-3.1-8b-instant
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server'
 import Groq from 'groq-sdk'
+import { ProxyAgent, fetch as uFetch } from 'undici'
 import { createClient } from '@/app/lib/supabase/server'
 import {
   calculateHealthScore,
@@ -58,14 +53,95 @@ import { sendReportComplete } from '@/app/lib/email'
 
 export const maxDuration = 300
 
-const groq  = new Groq({ apiKey: process.env.GROQ_API_KEY })
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
 
 // ── Model routing ─────────────────────────────────────────────
-// 70b-versatile: complex reasoning, multi-step fixes, creative synthesis
-// 8b-instant:    extraction, formatting, verbatim copy — 3-4x faster
 const MODEL_70B = 'llama-3.3-70b-versatile'
 const MODEL_8B  = 'llama-3.1-8b-instant'
 
+// ── Geo rotation for residential proxy ───────────────────────
+// Rotates through geos when one is rate-limited or blocked.
+const GEO_ROTATION = ['us', 'gb', 'ca', 'au']
+
+// ── Residential proxy builder ─────────────────────────────────
+// Returns an undici ProxyAgent pointed at your Decodo residential endpoint.
+// Residential IPs (homes) are not flagged by Etsy; datacenter IPs are.
+//
+// Decodo residential proxy URL format:
+//   http://USERNAME:PASSWORD@PROXY_HOST:PORT
+//
+// For geo/session targeting, Decodo encodes parameters into the username:
+//   USERNAME-country-US-session-SESSION_ID
+//
+// See: https://help.decodo.com/residential-proxies/proxy-setup
+
+function buildProxyAgent(geo = 'us', sessionId?: string): ProxyAgent {
+  const username = process.env.DECODO_PROXY_USER
+  const password = process.env.DECODO_PROXY_PASS
+  const host     = process.env.DECODO_PROXY_HOST || 'gate.decodo.com'
+  const port     = process.env.DECODO_PROXY_PORT || '10000'
+
+  if (!username || !password) {
+    throw new Error('DECODO_USERNAME or DECODO_PASSWORD env var not set')
+  }
+
+  // Decodo username format for targeting:
+  // sp2pq9xo68-country-US                       (rotating residential, US)
+  // sp2pq9xo68-country-US-session-abc123        (sticky session, same IP)
+  let targetedUsername = `${username}-country-${geo.toUpperCase()}`
+  if (sessionId) {
+    targetedUsername += `-session-${sessionId}`
+  }
+
+  const proxyUrl = `http://${targetedUsername}:${password}@${host}:${port}`
+  return new ProxyAgent(proxyUrl)
+}
+
+// ── Proxied fetch wrapper ─────────────────────────────────────
+// All Etsy requests must go through this — never use global fetch() for Etsy.
+// undici's fetch() accepts a `dispatcher` option for proxy routing.
+
+async function proxyFetch(
+  url: string,
+  init: RequestInit & { dispatcher?: ProxyAgent } = {},
+  geo = 'us',
+  sessionId?: string,
+): Promise<Response> {
+  const agent = buildProxyAgent(geo, sessionId)
+  // undici's fetch is type-compatible with the global fetch API
+  return uFetch(url, { ...init, dispatcher: agent } as any) as unknown as Response
+}
+
+// ── Geo-rotating fetch ────────────────────────────────────────
+// Tries each geo in order. On 403/429/613 moves to next geo.
+// Returns on first success.
+
+async function proxyFetchWithGeoFallback(
+  url: string,
+  init: RequestInit = {},
+  sessionId?: string,
+): Promise<Response> {
+  let lastError: Error = new Error('No geos attempted')
+
+  for (const geo of GEO_ROTATION) {
+    try {
+      const res = await proxyFetch(url, init, geo, sessionId)
+      // Treat 403 and 429 as blocked — try next geo
+      if (res.status === 403 || res.status === 429) {
+        console.log(`[Proxy] Geo ${geo} returned ${res.status} for ${url} — trying next geo`)
+        lastError = new Error(`HTTP ${res.status} on geo ${geo}`)
+        continue
+      }
+      console.log(`[Proxy] Geo ${geo} OK for ${url}`)
+      return res
+    } catch (err: any) {
+      console.log(`[Proxy] Geo ${geo} failed: ${err.message} — trying next geo`)
+      lastError = err
+    }
+  }
+
+  throw new Error(`All proxy geos failed for ${url}: ${lastError.message}`)
+}
 
 // ── URL sanitizer ─────────────────────────────────────────────
 
@@ -85,7 +161,8 @@ function sanitizeEtsyUrl(raw: string): string | null {
 
 // ── Etsy API review fetcher ───────────────────────────────────
 // Uses the official Etsy v3 API to fetch all reviews in batches of 100.
-// Requires ETSY_API_KEY in env. Falls back to Firecrawl scraping if missing.
+// Requires ETSY_API_KEY in env. Falls back to proxy scraping if missing.
+// NOTE: This requires a valid non-banned Etsy API key to work.
 
 function extractListingId(productUrl: string): string | null {
   const match = productUrl.match(/\/listing\/(\d+)/)
@@ -122,9 +199,8 @@ async function fetchReviewsViaEtsyApi(
       throw new Error(`Etsy API error ${res.status}`)
     }
 
-    const json = await res.json()
-    total = json.count ?? json.total ?? total
-
+    const json   = await res.json()
+    total        = json.count ?? json.total ?? total
     const results: any[] = json.results ?? []
     if (results.length === 0) break
 
@@ -132,9 +208,9 @@ async function fetchReviewsViaEtsyApi(
       const text = (r.review ?? '').replace(/<[^>]*>/g, '').trim()
       if (text.length > 5) {
         allReviews.push({
-          rating: r.rating  ?? 5,
+          rating: r.rating ?? 5,
           text,
-          date:   r.create_timestamp
+          date: r.create_timestamp
             ? new Date(r.create_timestamp * 1000).toISOString().slice(0, 10)
             : '',
         })
@@ -152,140 +228,74 @@ async function fetchReviewsViaEtsyApi(
   return allReviews
 }
 
-// ── Decodo fetcher ────────────────────────────────────────────
-// Decodo Web Scraping API — Premium proxies + JS rendering.
-// Uses DECODO_API_KEY env var (Basic auth token from dashboard).
-// session_id keeps the same IP/cookies across paginated requests.
+// ── Proxied HTML fetcher ──────────────────────────────────────
+// Replaces the old scraper-api.decodo.com Web Scraping API.
+// Fetches raw HTML through your residential proxy directly.
+// Much cheaper, faster, and avoids the 613 "could not scrape" error.
 
-async function decodoFetch(
+const BROWSER_HEADERS = {
+  'User-Agent':      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  'Accept':          'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'Accept-Encoding': 'gzip, deflate, br',
+  'Connection':      'keep-alive',
+  'Upgrade-Insecure-Requests': '1',
+  'Sec-Fetch-Dest':  'document',
+  'Sec-Fetch-Mode':  'navigate',
+  'Sec-Fetch-Site':  'none',
+  'Sec-Fetch-User':  '?1',
+  'Cache-Control':   'max-age=0',
+}
+
+async function fetchHtmlViaProxy(
   url: string,
-  useJs = false,
-  options: {
-    sessionId?: string
-    httpMethod?: 'GET' | 'POST'
-    payload?: string
-    headers?: string[]
-    successfulStatusCodes?: number[]
-  } = {},
+  sessionId?: string,
 ): Promise<string> {
-  const token = process.env.DECODO_API_KEY
-  if (!token) throw new Error('DECODO_API_KEY not set')
+  console.log(`[Proxy] Fetching HTML: ${url}`)
 
-  console.log(`[Decodo] Fetching (js=${useJs}): ${url}`)
-
-  // Try raw HTML first — cheaper, faster, and avoids React rehydration overwriting
-  // page content. Fall back to JS rendering only for the first page (metadata).
-  const body: Record<string, any> = useJs
-    ? {
-        url,
-        proxy_pool:      'premium',
-        headless:        'html',
-        geo:             'us',
-        locale:          'en-us',
-        device_type:     'desktop',
-        javascript:      true,
-        javascript_wait: 5000,
-        wait_for:        'networkidle2',
-      }
-    : {
-        url,
-        proxy_pool:  'premium',
-        geo:         'us',
-        locale:      'en-us',
-        device_type: 'desktop',
-      }
-
-  if (options.sessionId) body.session_id = options.sessionId
-  if (options.httpMethod) body.http_method = options.httpMethod
-  if (options.payload) body.payload = Buffer.from(options.payload).toString('base64')
-  if (options.headers?.length) {
-    body.headers = options.headers
-    body.force_headers = true
-  }
-  if (options.successfulStatusCodes?.length) {
-    body.successful_status_codes = options.successfulStatusCodes
-  }
-
-  const response = await fetch('https://scraper-api.decodo.com/v2/scrape', {
-    method: 'POST',
-    headers: {
-      'Accept':        'application/json',
-      'Authorization': `Basic ${token}`,
-      'Content-Type':  'application/json',
+  const res = await proxyFetchWithGeoFallback(
+    url,
+    {
+      headers: BROWSER_HEADERS,
+      signal: AbortSignal.timeout(45_000),
     },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(120_000),
-  })
+    sessionId,
+  )
 
-  if (!response.ok) {
-    const errText = await response.text()
-    console.error(`[Decodo] HTTP ${response.status}: ${errText.slice(0, 200)}`)
-    if ([401, 403, 422, 429, 500, 502].includes(response.status)) {
-      throw new Error(
-        'Etsy blocked this request. Please try again in 1–2 minutes, or upload a CSV of your reviews instead.',
-      )
-    }
-    throw new Error('Scraping failed. Please try again.')
+  if (!res.ok) {
+    throw new Error(`Proxy HTML fetch failed: HTTP ${res.status} for ${url}`)
   }
 
-  const json = await response.json()
-  const html =
-    json.content ??
-    json.results?.[0]?.content ??
-    json.results?.[0]?.data?.content ??
-    ''
-
-  if (!html) {
-    const keys = Object.keys(json).join(',') || 'none'
-    const resultKeys = json.results?.[0] ? Object.keys(json.results[0]).join(',') : 'none'
-    const message = typeof json.message === 'string' ? json.message : 'No content returned'
-    console.warn(
-      `[Decodo] Empty content. status=${json.status ?? 'unknown'} ` +
-      `statusCode=${json.status_code ?? 'unknown'} message=${message} ` +
-      `taskId=${json.task_id ?? 'none'} responseKeys=${keys} firstResultKeys=${resultKeys}`,
-    )
-    throw new Error(`Decodo returned no content: ${message}`)
+  const html = await res.text()
+  if (!html || html.length < 500) {
+    throw new Error(`Proxy returned empty/tiny HTML (${html.length} chars) for ${url}`)
   }
 
-  console.log(`[Decodo] Got ${html.length} chars from ${url}`)
+  console.log(`[Proxy] Got ${html.length} chars from ${url}`)
   return html
 }
 
-// First-page scrape: JS-rendered so both JSON-LD and aria-label reviews are present.
+// ── First-page scrape ─────────────────────────────────────────
+
 async function scrapeFirstPage(
   url: string,
   sessionId?: string,
 ): Promise<{ renderedHtml: string; rawHtml: string }> {
-  // Raw HTML for review extraction — avoids React rehydration overwriting page 1.
-  // JS rendering is best-effort metadata enrichment and should not block raw reviews.
-  if (sessionId) {
-    try {
-      const rawHtml = await decodoFetch(url, false, { sessionId })
-      const renderedHtml = await decodoFetch(url, true, { sessionId }).catch(() => rawHtml)
-      console.log(`[Decodo] First page — rendered=${renderedHtml.length} raw=${rawHtml.length} chars`)
-      return { renderedHtml, rawHtml }
-    } catch (err) {
-      console.warn(`[Decodo] Session first page failed, retrying without session: ${err}`)
-    }
+  try {
+    const html = await fetchHtmlViaProxy(url, sessionId)
+    console.log(`[Proxy] First page — ${html.length} chars`)
+    // We get one HTML response from the proxy (server-rendered by Etsy)
+    // Use it for both rawHtml and renderedHtml since we no longer have
+    // a separate JS-rendering step (the proxy fetches static HTML).
+    return { renderedHtml: html, rawHtml: html }
+  } catch (err) {
+    console.warn(`[Proxy] First page failed: ${err}`)
+    return { renderedHtml: '', rawHtml: '' }
   }
-
-  const [rawResult, renderedResult] = await Promise.allSettled([
-    decodoFetch(url, false),
-    decodoFetch(url, true),
-  ])
-
-  const rawHtml = rawResult.status === 'fulfilled' ? rawResult.value : ''
-  const renderedHtml = renderedResult.status === 'fulfilled' && renderedResult.value
-    ? renderedResult.value
-    : rawHtml
-
-  console.log(`[Decodo] First page — rendered=${renderedHtml.length} raw=${rawHtml.length} chars`)
-  return { renderedHtml, rawHtml }
 }
 
-async function scrapePage(url: string): Promise<string> {
-  // Raw HTML for all paginated pages — server-renders the correct page number
-  return decodoFetch(url, false)
+async function scrapePage(url: string, sessionId?: string): Promise<string> {
+  return fetchHtmlViaProxy(url, sessionId)
 }
 
 // ── JSON-LD extraction ────────────────────────────────────────
@@ -313,19 +323,14 @@ function extractJsonLd(html: string): any {
 }
 
 // ── Etsy embedded page-state extraction ──────────────────────
-// Etsy embeds full app state in <script type="application/json"> tags.
-// These often contain far more reviews than the JSON-LD (which caps at ~10).
-// We try several known key patterns from Etsy's React app state.
 
 function extractReviewsFromPageState(
   html: string,
 ): Array<{ rating: number; text: string; date: string }> {
   const reviews: Array<{ rating: number; text: string; date: string }> = []
 
-  // Find all application/json script blocks
   const jsonBlocks = html.match(/<script type="application\/json"[^>]*>([\s\S]*?)<\/script>/gi) || []
-  // Also check for __NEXT_DATA__ and similar patterns
-  const nextData = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i)
+  const nextData   = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i)
   const blocks: string[] = [...jsonBlocks, ...(nextData ? [nextData[0]] : [])]
 
   for (const block of blocks) {
@@ -336,7 +341,6 @@ function extractReviewsFromPageState(
       json = JSON.parse(content)
     } catch { continue }
 
-    // Walk the JSON tree looking for review-shaped objects
     const found = extractReviewObjects(json, 0)
     for (const r of found) {
       if (r.text.length > 10) reviews.push(r)
@@ -355,14 +359,11 @@ function extractReviewObjects(
   const results: Array<{ rating: number; text: string; date: string }> = []
 
   if (Array.isArray(obj)) {
-    for (const item of obj) {
-      results.push(...extractReviewObjects(item, depth + 1))
-    }
+    for (const item of obj) results.push(...extractReviewObjects(item, depth + 1))
     return results
   }
 
-  // Looks like a review object — Etsy uses various key names
-  const text = obj.review || obj.reviewBody || obj.body || obj.content || obj.text || ''
+  const text   = obj.review || obj.reviewBody || obj.body || obj.content || obj.text || ''
   const rating = obj.rating || obj.reviewRating?.ratingValue || obj.stars || 0
   if (typeof text === 'string' && text.length > 10 && typeof rating === 'number') {
     results.push({
@@ -375,9 +376,7 @@ function extractReviewObjects(
     return results
   }
 
-  for (const key of Object.keys(obj)) {
-    results.push(...extractReviewObjects(obj[key], depth + 1))
-  }
+  for (const key of Object.keys(obj)) results.push(...extractReviewObjects(obj[key], depth + 1))
   return results
 }
 
@@ -423,13 +422,8 @@ function parseReviews(
 
 function parseReviewsFromHtml(html: string) {
   const reviews: Array<{ rating: number; text: string; date: string }> = []
-
-  // Guard: truncate excessively large HTML to prevent slow regex on crafted pages
   const safeHtml = html.length > 2_000_000 ? html.slice(0, 2_000_000) : html
 
-  // Etsy renders each review inside a container that has the star rating
-  // as an aria-label ("5 out of 5 stars") and the review body in a <p>.
-  // We walk review blocks by splitting on the star aria-label pattern.
   const blockPattern =
     /aria-label="(\d)\s+out\s+of\s+5\s+stars?"[\s\S]{0,2000}?<p[^>]*>([\s\S]*?)<\/p>/gi
 
@@ -448,7 +442,6 @@ function parseReviewsFromHtml(html: string) {
     }
   }
 
-  // Fallback: grab any longish <p> with wt-text-body class (no rating info)
   if (reviews.length === 0) {
     const matches =
       html.match(/<p[^>]*class="[^"]*wt-text-body[^"]*"[^>]*>(.*?)<\/p>/g) || []
@@ -509,20 +502,6 @@ function parseReviewsFromDeepDiveHtml(html: string) {
 }
 
 // ── Review sampling ───────────────────────────────────────────
-//
-// Tiered by total review count. Within each star bucket, reviews are
-// sorted longest-first so the most detailed feedback is always included.
-//
-// Budget breakdown by tier:
-//   ≤50    → take everything (tiny product)
-//   ≤200   → 1★:40  2★:30  3★:15  4★:25  5★:50   = 160 max
-//   ≤500   → 1★:60  2★:40  3★:20  4★:30  5★:60   = 210 max
-//   ≤1000  → 1★:80  2★:50  3★:20  4★:30  5★:80   = 260 max  (matches your idea)
-//   >1000  → 1★:100 2★:60  3★:20  4★:30  5★:90   = 300 max
-//
-// Why 3★ is capped low: neutral "it was fine" reviews carry almost no
-// signal for either complaints or strengths — they waste context window.
-// 1★ and 5★ are the primary fuel for complaints and marketing copy.
 
 function sampleReviews(
   allReviews: Array<{ rating: number; text: string; date: string }>,
@@ -536,23 +515,21 @@ function sampleReviews(
     byRating[star].push(r)
   }
 
-  // Sort each bucket longest-first — most detailed reviews carry more signal
   for (const star of [1, 2, 3, 4, 5]) {
     byRating[star].sort((a, b) => b.text.length - a.text.length)
   }
 
   let targets: Record<number, number>
   if (totalCount <= 50) {
-    // Take everything — small product, no point sampling
     targets = { 1: 999, 2: 999, 3: 999, 4: 999, 5: 999 }
   } else if (totalCount <= 200) {
-    targets = { 1: 40, 2: 30, 3: 15, 4: 25, 5: 50 }   // budget ≈ 160
+    targets = { 1: 40, 2: 30, 3: 15, 4: 25, 5: 50 }
   } else if (totalCount <= 500) {
-    targets = { 1: 60, 2: 40, 3: 20, 4: 30, 5: 60 }   // budget ≈ 210
+    targets = { 1: 60, 2: 40, 3: 20, 4: 30, 5: 60 }
   } else if (totalCount <= 1000) {
-    targets = { 1: 80, 2: 50, 3: 20, 4: 30, 5: 80 }   // budget ≈ 260
+    targets = { 1: 80, 2: 50, 3: 20, 4: 30, 5: 80 }
   } else {
-    targets = { 1: 100, 2: 60, 3: 20, 4: 30, 5: 90 }  // budget ≈ 300
+    targets = { 1: 100, 2: 60, 3: 20, 4: 30, 5: 90 }
   }
 
   const sampled: typeof allReviews = []
@@ -574,34 +551,38 @@ function sampleReviews(
   return sampled
 }
 
-// ── Etsy internal review API ──────────────────────────────────
+// ── Etsy internal review API (now proxied) ────────────────────
 // Etsy's own frontend loads reviews via their internal REST API.
-// No API key required — just browser-like headers. Returns clean JSON.
-// Find the exact URL by opening any listing in DevTools > Network > XHR.
+// Previously this was a naked Vercel IP fetch — Etsy 404'd it immediately.
+// Now routed through your residential proxy so Etsy sees a real home IP.
 
 async function fetchReviewsFromInternalApi(
   listingId: string,
+  sessionId?: string,
 ): Promise<Array<{ rating: number; text: string; date: string }> | null> {
   const allReviews: Array<{ rating: number; text: string; date: string }> = []
   const LIMIT = 100
-  let page = 1
-  let total = Infinity
+  let page    = 1
+  let total   = Infinity
 
   const headers = {
-    'accept':           'application/json, text/javascript, */*; q=0.01',
-    'accept-language':  'en-US,en;q=0.9',
-    'referer':          `https://www.etsy.com/listing/${listingId}`,
-    'user-agent':       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-    'x-requested-with': 'XMLHttpRequest',
+    'Accept':           'application/json, text/javascript, */*; q=0.01',
+    'Accept-Language':  'en-US,en;q=0.9',
+    'Referer':          `https://www.etsy.com/listing/${listingId}`,
+    'User-Agent':       BROWSER_HEADERS['User-Agent'],
+    'X-Requested-With': 'XMLHttpRequest',
   }
 
   while (allReviews.length < total && allReviews.length < 400) {
     const url = `https://www.etsy.com/api/v3/ajax/bespoke/member/listings/${listingId}/reviews?language=en&limit=${LIMIT}&page=${page}&rating=`
     try {
-      const res = await fetch(url, {
-        headers,
-        signal: AbortSignal.timeout(20_000),
-      })
+      // Previously: naked fetch() → Vercel datacenter IP → Etsy 404s
+      // Now: proxied through residential IP → Etsy sees a real user
+      const res = await proxyFetchWithGeoFallback(
+        url,
+        { headers, signal: AbortSignal.timeout(25_000) },
+        sessionId,
+      )
       if (!res.ok) {
         console.log(`[InternalAPI] HTTP ${res.status} — not available, falling back`)
         return null
@@ -653,12 +634,8 @@ function extractDeepDiveParams(html: string, listingId: string) {
     html.match(/"csrf_token"\s*:\s*"([^"]+)"/i)?.[1] ||
     null
 
-  if (!shopId) {
-    console.log(`[DeepDiveAPI] Missing shop_id in first-page HTML for listing ${listingId}`)
-  }
-  if (!csrf) {
-    console.log(`[DeepDiveAPI] Missing csrf_nonce in first-page HTML for listing ${listingId}`)
-  }
+  if (!shopId) console.log(`[DeepDiveAPI] Missing shop_id in first-page HTML for listing ${listingId}`)
+  if (!csrf)   console.log(`[DeepDiveAPI] Missing csrf_nonce in first-page HTML for listing ${listingId}`)
 
   return { shopId, csrf }
 }
@@ -679,19 +656,19 @@ async function fetchReviewsFromDeepDiveApi(
 
   const allReviews: Array<{ rating: number; text: string; date: string }> = []
   const seenTexts = new Set<string>()
-  const endpoint = 'https://www.etsy.com/api/v3/ajax/bespoke/member/neu/specs/deep_dive_reviews'
-  const specPath = 'Etsy\\Modules\\ListingPage\\Reviews\\DeepDive\\AsyncApiSpec'
+  const endpoint  = 'https://www.etsy.com/api/v3/ajax/bespoke/member/neu/specs/deep_dive_reviews'
+  const specPath  = 'Etsy\\Modules\\ListingPage\\Reviews\\DeepDive\\AsyncApiSpec'
 
   for (let page = 1; page <= 40 && allReviews.length < 400; page++) {
     const specParams = {
-      listing_id: parseInt(listingId),
-      shop_id: parseInt(shopId),
-      scope: 'listingReviews',
+      listing_id:               parseInt(listingId),
+      shop_id:                  parseInt(shopId),
+      scope:                    'listingReviews',
       page,
-      sort_option: 'Relevancy',
-      tag_filters: [],
-      should_lazy_load_images: false,
-      should_show_variations: false,
+      sort_option:              'Relevancy',
+      tag_filters:              [],
+      should_lazy_load_images:  false,
+      should_show_variations:   false,
     }
     const payloads = [
       {
@@ -712,68 +689,52 @@ async function fetchReviewsFromDeepDiveApi(
     ]
 
     try {
-      const headers: Record<string, string> = {
-        'accept':           'application/json, text/plain, */*',
-        'accept-language':  'en-US,en;q=0.9',
-        'content-type':     'application/json',
-        'referer':          productUrl,
-        'user-agent':       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'x-requested-with': 'XMLHttpRequest',
+      const reqHeaders: Record<string, string> = {
+        'Accept':           'application/json, text/plain, */*',
+        'Accept-Language':  'en-US,en;q=0.9',
+        'Content-Type':     'application/json',
+        'Referer':          productUrl,
+        'User-Agent':       BROWSER_HEADERS['User-Agent'],
+        'X-Requested-With': 'XMLHttpRequest',
       }
-      if (csrf) headers['x-csrf-token'] = csrf
+      if (csrf) reqHeaders['X-Csrf-Token'] = csrf
 
       let reviewHtml = ''
       let lastStatus = 0
 
       for (let variant = 0; variant < payloads.length; variant++) {
         const payload = JSON.stringify(payloads[variant])
-        const decodoHeaders = Object.entries(headers).map(([key, value]) => `${key}: ${value}`)
 
         try {
-          const content = await decodoFetch(endpoint, false, {
+          // Route DeepDive API calls through residential proxy too
+          const res = await proxyFetchWithGeoFallback(
+            endpoint,
+            {
+              method:  'POST',
+              headers: reqHeaders,
+              body:    payload,
+              signal:  AbortSignal.timeout(25_000),
+            },
             sessionId,
-            httpMethod: 'POST',
-            payload,
-            headers: decodoHeaders,
-            successfulStatusCodes: [200, 400, 403],
-          })
-          lastStatus = 200
-          const json = JSON.parse(content)
+          )
+          lastStatus = res.status
+          const text = await res.text()
+
+          if (!res.ok) {
+            console.log(`[DeepDiveAPI] page=${page} variant ${variant + 1} HTTP ${res.status}: ${text.slice(0, 160)}`)
+            continue
+          }
+
+          const json = JSON.parse(text)
           const candidate = json?.output?.deep_dive_reviews
           if (typeof candidate === 'string' && candidate.length > 0) {
             reviewHtml = candidate
-            if (variant > 0) {
-              console.log(`[DeepDiveAPI] page=${page} used Decodo payload variant ${variant + 1}`)
-            }
+            if (variant > 0) console.log(`[DeepDiveAPI] page=${page} used payload variant ${variant + 1}`)
             break
           }
-          console.log(`[DeepDiveAPI] page=${page} Decodo variant ${variant + 1} returned no review HTML`)
-        } catch (decodoErr) {
-          console.log(`[DeepDiveAPI] page=${page} Decodo variant ${variant + 1} failed: ${decodoErr}`)
-        }
-
-        const res = await fetch(endpoint, {
-          method: 'POST',
-          headers,
-          body: payload,
-          signal: AbortSignal.timeout(25_000),
-        })
-
-        lastStatus = res.status
-        const text = await res.text()
-        if (!res.ok) {
-          console.log(`[DeepDiveAPI] page=${page} direct variant ${variant + 1} HTTP ${res.status}: ${text.slice(0, 160)}`)
-          continue
-        }
-
-        const json = JSON.parse(text)
-        const candidate = json?.output?.deep_dive_reviews
-        if (typeof candidate === 'string' && candidate.length > 0) {
-          reviewHtml = candidate
-          if (variant > 0) {
-            console.log(`[DeepDiveAPI] page=${page} used payload variant ${variant + 1}`)
-          }
-          break
+          console.log(`[DeepDiveAPI] page=${page} variant ${variant + 1} returned no review HTML`)
+        } catch (err) {
+          console.log(`[DeepDiveAPI] page=${page} variant ${variant + 1} failed: ${err}`)
         }
       }
 
@@ -849,8 +810,8 @@ async function fetchReviewsViaPlaywright(
 
     const reviews = raw.map((r: any) => ({
       rating: Math.min(5, Math.max(1, Math.round(r.rating ?? 5))),
-      text: String(r.review ?? r.text ?? '').replace(/<[^>]*>/g, '').trim(),
-      date: r.date ?? '',
+      text:   String(r.review ?? r.text ?? '').replace(/<[^>]*>/g, '').trim(),
+      date:   r.date ?? '',
     })).filter(r => r.text.length > 5)
 
     console.log(`[Playwright] Got ${reviews.length} reviews from service`)
@@ -862,10 +823,9 @@ async function fetchReviewsViaPlaywright(
 }
 
 // ── Multi-page scraper ────────────────────────────────────────
-// Pagination fix: switched pages 2+ to raw HTML (no JS rendering).
-// JS rendering caused React to re-hydrate from page 1 state, ignoring
-// the ?reviews_page=N URL param. Raw HTML gets Etsy's server-rendered
-// content which correctly reflects the requested page number.
+// All Etsy HTML fetches now go through the residential proxy.
+// fetchReviewsFromInternalApi is tried first (cheapest, returns clean JSON).
+// Falls back to DeepDive API, then to paginated HTML scraping.
 
 async function scrapeAllReviews(
   productUrl: string,
@@ -874,10 +834,9 @@ async function scrapeAllReviews(
   // ── Playwright microservice (if SCRAPER_URL is set) ─────
   const playwrightReviews = await fetchReviewsViaPlaywright(productUrl)
   if (playwrightReviews && playwrightReviews.length >= 5) {
-    // Still scrape first page for product metadata (JSON-LD)
     const firstPage = await scrapeFirstPage(productUrl).catch(() => ({ rawHtml: '' }))
     console.log(`[Scraper] Playwright path — ${playwrightReviews.length} reviews`)
-    return { reviews: playwrightReviews, rawHtml: firstPage.rawHtml }
+    return { reviews: playwrightReviews, rawHtml: (firstPage as any).rawHtml }
   }
 
   // ── Official Etsy API (if key is present) ────────────────
@@ -892,20 +851,20 @@ async function scrapeAllReviews(
         console.log(`[Scraper] Official API path — ${apiReviews.length} reviews`)
         return { reviews: apiReviews, rawHtml: firstPage.rawHtml }
       } catch (err) {
-        console.warn(`[Scraper] Official API failed, falling back:`, err)
+        console.warn('[Scraper] Official API failed, falling back:', err)
       }
     }
   }
 
-  // ── Fetch first page + try internal API in parallel ──────
-  // Scrape the first page to get product metadata (rawHtml JSON-LD)
-  // and simultaneously attempt Etsy's internal AJAX endpoint for reviews.
-  const listingId = extractListingId(productUrl)
+  // ── Shared session ID — all requests for this listing use the same proxy IP ──
+  const listingId       = extractListingId(productUrl)
   const decodoSessionId = listingId ? `etsy-${listingId}-${Date.now()}` : undefined
 
+  // ── Fetch first page + try internal API in parallel ──────
+  // The internal API now goes through residential proxy — Etsy won't 404 it.
   const [firstPageResult, internalReviews] = await Promise.allSettled([
     scrapeFirstPage(productUrl, decodoSessionId),
-    listingId ? fetchReviewsFromInternalApi(listingId) : Promise.resolve(null),
+    listingId ? fetchReviewsFromInternalApi(listingId, decodoSessionId) : Promise.resolve(null),
   ])
 
   const firstPage = firstPageResult.status === 'fulfilled'
@@ -914,14 +873,13 @@ async function scrapeAllReviews(
 
   const internalResult = internalReviews.status === 'fulfilled' ? internalReviews.value : null
 
-  // If internal API returned enough reviews, use it — no pagination scraping needed
   if (internalResult && internalResult.length >= 5) {
     console.log(`[Scraper] Internal API path — ${internalResult.length} reviews`)
     return { reviews: internalResult, rawHtml: firstPage.rawHtml }
   }
   console.log(`[Scraper] Internal API returned ${internalResult?.length ?? 0} reviews — trying DeepDive API`)
 
-  const firstPageHtml = firstPage.rawHtml || firstPage.renderedHtml
+  const firstPageHtml  = firstPage.rawHtml || firstPage.renderedHtml
   const deepDiveReviews = listingId
     ? await fetchReviewsFromDeepDiveApi(listingId, productUrl, firstPageHtml, decodoSessionId)
     : null
@@ -930,19 +888,18 @@ async function scrapeAllReviews(
     console.log(`[Scraper] DeepDive API path — ${deepDiveReviews.length} reviews`)
     return { reviews: deepDiveReviews, rawHtml: firstPage.rawHtml }
   }
-  console.log(`[Scraper] DeepDive API returned ${deepDiveReviews?.length ?? 0} reviews — using Decodo scraping`)
+  console.log(`[Scraper] DeepDive API returned ${deepDiveReviews?.length ?? 0} reviews — using HTML scraping`)
 
-  // ── Decodo HTML scraping fallback ────────────────────────
+  // ── Proxied HTML scraping fallback ────────────────────────
   const allReviews: Array<{ rating: number; text: string; date: string }> = []
   const seenTexts = new Set<string>()
 
   function ingestHtml(html: string) {
-    const data    = extractJsonLd(html)
-    let reviews   = parseReviews(data)
+    const data         = extractJsonLd(html)
+    let reviews        = parseReviews(data)
     if (reviews.length === 0) reviews = parseReviewsFromHtml(html)
-    // Also try Etsy's embedded page-state JSON which often has more reviews
     const stateReviews = extractReviewsFromPageState(html)
-    const combined = [...reviews, ...stateReviews]
+    const combined     = [...reviews, ...stateReviews]
     let added = 0
     for (const r of combined) {
       if (r.text && !seenTexts.has(r.text)) {
@@ -954,7 +911,6 @@ async function scrapeAllReviews(
     return added
   }
 
-  // ── First page ────────────────────────────────────────────
   const { renderedHtml, rawHtml } = firstPage
 
   if (!renderedHtml && !rawHtml) {
@@ -964,7 +920,6 @@ async function scrapeAllReviews(
   ingestHtml(renderedHtml)
   ingestHtml(rawHtml)
 
-  // Read total review count from rawHtml JSON-LD (it's stripped from renderedHtml)
   const firstData    = extractJsonLd(rawHtml)
   const totalReviews = firstData?.aggregateRating?.reviewCount
     ? parseInt(firstData.aggregateRating.reviewCount)
@@ -973,19 +928,16 @@ async function scrapeAllReviews(
   console.log(`[Scraper] First page reviews: ${allReviews.length} | totalReviews: ${totalReviews}`)
 
   if (totalReviews > 0 && allReviews.length >= totalReviews) {
-    console.log(`[Scraper] All reviews captured on first page, done.`)
+    console.log('[Scraper] All reviews captured on first page, done.')
     return { reviews: allReviews, rawHtml }
   }
 
-  // ── URL pagination with html format ──────────────────────────
-  // ?reviews_page=N tells Etsy's server which review page to render.
-  // Combined with 'html' format (JS-rendered DOM), we get aria-label star
-  // ratings AND different reviews per page. ~10 reviews per page.
-  const REVIEWS_PER_PAGE    = 4
-  const MAX_BUDGET          = 300
+  // ── Paginated HTML scraping ───────────────────────────────
+  const REVIEWS_PER_PAGE      = 4
+  const MAX_BUDGET            = 300
   const MAX_CONSECUTIVE_EMPTY = 2
-  const MAX_PAGE_ERRORS = 2
-  const SCRAPE_DEADLINE_MS = 210_000
+  const MAX_PAGE_ERRORS       = 2
+  const SCRAPE_DEADLINE_MS    = 210_000
 
   const maxPages = totalReviews > 0
     ? Math.min(75, Math.ceil(Math.min(totalReviews, MAX_BUDGET) / REVIEWS_PER_PAGE))
@@ -994,8 +946,8 @@ async function scrapeAllReviews(
   console.log(`[Scraper] Paginating up to ${maxPages} pages via ?reviews_page=N`)
 
   let consecutiveEmpty = 0
-  let pageErrors = 0
-  const startedAt = Date.now()
+  let pageErrors       = 0
+  const startedAt      = Date.now()
 
   for (let page = 2; page <= maxPages; page++) {
     if (Date.now() - startedAt > SCRAPE_DEADLINE_MS) {
@@ -1009,7 +961,7 @@ async function scrapeAllReviews(
 
     try {
       const pageUrl = `${productUrl}?reviews_page=${page}`
-      const html    = await scrapePage(pageUrl)
+      const html    = await scrapePage(pageUrl, decodoSessionId)
       const added   = ingestHtml(html)
 
       console.log(`[Scraper] Page ${page}: +${added} reviews (total ${allReviews.length})`)
@@ -1095,8 +1047,6 @@ function extractJson(content: string): unknown {
 }
 
 // ── Groq callers — one per model tier ────────────────────────
-// [ROUTING] Two separate functions so each call site is explicit
-// about which model it uses. No accidental 70b calls for cheap tasks.
 
 async function callGroq70b(
   messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
@@ -1136,8 +1086,8 @@ async function callGroq8b(
 
 function getComplaintCountGuidance(reviewCount: number, negCount: number, sampled?: number): string {
   const sampledNote = sampled ? ` (${sampled} sampled)` : ''
-  const negNote = negCount > 0 ? ` with ${negCount} negative reviews (1★–2★)` : ''
-  const minFromNeg = Math.max(2, Math.floor(negCount / 8))
+  const negNote     = negCount > 0 ? ` with ${negCount} negative reviews (1★–2★)` : ''
+  const minFromNeg  = Math.max(2, Math.floor(negCount / 8))
 
   if (reviewCount >= 500) {
     const min = Math.max(6, minFromNeg)
@@ -1177,15 +1127,14 @@ Even if all relate to the handle, "cracks at the pin" and "loose after a month" 
 // ── Main analysis ─────────────────────────────────────────────
 
 async function analyzeWithGroq(
-  product:            any,
-  reviews:            Array<{ rating: number; text: string }>,
-  ctx:                ReturnType<typeof calculateHealthScore>,
+  product:             any,
+  reviews:             Array<{ rating: number; text: string }>,
+  ctx:                 ReturnType<typeof calculateHealthScore>,
   listingDescription?: string,
 ): Promise<any> {
   const patterns       = extractPatterns(reviews)
   const sampledReviews = buildSmartSample(reviews, patterns, 200)
 
-  // Strip any LLM instruction-like patterns from review text before inserting into prompts
   const sanitizeReview = (t: string) =>
     t.replace(/ignore\s+(previous|all|above|prior)\s+(instructions?|prompts?|context)/gi, '[…]')
      .replace(/you\s+are\s+(now|a|an)\s+/gi, '[…]')
@@ -1201,39 +1150,25 @@ async function analyzeWithGroq(
 
   const negativeReviews = sampledReviews.filter(r => r.rating <= 2).slice(0, 25)
   const positiveReviews = sampledReviews.filter(r => r.rating >= 4).slice(0, 30)
-  // [ROUTING-3] fiveStarText capped at 10 instead of 20 for Call 3
-  // Call 3 only does verbatim copy — 10 reviews gives plenty of material
   const fiveStarReviews = sampledReviews.filter(r => r.rating === 5).slice(0, 10)
 
-  const negReviewText = (negativeReviews.length > 0
-    ? negativeReviews
-    : sampledReviews.slice(0, 20)
-  )
+  const negReviewText = (negativeReviews.length > 0 ? negativeReviews : sampledReviews.slice(0, 20))
     .map(r =>
       `[${r.rating}★] ${sanitizeReview(r.text).slice(0, 200).trimEnd()}` +
       (r.text.length > 200 ? '…' : ''),
-    )
-    .join('\n')
+    ).join('\n')
 
-  const posReviewText = (positiveReviews.length > 0
-    ? positiveReviews
-    : sampledReviews.slice(0, 25)
-  )
+  const posReviewText = (positiveReviews.length > 0 ? positiveReviews : sampledReviews.slice(0, 25))
     .map(r =>
       `[${r.rating}★] ${sanitizeReview(r.text).slice(0, 200).trimEnd()}` +
       (r.text.length > 200 ? '…' : ''),
-    )
-    .join('\n')
+    ).join('\n')
 
-  const fiveStarText = (fiveStarReviews.length > 0
-    ? fiveStarReviews
-    : positiveReviews.slice(0, 10)
-  )
+  const fiveStarText = (fiveStarReviews.length > 0 ? fiveStarReviews : positiveReviews.slice(0, 10))
     .map(r =>
       `[5★] ${sanitizeReview(r.text).slice(0, 180).trimEnd()}` +
       (r.text.length > 180 ? '…' : ''),
-    )
-    .join('\n')
+    ).join('\n')
 
   console.log(
     `[Parallel] Review splits — neg: ${negativeReviews.length}, ` +
@@ -1352,8 +1287,6 @@ Suggestions: use only phrases from 5★ reviews, never from complaint areas.`
   console.log(`[Section:complaints] Starting for ${reviews.length} reviews...`)
 
   // ── Call 1: COMPLAINTS — llama-3.3-70b-versatile ─────────
-  // [ROUTING-1] Stays on 70b — hardest reasoning task in the pipeline.
-  // 3-fix depth with EVIDENCE→INSIGHT→ACTION requires the strongest model.
   const complaintsRaw = await callGroq70b([
     { role: 'system' as const, content: systemPrompt },
     {
@@ -1435,7 +1368,6 @@ Return ONLY this JSON — start with { immediately:
     console.error('[Section:complaints] Parse FAILED:', String(e).slice(0, 200))
   }
 
-  // Retry if empty — stays on 70b since this is the critical call
   if (!complaintsData.complaints || complaintsData.complaints.length === 0) {
     console.warn('[Section:complaints] 0 complaints — retrying on 70b...')
     try {
@@ -1472,7 +1404,6 @@ Return ONLY: { "complaints": [ { "title": "...", "severity": "CRITICAL|MEDIUM|LO
 
   const topComplaintTitle = complaintsData.complaints?.[0]?.title || 'quality issues'
 
-  // Build partial report — user redirects immediately after complaints
   const partialReport: any = {
     healthScore:   ctx.healthScore,
     starBreakdown: {
@@ -1532,16 +1463,15 @@ async function analyzeFreePreview(
     .join('\n')
 
   const seoAnalysis = calculateSeoScore(reviews, product.title)
-  const negCount = ctx.starCounts[1] + ctx.starCounts[2]
-  const negPct = ctx.totalReviewCount > 0
+  const negCount    = ctx.starCounts[1] + ctx.starCounts[2]
+  const negPct      = ctx.totalReviewCount > 0
     ? Math.round((negCount / ctx.totalReviewCount) * 100)
     : 0
 
   let complaintsData: any = { complaints: [] }
-  let strengthsData: any = { strengths: [] }
+  let strengthsData: any  = { strengths: [] }
 
   try {
-    // [ROUTING] Free preview uses 8b — simple extraction, no complex reasoning
     const raw = await callGroq8b([
       {
         role: 'system' as const,
@@ -1597,7 +1527,7 @@ Return ONLY this JSON:
 
     const parsed = extractJson(raw) as any
     if (Array.isArray(parsed?.complaints)) complaintsData = { complaints: parsed.complaints.slice(0, 2) }
-    if (Array.isArray(parsed?.strengths)) strengthsData = { strengths: parsed.strengths.slice(0, 1) }
+    if (Array.isArray(parsed?.strengths))  strengthsData  = { strengths:  parsed.strengths.slice(0, 1) }
   } catch (err) {
     console.warn('[FreePreview] parse failed, using empty preview:', err)
   }
@@ -1611,19 +1541,19 @@ Return ONLY this JSON:
       '4': ctx.starCounts[4],
       '5': ctx.starCounts[5],
     },
-    complaints: Array.isArray(complaintsData.complaints) ? complaintsData.complaints : [],
-    strengths: Array.isArray(strengthsData.strengths) ? strengthsData.strengths : [],
-    improvements: [],
-    seo: { score: seoAnalysis.score },
-    marketingCopy: [],
+    complaints:      Array.isArray(complaintsData.complaints) ? complaintsData.complaints : [],
+    strengths:       Array.isArray(strengthsData.strengths)   ? strengthsData.strengths   : [],
+    improvements:    [],
+    seo:             { score: seoAnalysis.score },
+    marketingCopy:   [],
     reviewTemplates: [],
-    careGuide: null,
-    quickWin: null,
-    topActions: [],
-    freeSummary: `Health score ${ctx.healthScore}/100 is based on ${reviews.length} reviews, with ${negPct}% unhappy buyers. Free preview shows the top problems and one strength; fixes and full SEO unlock on paid plans.`,
-    keyInsight: `This is a preview of the biggest patterns in the reviews, not the full action plan.`,
-    summary: `Health score ${ctx.healthScore}/100 reflects the main review patterns. The free preview shows the top complaints, one strength, and an SEO score.`,
-    _sectionsReady: ['complaints', 'strengths', 'seo', 'summary'],
+    careGuide:       null,
+    quickWin:        null,
+    topActions:      [],
+    freeSummary:     `Health score ${ctx.healthScore}/100 is based on ${reviews.length} reviews, with ${negPct}% unhappy buyers. Free preview shows the top problems and one strength; fixes and full SEO unlock on paid plans.`,
+    keyInsight:      'This is a preview of the biggest patterns in the reviews, not the full action plan.',
+    summary:         `Health score ${ctx.healthScore}/100 reflects the main review patterns. The free preview shows the top complaints, one strength, and an SEO score.`,
+    _sectionsReady:  ['complaints', 'strengths', 'seo', 'summary'],
     _cache: {
       reviewText,
       seoScore: seoAnalysis.score,
@@ -1673,18 +1603,14 @@ export async function POST(request: NextRequest) {
   const csrfError = checkCsrf(request)
   if (csrfError) return csrfError
 
-  // On Vercel, x-real-ip is the trusted client IP set by the edge network.
-  // x-forwarded-for leftmost entry can be spoofed before Vercel's edge, so prefer x-real-ip.
   const ip =
     request.headers.get('x-real-ip') ||
     request.headers.get('x-forwarded-for')?.split(',').at(-1)?.trim() ||
     'unknown'
 
-  // Abort everything 270s in — 30s before Vercel's hard 300s kill
   const timeoutSignal = AbortSignal.timeout(270_000)
 
-  // Tracks whether credits were deducted so the outer catch can refund on any failure
-  let creditsDeducted = false
+  let creditsDeducted    = false
   let creditRefundUserId = ''
   let creditRefundAmount = 0
 
@@ -1744,14 +1670,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Credit cost: 24 for own analysis, 48 for competitor
     const creditCost = reportType === 'competitor' ? 48 : 24
 
     if (!isAdminUser) {
       if (credits < creditCost) {
         return NextResponse.json(
           {
-            error: `Not enough credits. This analysis costs ${creditCost} credits and you have ${credits}.`,
+            error:           `Not enough credits. This analysis costs ${creditCost} credits and you have ${credits}.`,
             upgradeRequired: true,
             credits,
             creditCost,
@@ -1759,22 +1684,18 @@ export async function POST(request: NextRequest) {
           { status: 403 },
         )
       }
-      // Deduct credits atomically
       const { error: deductError } = await supabase.rpc('deduct_credits', {
         p_user_id: user.id,
         p_amount:  creditCost,
       })
       if (deductError) {
-        // deduct_credits RPC returns an error both when credits are insufficient
-        // and on DB failure — log the real reason, return a safe generic message
         console.error('[Analyze] Credit deduction failed:', deductError.message)
         return NextResponse.json(
           { error: 'Could not deduct credits. Please refresh and try again.', upgradeRequired: false },
           { status: 503 },
         )
       }
-      // Track so the outer catch can refund on any downstream failure
-      creditsDeducted = true
+      creditsDeducted    = true
       creditRefundUserId = user.id
       creditRefundAmount = creditCost
     }
@@ -1814,19 +1735,17 @@ export async function POST(request: NextRequest) {
     try {
       console.log(`[Pipeline] Starting: ${productUrl}`)
 
-      // scrapeAllReviews fetches the first page itself (both rawHtml + rendered html)
-      // and returns the rawHtml so we can extract product metadata without an extra request.
       const { reviews: rawReviews, rawHtml: firstRawHtml } =
         await withRetry(() => scrapeAllReviews(productUrl), 0)
 
-      const firstData      = extractJsonLd(firstRawHtml)
-      const product        = parseProduct(firstData, productUrl)
+      const firstData        = extractJsonLd(firstRawHtml)
+      const product          = parseProduct(firstData, productUrl)
       const totalReviewCount = firstData?.aggregateRating?.reviewCount
         ? parseInt(firstData.aggregateRating.reviewCount)
         : 0
 
-      const sampledReviews = sampleReviews(rawReviews, totalReviewCount || rawReviews.length)
-      product.reviewCount  = sampledReviews.length
+      const sampledReviews    = sampleReviews(rawReviews, totalReviewCount || rawReviews.length)
+      product.reviewCount     = sampledReviews.length
 
       if (sampledReviews.length === 0) {
         await supabase.from('reports').update({ status: 'failed' }).eq('id', reportId)
@@ -1850,7 +1769,7 @@ export async function POST(request: NextRequest) {
           health_score:           analysis.healthScore,
           total_reviews_analyzed: sampledReviews.length,
           top_complaint:          analysis.complaints?.[0]?.title || null,
-          top_strength:           analysis.strengths?.[0]?.title || null,
+          top_strength:           analysis.strengths?.[0]?.title  || null,
           top_improvement:        analysis.improvements?.[0]?.title || null,
           competitors:            [],
           full_report:            analysis,
@@ -1863,7 +1782,6 @@ export async function POST(request: NextRequest) {
         .from('usage_logs')
         .insert({ user_id: user.id, report_id: reportId, tokens_used: 0 })
 
-      // Fire-and-forget completion email (skip for cron re-analyses)
       if (!isReAnalyze && user.email) {
         sendReportComplete({
           to:          user.email,
