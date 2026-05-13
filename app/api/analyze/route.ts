@@ -78,22 +78,18 @@ const GEO_ROTATION = ['us', 'gb', 'ca', 'au']
 function buildProxyAgent(geo = 'us', sessionId?: string): ProxyAgent {
   const username = process.env.DECODO_PROXY_USER
   const password = process.env.DECODO_PROXY_PASS
-  const host     = process.env.DECODO_PROXY_HOST || 'gate.decodo.com'
-  const port     = process.env.DECODO_PROXY_PORT || '10000'
+  const server   = (process.env.DECODO_PROXY_SERVER || 'gate.decodo.com:10000').replace('http://', '').replace('https://', '')
 
   if (!username || !password) {
-    throw new Error('DECODO_USERNAME or DECODO_PASSWORD env var not set')
+    throw new Error('DECODO_PROXY_USER or DECODO_PROXY_PASS env var not set')
   }
 
-  // Decodo username format for targeting:
-  // sp2pq9xo68-country-US                       (rotating residential, US)
-  // sp2pq9xo68-country-US-session-abc123        (sticky session, same IP)
   let targetedUsername = `${username}-country-${geo.toUpperCase()}`
   if (sessionId) {
     targetedUsername += `-session-${sessionId}`
   }
 
-  const proxyUrl = `http://${targetedUsername}:${password}@${host}:${port}`
+  const proxyUrl = `http://${targetedUsername}:${password}@${server}`
   return new ProxyAgent(proxyUrl)
 }
 
