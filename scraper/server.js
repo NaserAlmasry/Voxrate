@@ -1,7 +1,11 @@
-// Voxrate scraper — Playwright + Decodo residential proxy
+// @ts-nocheck
+// Voxrate scraper — Playwright + Stealth + Decodo residential proxy
 const express      = require('express')
-const { chromium } = require('playwright')
+const { chromium } = require('playwright-extra')
+const StealthPlugin = require('puppeteer-extra-plugin-stealth')
 const { ProxyAgent, fetch: proxyFetch } = require('undici')
+
+chromium.use(StealthPlugin())
 
 const app = express()
 app.use(express.json())
@@ -21,7 +25,6 @@ const proxyConfigured = Boolean(DECODO_USER && DECODO_PASS)
 // Decodo encodes targeting params INTO the username:
 //   sp2pq9xo68-country-US              → rotating US residential IP
 //   sp2pq9xo68-country-US-session-abc  → sticky session (same IP)
-// This is different from datacenter proxies that use plain credentials.
 
 function buildProxyUsername(sessionId) {
   if (!DECODO_USER) return null
@@ -86,6 +89,10 @@ async function scrapeReviews(listingUrl, maxPages = 30) {
       '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
       '--disable-blink-features=AutomationControlled',
+      '--disable-infobars',
+      '--window-size=1280,900',
+      '--disable-extensions',
+      '--ignore-certificate-errors',
     ],
   }
 
@@ -100,10 +107,6 @@ async function scrapeReviews(listingUrl, maxPages = 30) {
   }
 
   if (proxyConfigured) {
-    // KEY FIX: Decodo residential proxy requires the geo/session params
-    // encoded IN the username, not as separate fields.
-    // Wrong:  username: "sp2pq9xo68"  ← plain username, gets datacenter IP
-    // Right:  username: "sp2pq9xo68-country-US-session-abc123" ← residential IP
     launchOpts.proxy = {
       server:   `http://${PROXY_SERVER}`,
       username: buildProxyUsername(sessionId),
@@ -117,14 +120,6 @@ async function scrapeReviews(listingUrl, maxPages = 30) {
   const browser = await chromium.launch(launchOpts)
   try {
     const context = await browser.newContext(contextOpts)
-
-    // Hide automation signals
-    await context.addInitScript(() => {
-      Object.defineProperty(navigator, 'webdriver', { get: () => false })
-      Object.defineProperty(navigator, 'plugins',   { get: () => [1, 2, 3, 4, 5] })
-      Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] })
-      window.chrome = { runtime: {} }
-    })
 
     const allReviews  = []
     const seenIds     = new Set()
@@ -193,8 +188,6 @@ async function scrapeReviews(listingUrl, maxPages = 30) {
       const cookies = await context.cookies('https://www.etsy.com')
       const cookieHeader = cookies.map(c => `${c.name}=${c.value}`).join('; ')
 
-      // Build a ProxyAgent for pagination fetches so they also go through
-      // the residential proxy — not the bare Railway server IP
       const agent = buildProxyAgent(sessionId)
 
       console.log('[scraper] Paginating:', base)
@@ -213,8 +206,6 @@ async function scrapeReviews(listingUrl, maxPages = 30) {
           },
         }
 
-        // KEY FIX: pagination fetch was using bare Node fetch (Railway IP)
-        // Now uses undici ProxyAgent to route through residential proxy
         const fetchFn = agent ? proxyFetch : fetch
         if (agent) fetchOpts.dispatcher = agent
 
