@@ -16,6 +16,10 @@ const PROXY_SERVER = PROXY_SERVER_RAW.startsWith('socks5h://')
   : PROXY_SERVER_RAW
 const proxyConfigured = Boolean(DECODO_USER && DECODO_PASS)
 
+if (proxyConfigured && /^socks5:\/\//i.test(PROXY_SERVER)) {
+  console.warn('[scraper] SOCKS5 with username/password is not supported here. Use http://gate.decodo.com:PORT instead.')
+}
+
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
 function extractListingId(url) {
@@ -72,6 +76,9 @@ async function scrapeReviews(listingUrl, maxPages = 30) {
   }
 
   if (DECODO_USER && DECODO_PASS) {
+    if (/^socks5:\/\//i.test(PROXY_SERVER)) {
+      throw new Error('Authenticated SOCKS5 proxy is not supported in this scraper. Switch DECODO_PROXY_SERVER to http://gate.decodo.com:PORT.')
+    }
     launchOpts.proxy = {
       server:   PROXY_SERVER,
       username: DECODO_USER,
