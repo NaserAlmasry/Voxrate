@@ -10,12 +10,18 @@ const BASE_URL = 'https://api.rainforestapi.com/request'
 //   B073JYC4XM
 export async function scrapeAmazon(input: string): Promise<AmazonScrapeResult> {
   const { asin, marketplace } = parseInput(input)
+  console.log(`[Scraper] ASIN: ${asin} | Marketplace: ${marketplace}`)
 
-  const [productData, reviewsData, qaData] = await Promise.all([
-    fetchProduct(asin, marketplace),
-    fetchReviews(asin, marketplace),
+  // Fetch product first — we need top_reviews as fallback if reviews API returns empty
+  const { product: productData, topReviews } = await fetchProduct(asin, marketplace)
+
+  // Fetch reviews and Q&A in parallel
+  const [reviewsData, qaData] = await Promise.all([
+    fetchReviews(asin, marketplace, topReviews),
     fetchQA(asin, marketplace),
   ])
+
+  console.log(`[Scraper] Got ${reviewsData.length} reviews, ${qaData.length} Q&A items`)
 
   return {
     product: productData,
@@ -52,7 +58,31 @@ function parseInput(input: string): { asin: string; marketplace: string } {
   }
 }
 
-async function fetchProduct(asin: string, marketplace: string): Promise<AmazonProduct> {
+function mapRawReview(r: {
+  id?: string
+  rating?: number
+  title?: string
+  body?: string
+  date?: { utc?: string }
+  verified_purchase?: boolean
+  vine_program?: boolean
+  helpful_votes?: number
+  review_country?: string
+}): AmazonReview {
+  return {
+    id: r.id ?? '',
+    rating: r.rating ?? 0,
+    title: r.title ?? '',
+    body: r.body ?? '',
+    date: r.date?.utc ?? '',
+    verified: r.verified_purchase ?? false,
+    vine: r.vine_program ?? false,
+    helpful: r.helpful_votes ?? 0,
+    country: r.review_country ?? 'us',
+  }
+}
+
+async function fetchProduct(asin: string, marketplace: string): Promise<{ product: AmazonProduct; topReviews: AmazonReview[] }> {
   const params = new URLSearchParams({
     api_key: RAINFOREST_API_KEY,
     type: 'product',
@@ -65,9 +95,10 @@ async function fetchProduct(asin: string, marketplace: string): Promise<AmazonPr
   if (!res.ok) throw new Error(`Rainforest product fetch failed: ${res.status}`)
 
   const data = await res.json()
-  if (!data.request_info?.success) throw new Error('Rainforest API returned unsuccessful response')
+  if (!data.request_info?.success) throw new Error(`Rainforest API error: ${JSON.stringify(data.request_info)}`)
 
   const p = data.product
+  console.log(`[Scraper] Product: "${p?.title?.slice(0, 60)}" | Total reviews: ${p?.ratings_total}`)
 
   const ratingBreakdown = {
     five: p.rating_breakdown?.five_star?.count ?? 0,
@@ -77,7 +108,10 @@ async function fetchProduct(asin: string, marketplace: string): Promise<AmazonPr
     one: p.rating_breakdown?.one_star?.count ?? 0,
   }
 
-  return {
+  // top_reviews from product call — used as fallback if reviews API returns empty
+  const topReviews: AmazonReview[] = (p.top_reviews ?? []).map(mapRawReview)
+
+  const product: AmazonProduct = {
     asin: p.asin,
     marketplace,
     title: p.title ?? '',
@@ -102,9 +136,11 @@ async function fetchProduct(asin: string, marketplace: string): Promise<AmazonPr
     recentSales: p.recent_sales ?? null,
     isFBA: p.buybox_winner?.fulfillment?.is_fulfilled_by_amazon ?? false,
   }
+
+  return { product, topReviews }
 }
 
-async function fetchReviews(asin: string, marketplace: string): Promise<AmazonReview[]> {
+async function fetchReviews(asin: string, marketplace: string, fallback: AmazonReview[]): Promise<AmazonReview[]> {
   const allReviews: AmazonReview[] = []
   let page = 1
   const maxPages = 20 // up to 400 reviews (20 per page)
@@ -120,37 +156,30 @@ async function fetchReviews(asin: string, marketplace: string): Promise<AmazonRe
     })
 
     const res = await fetch(`${BASE_URL}?${params}`)
-    if (!res.ok) break
+    if (!res.ok) {
+      console.warn(`[Scraper] Reviews fetch failed on page ${page}: HTTP ${res.status}`)
+      break
+    }
 
     const data = await res.json()
-    if (!data.request_info?.success) break
+    if (!data.request_info?.success) {
+      console.warn(`[Scraper] Reviews API unsuccessful on page ${page}:`, data.request_info)
+      break
+    }
 
-    const reviews: AmazonReview[] = (data.reviews ?? []).map((r: {
-      id: string
-      rating: number
-      title: string
-      body: string
-      date?: { utc?: string }
-      verified_purchase?: boolean
-      vine_program?: boolean
-      helpful_votes?: number
-      review_country?: string
-    }) => ({
-      id: r.id,
-      rating: r.rating,
-      title: r.title ?? '',
-      body: r.body ?? '',
-      date: r.date?.utc ?? '',
-      verified: r.verified_purchase ?? false,
-      vine: r.vine_program ?? false,
-      helpful: r.helpful_votes ?? 0,
-      country: r.review_country ?? 'us',
-    }))
+    const reviews: AmazonReview[] = (data.reviews ?? []).map(mapRawReview)
 
     if (reviews.length === 0) break
     allReviews.push(...reviews)
+    console.log(`[Scraper] Page ${page}: ${reviews.length} reviews (total so far: ${allReviews.length})`)
     if (reviews.length < 10) break // last page
     page++
+  }
+
+  // Fall back to top_reviews from product call if dedicated reviews fetch returned nothing
+  if (allReviews.length === 0 && fallback.length > 0) {
+    console.warn(`[Scraper] Reviews API returned empty — using ${fallback.length} top_reviews from product call as fallback`)
+    return fallback
   }
 
   return allReviews
