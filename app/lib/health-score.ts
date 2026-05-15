@@ -64,6 +64,20 @@ export interface ReportContext {
    * Drives discriminated-union schema selection in report-schema.ts.
    */
   tier:             'pro' | 'free'
+  // ── Amazon-specific fields ────────────────────────────────
+  verifiedReviews:     number
+  unverifiedReviews:   number
+  vineReviews:         number
+  verifiedHealthScore: number
+  rawHealthScore:      number
+  imageCount:          number
+  videoCount:          number
+  hasAplus:            boolean
+  unansweredQACount:   number
+  bsr:                 number | null
+  bsrCategory:         string | null
+  fakeReviewFlag:      boolean
+  recentSales:         string | null
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -132,26 +146,62 @@ export function detectTier(
 }
 
 // ─────────────────────────────────────────────────────────────
+// Amazon review adapter — converts AmazonReview[] to ReviewSample[]
+// ─────────────────────────────────────────────────────────────
+
+export interface AmazonReviewInput {
+  id: string
+  rating: number
+  title: string
+  body: string
+  date: string
+  verified: boolean
+  vine: boolean
+  helpful: number
+  country: string
+}
+
+// ─────────────────────────────────────────────────────────────
 // Main calculator
 // ─────────────────────────────────────────────────────────────
 
 /**
  * Call this BEFORE building the LLM prompt.
  *
- * @param sampledReviews   – reviews being analysed
+ * @param sampledReviews   – reviews being analysed (ReviewSample[] or AmazonReviewInput[])
  * @param totalReviewCount – full aggregate count from the listing
  * @param tier             – explicit tier override (optional)
+ * @param amazonData       – optional Amazon-specific product/QA data
  */
 export function calculateHealthScore(
-  sampledReviews:   ReviewSample[],
+  sampledReviews:   ReviewSample[] | AmazonReviewInput[],
   totalReviewCount: number,
   tier?:            'pro' | 'free',
+  amazonData?: {
+    imageCount:       number
+    videoCount:       number
+    hasAplus:         boolean
+    bsr:              number | null
+    bsrCategory:      string | null
+    recentSales:      string | null
+    unansweredQACount: number
+  },
 ): ReportContext {
   const starCounts: StarDistribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
   const penalizedReviews: string[] = []
   let penaltyCount = 0
 
-  for (const review of sampledReviews) {
+  // Detect if input is AmazonReviewInput (has 'body' field) or ReviewSample (has 'text')
+  const isAmazonReview = (r: any): r is AmazonReviewInput => 'body' in r && 'verified' in r
+
+  // Normalize to a unified shape for processing
+  const normalizedReviews: Array<ReviewSample & { verified?: boolean; vine?: boolean }> =
+    sampledReviews.map(r => isAmazonReview(r)
+      ? { rating: r.rating, text: r.body, id: r.id, verified: r.verified, vine: r.vine }
+      : r as ReviewSample
+    )
+
+  for (const review of normalizedReviews) {
     const star = Math.min(5, Math.max(1, Math.round(review.rating))) as 1 | 2 | 3 | 4 | 5
     starCounts[star]++
 
@@ -163,7 +213,7 @@ export function calculateHealthScore(
     }
   }
 
-  const total = sampledReviews.length
+  const total = normalizedReviews.length
 
   // Weighted score formula: 5★=100 · 4★=75 · 3★=50 · 2★=25 · 1★=0
   const weightedRaw = total === 0
@@ -177,10 +227,54 @@ export function calculateHealthScore(
       ) / (total * 100) * 100
 
   // Apply damage penalties — no cap, intentional floor collapse for bad products
-  const penalized = weightedRaw - (penaltyCount * 5)
+  let penalized = weightedRaw - (penaltyCount * 5)
+
+  // Amazon-specific: image penalty
+  const imageCount = amazonData?.imageCount ?? 0
+  if (imageCount > 0 && imageCount < 5) {
+    penalized -= 3
+  }
+
+  // Amazon-specific: unanswered QA penalty
+  const unansweredQACount = amazonData?.unansweredQACount ?? 0
+  if (unansweredQACount > 10) {
+    penalized -= 2
+  }
 
   // Floor at 20, Math.floor not Math.round (never round up a bad score)
   const healthScore = Math.max(20, Math.floor(penalized))
+
+  // ── Amazon-specific metrics ────────────────────────────────
+  const verifiedReviews   = normalizedReviews.filter(r => r.verified === true).length
+  const unverifiedReviews = normalizedReviews.filter(r => r.verified === false).length
+  const vineReviews       = normalizedReviews.filter(r => r.vine === true).length
+
+  // verifiedHealthScore: same formula but only verified reviews
+  const verifiedSampled = normalizedReviews.filter(r => r.verified === true)
+  const verifiedCounts: StarDistribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
+  let verifiedPenaltyCount = 0
+  for (const review of verifiedSampled) {
+    const star = Math.min(5, Math.max(1, Math.round(review.rating))) as 1 | 2 | 3 | 4 | 5
+    verifiedCounts[star]++
+    if (hasDamageKeyword(review.text)) verifiedPenaltyCount++
+  }
+  const verifiedTotal = verifiedSampled.length
+  const verifiedRaw = verifiedTotal === 0
+    ? 0
+    : (
+        (verifiedCounts[5] * 100) +
+        (verifiedCounts[4] * 75)  +
+        (verifiedCounts[3] * 50)  +
+        (verifiedCounts[2] * 25)  +
+        (verifiedCounts[1] * 0)
+      ) / (verifiedTotal * 100) * 100
+  const verifiedHealthScore = Math.max(20, Math.floor(verifiedRaw - verifiedPenaltyCount * 5))
+
+  // fakeReviewFlag: unverified reviews make up >30% of negative (1-2 star) reviews
+  const negativeReviews     = normalizedReviews.filter(r => r.rating <= 2)
+  const unverifiedNegatives = negativeReviews.filter(r => r.verified === false)
+  const fakeReviewFlag = negativeReviews.length > 0 &&
+    (unverifiedNegatives.length / negativeReviews.length) > 0.3
 
   return {
     healthScore,
@@ -190,8 +284,22 @@ export function calculateHealthScore(
     weightedRaw,
     penaltyCount,
     penalizedReviews,
-    reviewTexts:      sampledReviews.map(r => r.text),
+    reviewTexts:      normalizedReviews.map(r => r.text),
     tier:             detectTier(totalReviewCount, tier),
+    // Amazon-specific
+    verifiedReviews,
+    unverifiedReviews,
+    vineReviews,
+    verifiedHealthScore,
+    rawHealthScore:   Math.max(20, Math.floor(weightedRaw - penaltyCount * 5)),
+    imageCount,
+    videoCount:       amazonData?.videoCount ?? 0,
+    hasAplus:         amazonData?.hasAplus ?? false,
+    unansweredQACount,
+    bsr:              amazonData?.bsr ?? null,
+    bsrCategory:      amazonData?.bsrCategory ?? null,
+    fakeReviewFlag,
+    recentSales:      amazonData?.recentSales ?? null,
   }
 }
 

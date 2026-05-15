@@ -89,6 +89,7 @@ const QuickWinSchema = z.object({
 const BaseComplaintSchema = z.object({
   title:           z.string().min(1),
   severity:        z.enum(['CRITICAL', 'MEDIUM', 'LOW']),
+  type:            z.enum(['SHIPPING', 'PRODUCTION', 'LISTING', 'DESIGN', 'COMPATIBILITY']).optional(),
   confidence:      z.enum(['High', 'Medium', 'Low']).optional(),
   fixPriority:     z.enum(['High', 'Medium', 'Low']).optional(),
   description:     z.string().min(1),
@@ -128,6 +129,21 @@ const SharedRootFields = {
   marketingCopy:   z.array(z.string().min(1)).min(1).max(5).optional().default([]),
   reviewTemplates: z.array(ReviewTemplateSchema).min(0).max(2).optional().default([]),
   starBreakdown:   StarBreakdownSchema,
+  // Amazon-specific fields
+  asin:                 z.string().optional(),
+  marketplace:          z.string().optional(),
+  productTitle:         z.string().optional(),
+  productImage:         z.string().optional(),
+  imageCount:           z.number().optional(),
+  videoCount:           z.number().optional(),
+  hasAplus:             z.boolean().optional(),
+  bsr:                  z.number().nullable().optional(),
+  bsrCategory:          z.string().nullable().optional(),
+  verifiedHealthScore:  z.number().optional(),
+  rawHealthScore:       z.number().optional(),
+  fakeReviewFlag:       z.boolean().optional(),
+  unansweredQAGaps:     z.array(z.string()).max(5).optional().default([]),
+  recentSales:          z.string().nullable().optional(),
 }
 
 // ─────────────────────────────────────────────────────────────

@@ -28,6 +28,8 @@ export interface ComplaintCluster {
   severity:     'high' | 'medium' | 'low'
   starBreakdown: Record<1|2|3|4|5, number>
   bestQuotes:   string[]         // top 3 verbatim reviews mentioning this
+  verified?:    number           // how many verified reviews mention this
+  vine?:        number           // how many vine reviews mention this
 }
 
 export interface StrengthCluster {
@@ -53,6 +55,8 @@ export interface PatternAnalysis {
 // Add more phrases as you discover patterns from real user data.
 
 const COMPLAINT_SIGNALS: Array<{ phrases: string[]; label: string }> = [
+  // Compatibility (Amazon-specific)
+  { phrases: ["doesn't fit", "not compatible", "incompatible", "wrong size", "doesn't work with", "not for", "won't fit"], label: 'compatibility issue' },
   // Structural failures
   { phrases: ['crack', 'cracked', 'cracking', 'split', 'splitting'], label: 'cracking or splitting' },
   { phrases: ['broke', 'broken', 'snapped', 'fell apart', 'came apart', 'came undone', 'unravel', 'unraveling', 'fraying'], label: 'breaking or unraveling' },
@@ -163,7 +167,7 @@ function getSeverity(pct: number): 'high' | 'medium' | 'low' {
 // ── Main export: extractPatterns ──────────────────────────────
 
 export function extractPatterns(
-  reviews: Array<{ rating: number; text: string }>,
+  reviews: Array<{ rating: number; text: string; verified?: boolean; vine?: boolean }>,
 ): PatternAnalysis {
   const total = reviews.length
   if (total === 0) {
@@ -207,6 +211,10 @@ export function extractPatterns(
       sb[star]++
     }
 
+    // Amazon: track verified and vine counts within this cluster
+    const verifiedCount = matching.filter(r => r.verified === true).length
+    const vineCount     = matching.filter(r => r.vine === true).length
+
     complaintClusters.push({
       phrase:       signal.label,
       count,
@@ -214,6 +222,8 @@ export function extractPatterns(
       severity:     getSeverity(pct),
       starBreakdown: sb,
       bestQuotes:   getBestQuotes(reviews, signal.phrases),
+      verified:     verifiedCount,
+      vine:         vineCount,
     })
   }
 
@@ -298,10 +308,10 @@ These numbers come from scanning ALL ${total} reviews — they are accurate.`
 // For each complaint cluster, picks the most diagnostic reviews.
 
 export function buildSmartSample(
-  reviews:  Array<{ rating: number; text: string }>,
+  reviews:  Array<{ rating: number; text: string; verified?: boolean; vine?: boolean }>,
   patterns: PatternAnalysis,
   maxTotal: number = 200,
-): Array<{ rating: number; text: string }> {
+): Array<{ rating: number; text: string; verified?: boolean; vine?: boolean }> {
   const selected = new Set<number>()  // track by index to avoid duplicates
   const result:  Array<{ rating: number; text: string }> = []
 

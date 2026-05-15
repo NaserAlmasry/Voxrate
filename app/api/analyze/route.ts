@@ -1,29 +1,14 @@
 // ============================================================
 // app/api/analyze/route.ts
 //
-// PROXY FIX (this version):
-//  [PROXY-1] Removed Web Scraping API (scraper-api.decodo.com) entirely.
-//            It was returning 613 "could not scrape" on Etsy — unfixable.
-//  [PROXY-2] All HTTP requests to Etsy now route through your Decodo
-//            Residential Proxy (us.decodo.com:10000) via undici ProxyAgent.
-//            Residential IPs are not blocklisted by Etsy; datacenter IPs are.
-//  [PROXY-3] fetchReviewsFromInternalApi() was making a naked fetch from
-//            the Vercel datacenter IP — Etsy sees it instantly and 404s.
-//            Now proxied through residential endpoint.
-//  [PROXY-4] fetchReviewsFromDeepDiveApi() direct fetch fallback also proxied.
-//  [PROXY-5] Geo rotation added: us → gb → ca → au. If one IP pool is
-//            temporarily rate-limited, the next geo retries automatically.
-//  [PROXY-6] Session pinning: all requests for a single listing share the
-//            same session_id so Etsy sees one consistent "user" browsing.
+// AMAZON MIGRATION (this version):
+//  Replaced all Etsy scraping (Decodo proxy, internal Etsy API, DeepDive API)
+//  with Rainforest API calls via amazon-scraper.ts.
 //
-// REQUIRED: npm install undici
 // ENV VARS NEEDED:
-//   DECODO_USERNAME   — e.g. sp2pq9xo68   (from Decodo dashboard)
-//   DECODO_PASSWORD   — your proxy password
-//   DECODO_PROXY_HOST — us.decodo.com     (or gate.decodo.com)
-//   DECODO_PROXY_PORT — 10000
+//   RAINFOREST_API_KEY — from rainforestapi.com dashboard
 //
-// MODEL ROUTING — unchanged from previous version:
+// MODEL ROUTING:
 //  [ROUTING-1] Call 1 (Complaints):    llama-3.3-70b-versatile
 //  [ROUTING-2] Call 2 (Strengths):     llama-3.3-70b-versatile
 //  [ROUTING-3] Call 3 (SEO+Marketing): llama-3.1-8b-instant
@@ -32,7 +17,6 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import Groq from 'groq-sdk'
-import { ProxyAgent, fetch as uFetch } from 'undici'
 import { createClient } from '@/app/lib/supabase/server'
 import {
   calculateHealthScore,
@@ -50,6 +34,8 @@ import {
 import { extractPatterns, buildSmartSample } from '@/app/lib/pattern-extractor'
 import { calculateSeoScore } from '@/app/lib/seo-scorer'
 import { sendReportComplete } from '@/app/lib/email'
+import { scrapeAmazon } from '@/app/lib/amazon-scraper'
+import type { AmazonReview } from '@/app/lib/amazon-types'
 
 export const maxDuration = 300
 
@@ -59,934 +45,37 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
 const MODEL_70B = 'llama-3.3-70b-versatile'
 const MODEL_8B  = 'llama-3.1-8b-instant'
 
-// ── Geo rotation for residential proxy ───────────────────────
-// Rotates through geos when one is rate-limited or blocked.
-const GEO_ROTATION = ['us', 'gb', 'ca', 'au']
+// ── Amazon URL validator ──────────────────────────────────────
+// Accepts Amazon URLs (any marketplace) or bare ASINs (10 char alphanumeric)
 
-// ── Residential proxy builder ─────────────────────────────────
-// Returns an undici ProxyAgent pointed at your Decodo residential endpoint.
-// Residential IPs (homes) are not flagged by Etsy; datacenter IPs are.
-//
-// Decodo residential proxy URL format:
-//   http://USERNAME:PASSWORD@PROXY_HOST:PORT
-//
-// For geo/session targeting, Decodo encodes parameters into the username:
-//   USERNAME-country-US-session-SESSION_ID
-//
-// See: https://help.decodo.com/residential-proxies/proxy-setup
+const AMAZON_DOMAINS = [
+  'amazon.com', 'amazon.co.uk', 'amazon.de', 'amazon.co.jp',
+  'amazon.ca', 'amazon.com.au', 'amazon.fr', 'amazon.it', 'amazon.es',
+  'amazon.com.mx', 'amazon.nl', 'amazon.se', 'amazon.pl',
+]
 
-function buildProxyAgent(geo = 'us', sessionId?: string): ProxyAgent {
-  const username = process.env.DECODO_PROXY_USER
-  const password = process.env.DECODO_PROXY_PASS
-  const server   = (process.env.DECODO_PROXY_SERVER || 'gate.decodo.com:10000').replace('http://', '').replace('https://', '')
+function sanitizeAmazonInput(raw: string): string | null {
+  const trimmed = raw.trim()
 
-  if (!username || !password) {
-    throw new Error('DECODO_PROXY_USER or DECODO_PROXY_PASS env var not set')
+  // Bare ASIN: 10 alphanumeric chars
+  if (/^[A-Z0-9]{10}$/i.test(trimmed)) {
+    return trimmed.toUpperCase()
   }
 
-  let targetedUsername = `${username}-country-${geo.toUpperCase()}`
-  if (sessionId) {
-    targetedUsername += `-session-${sessionId}`
-  }
-
-  const proxyUrl = `http://${targetedUsername}:${password}@${server}`
-  return new ProxyAgent(proxyUrl)
-}
-
-// ── Proxied fetch wrapper ─────────────────────────────────────
-// All Etsy requests must go through this — never use global fetch() for Etsy.
-// undici's fetch() accepts a `dispatcher` option for proxy routing.
-
-async function proxyFetch(
-  url: string,
-  init: RequestInit & { dispatcher?: ProxyAgent } = {},
-  geo = 'us',
-  sessionId?: string,
-): Promise<Response> {
-  const agent = buildProxyAgent(geo, sessionId)
-  // undici's fetch is type-compatible with the global fetch API
-  return uFetch(url, { ...init, dispatcher: agent } as any) as unknown as Response
-}
-
-// ── Geo-rotating fetch ────────────────────────────────────────
-// Tries each geo in order. On 403/429/613 moves to next geo.
-// Returns on first success.
-
-async function proxyFetchWithGeoFallback(
-  url: string,
-  init: RequestInit = {},
-  sessionId?: string,
-): Promise<Response> {
-  let lastError: Error = new Error('No geos attempted')
-
-  for (const geo of GEO_ROTATION) {
-    try {
-      const res = await proxyFetch(url, init, geo, sessionId)
-      // Treat 403 and 429 as blocked — try next geo
-      if (res.status === 403 || res.status === 429) {
-        console.log(`[Proxy] Geo ${geo} returned ${res.status} for ${url} — trying next geo`)
-        lastError = new Error(`HTTP ${res.status} on geo ${geo}`)
-        continue
-      }
-      console.log(`[Proxy] Geo ${geo} OK for ${url}`)
-      return res
-    } catch (err: any) {
-      console.log(`[Proxy] Geo ${geo} failed: ${err.message} — trying next geo`)
-      lastError = err
-    }
-  }
-
-  throw new Error(`All proxy geos failed for ${url}: ${lastError.message}`)
-}
-
-// ── URL sanitizer ─────────────────────────────────────────────
-
-function sanitizeEtsyUrl(raw: string): string | null {
+  // Full Amazon URL
   try {
-    const parsed = new URL(raw.trim())
-    if (!['www.etsy.com', 'etsy.com'].includes(parsed.hostname)) return null
-    if (!parsed.pathname.includes('/listing/')) return null
-    const parts = parsed.pathname.split('/')
-    const idx   = parts.indexOf('listing')
-    if (idx === -1 || !parts[idx + 1]) return null
-    return `https://www.etsy.com/listing/${parts[idx + 1]}/${parts[idx + 2] || ''}`
+    const parsed = new URL(trimmed)
+    const host   = parsed.hostname.toLowerCase().replace('www.', '')
+    if (!AMAZON_DOMAINS.includes(host)) return null
+
+    // Must contain /dp/ASIN or /gp/product/ASIN
+    const asinMatch = parsed.pathname.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})/i)
+    if (!asinMatch) return null
+
+    return trimmed
   } catch {
     return null
   }
-}
-
-// ── Etsy API review fetcher ───────────────────────────────────
-// Uses the official Etsy v3 API to fetch all reviews in batches of 100.
-// Requires ETSY_API_KEY in env. Falls back to proxy scraping if missing.
-// NOTE: This requires a valid non-banned Etsy API key to work.
-
-function extractListingId(productUrl: string): string | null {
-  const match = productUrl.match(/\/listing\/(\d+)/)
-  return match ? match[1] : null
-}
-
-async function fetchReviewsViaEtsyApi(
-  listingId: string,
-): Promise<Array<{ rating: number; text: string; date: string }>> {
-  const apiKey = process.env.ETSY_API_KEY
-  if (!apiKey) throw new Error('ETSY_API_KEY not set')
-
-  const allReviews: Array<{ rating: number; text: string; date: string }> = []
-  const LIMIT  = 100
-  let   offset = 0
-  let   total  = Infinity
-
-  console.log(`[EtsyAPI] Fetching reviews for listing ${listingId}`)
-
-  while (allReviews.length < total && allReviews.length < 400) {
-    const url = `https://openapi.etsy.com/v3/application/listings/${listingId}/reviews?limit=${LIMIT}&offset=${offset}`
-
-    const res = await fetch(url, {
-      headers: {
-        'x-api-key': apiKey,
-        'Accept':    'application/json',
-      },
-      signal: AbortSignal.timeout(30_000),
-    })
-
-    if (!res.ok) {
-      const err = await res.text()
-      console.error(`[EtsyAPI] HTTP ${res.status}: ${err.slice(0, 200)}`)
-      throw new Error(`Etsy API error ${res.status}`)
-    }
-
-    const json   = await res.json()
-    total        = json.count ?? json.total ?? total
-    const results: any[] = json.results ?? []
-    if (results.length === 0) break
-
-    for (const r of results) {
-      const text = (r.review ?? '').replace(/<[^>]*>/g, '').trim()
-      if (text.length > 5) {
-        allReviews.push({
-          rating: r.rating ?? 5,
-          text,
-          date: r.create_timestamp
-            ? new Date(r.create_timestamp * 1000).toISOString().slice(0, 10)
-            : '',
-        })
-      }
-    }
-
-    console.log(`[EtsyAPI] offset=${offset} fetched=${results.length} total=${allReviews.length}/${total}`)
-    offset += LIMIT
-
-    if (results.length < LIMIT) break
-    await new Promise((r) => setTimeout(r, 300))
-  }
-
-  console.log(`[EtsyAPI] Done — ${allReviews.length} reviews fetched`)
-  return allReviews
-}
-
-// ── Proxied HTML fetcher ──────────────────────────────────────
-// Replaces the old scraper-api.decodo.com Web Scraping API.
-// Fetches raw HTML through your residential proxy directly.
-// Much cheaper, faster, and avoids the 613 "could not scrape" error.
-
-const BROWSER_HEADERS = {
-  'User-Agent':      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-  'Accept':          'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-  'Accept-Language': 'en-US,en;q=0.9',
-  'Accept-Encoding': 'gzip, deflate, br',
-  'Connection':      'keep-alive',
-  'Upgrade-Insecure-Requests': '1',
-  'Sec-Fetch-Dest':  'document',
-  'Sec-Fetch-Mode':  'navigate',
-  'Sec-Fetch-Site':  'none',
-  'Sec-Fetch-User':  '?1',
-  'Cache-Control':   'max-age=0',
-}
-
-async function fetchHtmlViaProxy(
-  url: string,
-  sessionId?: string,
-): Promise<string> {
-  console.log(`[Proxy] Fetching HTML: ${url}`)
-
-  const res = await proxyFetchWithGeoFallback(
-    url,
-    {
-      headers: BROWSER_HEADERS,
-      signal: AbortSignal.timeout(45_000),
-    },
-    sessionId,
-  )
-
-  if (!res.ok) {
-    throw new Error(`Proxy HTML fetch failed: HTTP ${res.status} for ${url}`)
-  }
-
-  const html = await res.text()
-  if (!html || html.length < 500) {
-    throw new Error(`Proxy returned empty/tiny HTML (${html.length} chars) for ${url}`)
-  }
-
-  console.log(`[Proxy] Got ${html.length} chars from ${url}`)
-  return html
-}
-
-// ── First-page scrape ─────────────────────────────────────────
-
-async function scrapeFirstPage(
-  url: string,
-  sessionId?: string,
-): Promise<{ renderedHtml: string; rawHtml: string }> {
-  try {
-    const html = await fetchHtmlViaProxy(url, sessionId)
-    console.log(`[Proxy] First page — ${html.length} chars`)
-    // We get one HTML response from the proxy (server-rendered by Etsy)
-    // Use it for both rawHtml and renderedHtml since we no longer have
-    // a separate JS-rendering step (the proxy fetches static HTML).
-    return { renderedHtml: html, rawHtml: html }
-  } catch (err) {
-    console.warn(`[Proxy] First page failed: ${err}`)
-    return { renderedHtml: '', rawHtml: '' }
-  }
-}
-
-async function scrapePage(url: string, sessionId?: string): Promise<string> {
-  return fetchHtmlViaProxy(url, sessionId)
-}
-
-// ── JSON-LD extraction ────────────────────────────────────────
-
-function extractJsonLd(html: string): any {
-  const matches =
-    html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g) || []
-
-  for (const match of matches) {
-    try {
-      const json = JSON.parse(
-        match
-          .replace(/<script type="application\/ld\+json">/, '')
-          .replace('</script>', '')
-          .trim(),
-      )
-      if (json['@type'] === 'Product' || json.name) return json
-    } catch {
-      continue
-    }
-  }
-
-  console.warn('[Parser] No valid JSON-LD found in HTML')
-  return null
-}
-
-// ── Etsy embedded page-state extraction ──────────────────────
-
-function extractReviewsFromPageState(
-  html: string,
-): Array<{ rating: number; text: string; date: string }> {
-  const reviews: Array<{ rating: number; text: string; date: string }> = []
-
-  const jsonBlocks = html.match(/<script type="application\/json"[^>]*>([\s\S]*?)<\/script>/gi) || []
-  const nextData   = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i)
-  const blocks: string[] = [...jsonBlocks, ...(nextData ? [nextData[0]] : [])]
-
-  for (const block of blocks) {
-    let json: any
-    try {
-      const content = block.replace(/<script[^>]*>/, '').replace('</script>', '').trim()
-      if (content.length < 50) continue
-      json = JSON.parse(content)
-    } catch { continue }
-
-    const found = extractReviewObjects(json, 0)
-    for (const r of found) {
-      if (r.text.length > 10) reviews.push(r)
-    }
-    if (reviews.length > 0) break
-  }
-
-  return reviews
-}
-
-function extractReviewObjects(
-  obj: any,
-  depth: number,
-): Array<{ rating: number; text: string; date: string }> {
-  if (depth > 12 || !obj || typeof obj !== 'object') return []
-  const results: Array<{ rating: number; text: string; date: string }> = []
-
-  if (Array.isArray(obj)) {
-    for (const item of obj) results.push(...extractReviewObjects(item, depth + 1))
-    return results
-  }
-
-  const text   = obj.review || obj.reviewBody || obj.body || obj.content || obj.text || ''
-  const rating = obj.rating || obj.reviewRating?.ratingValue || obj.stars || 0
-  if (typeof text === 'string' && text.length > 10 && typeof rating === 'number') {
-    results.push({
-      rating: Math.min(5, Math.max(1, Math.round(rating))),
-      text: text.replace(/<[^>]*>/g, '').replace(/&#39;/g, "'").replace(/&amp;/g, '&').trim(),
-      date: obj.datePublished || obj.create_timestamp
-        ? (obj.datePublished || new Date(obj.create_timestamp * 1000).toISOString().slice(0, 10))
-        : '',
-    })
-    return results
-  }
-
-  for (const key of Object.keys(obj)) results.push(...extractReviewObjects(obj[key], depth + 1))
-  return results
-}
-
-// ── Product + review parsers ──────────────────────────────────
-
-function parseProduct(data: any, url: string) {
-  const slug         = url.split('/').pop() || 'product'
-  const fallbackTitle = slug
-    .split('-')
-    .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(' ')
-    .replace(/\d+/g, '')
-    .trim()
-
-  return {
-    title:       data?.name                          || fallbackTitle,
-    price:       data?.offers?.price                 || '0',
-    rating:      data?.aggregateRating?.ratingValue  || '0',
-    reviewCount: 0,
-    shopName:    data?.brand?.name                   || 'Etsy Shop',
-    description: data?.description                   || '',
-  }
-}
-
-function parseReviews(
-  data: any,
-): Array<{ rating: number; text: string; date: string }> {
-  if (!data?.review) return []
-
-  return (data.review as any[])
-    .filter((r) => r.reviewBody && r.reviewBody.trim().length > 5)
-    .map((r) => ({
-      rating: parseInt(r.reviewRating?.ratingValue) || 5,
-      text: r.reviewBody
-        .replace(/&#39;/g,  "'")
-        .replace(/&amp;/g,  '&')
-        .replace(/&quot;/g, '"')
-        .replace(/<[^>]*>/g, '')
-        .trim(),
-      date: r.datePublished || '',
-    }))
-}
-
-function parseReviewsFromHtml(html: string) {
-  const reviews: Array<{ rating: number; text: string; date: string }> = []
-  const safeHtml = html.length > 2_000_000 ? html.slice(0, 2_000_000) : html
-
-  const blockPattern =
-    /aria-label="(\d)\s+out\s+of\s+5\s+stars?"[\s\S]{0,2000}?<p[^>]*>([\s\S]*?)<\/p>/gi
-
-  let m: RegExpExecArray | null
-  // eslint-disable-next-line no-cond-assign
-  while ((m = blockPattern.exec(safeHtml)) !== null) {
-    const rating = parseInt(m[1]) || 5
-    const text = m[2]
-      .replace(/<[^>]*>/g, '')
-      .replace(/&quot;/g, '"')
-      .replace(/&#39;/g, "'")
-      .replace(/&amp;/g, '&')
-      .trim()
-    if (text.length > 30) {
-      reviews.push({ rating, text, date: '' })
-    }
-  }
-
-  if (reviews.length === 0) {
-    const matches =
-      html.match(/<p[^>]*class="[^"]*wt-text-body[^"]*"[^>]*>(.*?)<\/p>/g) || []
-    for (const block of matches) {
-      const text = block
-        .replace(/<[^>]*>/g, '')
-        .replace(/&quot;/g, '"')
-        .replace(/&#39;/g, "'")
-        .replace(/&amp;/g, '&')
-        .trim()
-      if (text.length > 30) {
-        reviews.push({ rating: 5, text, date: '' })
-      }
-    }
-  }
-
-  return reviews
-}
-
-function decodeHtmlText(text: string) {
-  return text
-    .replace(/<[^>]*>/g, '')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&amp;/g, '&')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
-function parseReviewsFromDeepDiveHtml(html: string) {
-  const reviews = parseReviewsFromHtml(html)
-  if (reviews.length > 0) return reviews
-
-  const safeHtml = html.length > 1_000_000 ? html.slice(0, 1_000_000) : html
-  const cards = safeHtml.match(/<div[^>]*(?:class="[^"]*review-card[^"]*"|data-review-region="[^"]+")[\s\S]*?(?=<div[^>]*(?:class="[^"]*review-card[^"]*"|data-review-region="[^"]+")|$)/gi) || []
-
-  for (const card of cards) {
-    const ratingMatch =
-      card.match(/name="rating"[^>]*value="(\d)"/i) ||
-      card.match(/aria-label="(\d)\s+out\s+of\s+5\s+stars?"/i)
-    const textMatch =
-      card.match(/<p[^>]*data-review-text[^>]*>([\s\S]*?)<\/p>/i) ||
-      card.match(/<div[^>]*class="[^"]*wt-text-body[^"]*"[^>]*>([\s\S]*?)<\/div>/i) ||
-      card.match(/<p[^>]*class="[^"]*wt-text-body[^"]*"[^>]*>([\s\S]*?)<\/p>/i)
-
-    const text = textMatch ? decodeHtmlText(textMatch[1]) : ''
-    if (text.length > 10) {
-      reviews.push({
-        rating: ratingMatch ? parseInt(ratingMatch[1]) || 5 : 5,
-        text,
-        date: '',
-      })
-    }
-  }
-
-  return reviews
-}
-
-// ── Review sampling ───────────────────────────────────────────
-
-function sampleReviews(
-  allReviews: Array<{ rating: number; text: string; date: string }>,
-  totalCount: number,
-): Array<{ rating: number; text: string; date: string }> {
-  const byRating: Record<number, typeof allReviews> = {
-    1: [], 2: [], 3: [], 4: [], 5: [],
-  }
-  for (const r of allReviews) {
-    const star = Math.min(5, Math.max(1, r.rating))
-    byRating[star].push(r)
-  }
-
-  for (const star of [1, 2, 3, 4, 5]) {
-    byRating[star].sort((a, b) => b.text.length - a.text.length)
-  }
-
-  let targets: Record<number, number>
-  if (totalCount <= 50) {
-    targets = { 1: 999, 2: 999, 3: 999, 4: 999, 5: 999 }
-  } else if (totalCount <= 200) {
-    targets = { 1: 40, 2: 30, 3: 15, 4: 25, 5: 50 }
-  } else if (totalCount <= 500) {
-    targets = { 1: 60, 2: 40, 3: 20, 4: 30, 5: 60 }
-  } else if (totalCount <= 1000) {
-    targets = { 1: 80, 2: 50, 3: 20, 4: 30, 5: 80 }
-  } else {
-    targets = { 1: 100, 2: 60, 3: 20, 4: 30, 5: 90 }
-  }
-
-  const sampled: typeof allReviews = []
-  for (const star of [1, 2, 3, 4, 5]) {
-    const take = Math.min(targets[star], byRating[star].length)
-    sampled.push(...byRating[star].slice(0, take))
-  }
-
-  console.log(
-    `[Sampling] totalCount=${totalCount} | ` +
-    `1★:${byRating[1].length}→${Math.min(targets[1], byRating[1].length)} | ` +
-    `2★:${byRating[2].length}→${Math.min(targets[2], byRating[2].length)} | ` +
-    `3★:${byRating[3].length}→${Math.min(targets[3], byRating[3].length)} | ` +
-    `4★:${byRating[4].length}→${Math.min(targets[4], byRating[4].length)} | ` +
-    `5★:${byRating[5].length}→${Math.min(targets[5], byRating[5].length)} | ` +
-    `total sampled=${sampled.length}`,
-  )
-
-  return sampled
-}
-
-// ── Etsy internal review API (now proxied) ────────────────────
-// Etsy's own frontend loads reviews via their internal REST API.
-// Previously this was a naked Vercel IP fetch — Etsy 404'd it immediately.
-// Now routed through your residential proxy so Etsy sees a real home IP.
-
-async function fetchReviewsFromInternalApi(
-  listingId: string,
-  sessionId?: string,
-): Promise<Array<{ rating: number; text: string; date: string }> | null> {
-  const allReviews: Array<{ rating: number; text: string; date: string }> = []
-  const LIMIT = 100
-  let page    = 1
-  let total   = Infinity
-
-  const headers = {
-    'Accept':           'application/json, text/javascript, */*; q=0.01',
-    'Accept-Language':  'en-US,en;q=0.9',
-    'Referer':          `https://www.etsy.com/listing/${listingId}`,
-    'User-Agent':       BROWSER_HEADERS['User-Agent'],
-    'X-Requested-With': 'XMLHttpRequest',
-  }
-
-  while (allReviews.length < total && allReviews.length < 400) {
-    const url = `https://www.etsy.com/api/v3/ajax/bespoke/member/listings/${listingId}/reviews?language=en&limit=${LIMIT}&page=${page}&rating=`
-    try {
-      // Previously: naked fetch() → Vercel datacenter IP → Etsy 404s
-      // Now: proxied through residential IP → Etsy sees a real user
-      const res = await proxyFetchWithGeoFallback(
-        url,
-        { headers, signal: AbortSignal.timeout(25_000) },
-        sessionId,
-      )
-      if (!res.ok) {
-        console.log(`[InternalAPI] HTTP ${res.status} — not available, falling back`)
-        return null
-      }
-      const json = await res.json()
-      const results: any[] = json?.reviews ?? json?.results ?? []
-      if (results.length === 0) break
-      total = json?.count ?? json?.total_results ?? total
-
-      for (const r of results) {
-        const text = (r.review || r.text || '').replace(/<[^>]*>/g, '').trim()
-        if (text.length > 5) {
-          allReviews.push({
-            rating: r.rating ?? 5,
-            text,
-            date: r.create_timestamp
-              ? new Date(r.create_timestamp * 1000).toISOString().slice(0, 10)
-              : r.created_timestamp || '',
-          })
-        }
-      }
-
-      console.log(`[InternalAPI] page=${page} fetched=${results.length} total=${allReviews.length}/${total}`)
-      page++
-      if (results.length < LIMIT) break
-      await new Promise(r => setTimeout(r, 400))
-    } catch (err) {
-      console.log(`[InternalAPI] Failed: ${err} — falling back`)
-      return null
-    }
-  }
-
-  if (allReviews.length === 0) return null
-  console.log(`[InternalAPI] Done — ${allReviews.length} reviews`)
-  return allReviews
-}
-
-function extractDeepDiveParams(html: string, listingId: string) {
-  const shopId =
-    html.match(/"shopId"\s*:\s*"?(\d+)"?/i)?.[1] ||
-    html.match(/"shop_id"\s*:\s*"?(\d+)"?/i)?.[1] ||
-    html.match(/shop_id[\\"]*\s*[:=]\s*[\\"]?(\d+)/i)?.[1] ||
-    null
-
-  const csrf =
-    html.match(/<meta[^>]+name="csrf_nonce"[^>]+content="([^"]+)"/i)?.[1] ||
-    html.match(/<meta[^>]+content="([^"]+)"[^>]+name="csrf_nonce"/i)?.[1] ||
-    html.match(/"csrf_nonce"\s*:\s*"([^"]+)"/i)?.[1] ||
-    html.match(/"csrf_token"\s*:\s*"([^"]+)"/i)?.[1] ||
-    null
-
-  if (!shopId) console.log(`[DeepDiveAPI] Missing shop_id in first-page HTML for listing ${listingId}`)
-  if (!csrf)   console.log(`[DeepDiveAPI] Missing csrf_nonce in first-page HTML for listing ${listingId}`)
-
-  return { shopId, csrf }
-}
-
-async function fetchReviewsFromDeepDiveApi(
-  listingId: string,
-  productUrl: string,
-  firstPageHtml: string,
-  sessionId?: string,
-): Promise<Array<{ rating: number; text: string; date: string }> | null> {
-  if (!firstPageHtml) {
-    console.log('[DeepDiveAPI] No first-page HTML available — skipping')
-    return null
-  }
-
-  const { shopId, csrf } = extractDeepDiveParams(firstPageHtml, listingId)
-  if (!shopId) return null
-
-  const allReviews: Array<{ rating: number; text: string; date: string }> = []
-  const seenTexts = new Set<string>()
-  const endpoint  = 'https://www.etsy.com/api/v3/ajax/bespoke/member/neu/specs/deep_dive_reviews'
-  const specPath  = 'Etsy\\Modules\\ListingPage\\Reviews\\DeepDive\\AsyncApiSpec'
-
-  for (let page = 1; page <= 40 && allReviews.length < 400; page++) {
-    const specParams = {
-      listing_id:               parseInt(listingId),
-      shop_id:                  parseInt(shopId),
-      scope:                    'listingReviews',
-      page,
-      sort_option:              'Relevancy',
-      tag_filters:              [],
-      should_lazy_load_images:  false,
-      should_show_variations:   false,
-    }
-    const payloads = [
-      {
-        log_performance_metrics: true,
-        specs: { deep_dive_reviews: [specPath, specParams] },
-        runtime_analysis: false,
-      },
-      {
-        log_performance_metrics: true,
-        specs: {
-          deep_dive_reviews: {
-            module_path: 'neu/specs/deep_dive_reviews',
-            ...specParams,
-          },
-        },
-        runtime_analysis: false,
-      },
-    ]
-
-    try {
-      const reqHeaders: Record<string, string> = {
-        'Accept':           'application/json, text/plain, */*',
-        'Accept-Language':  'en-US,en;q=0.9',
-        'Content-Type':     'application/json',
-        'Referer':          productUrl,
-        'User-Agent':       BROWSER_HEADERS['User-Agent'],
-        'X-Requested-With': 'XMLHttpRequest',
-      }
-      if (csrf) reqHeaders['X-Csrf-Token'] = csrf
-
-      let reviewHtml = ''
-      let lastStatus = 0
-
-      for (let variant = 0; variant < payloads.length; variant++) {
-        const payload = JSON.stringify(payloads[variant])
-
-        try {
-          // Route DeepDive API calls through residential proxy too
-          const res = await proxyFetchWithGeoFallback(
-            endpoint,
-            {
-              method:  'POST',
-              headers: reqHeaders,
-              body:    payload,
-              signal:  AbortSignal.timeout(25_000),
-            },
-            sessionId,
-          )
-          lastStatus = res.status
-          const text = await res.text()
-
-          if (!res.ok) {
-            console.log(`[DeepDiveAPI] page=${page} variant ${variant + 1} HTTP ${res.status}: ${text.slice(0, 160)}`)
-            continue
-          }
-
-          const json = JSON.parse(text)
-          const candidate = json?.output?.deep_dive_reviews
-          if (typeof candidate === 'string' && candidate.length > 0) {
-            reviewHtml = candidate
-            if (variant > 0) console.log(`[DeepDiveAPI] page=${page} used payload variant ${variant + 1}`)
-            break
-          }
-          console.log(`[DeepDiveAPI] page=${page} variant ${variant + 1} returned no review HTML`)
-        } catch (err) {
-          console.log(`[DeepDiveAPI] page=${page} variant ${variant + 1} failed: ${err}`)
-        }
-      }
-
-      if (!reviewHtml) {
-        console.log(`[DeepDiveAPI] Page ${page}: no review HTML, lastStatus=${lastStatus}, stopping`)
-        break
-      }
-
-      const reviews = parseReviewsFromDeepDiveHtml(reviewHtml)
-      let added = 0
-      let duplicates = 0
-      for (const review of reviews) {
-        if (review.text && !seenTexts.has(review.text)) {
-          seenTexts.add(review.text)
-          allReviews.push(review)
-          added++
-        } else if (review.text) {
-          duplicates++
-        }
-      }
-
-      console.log(
-        `[DeepDiveAPI] page=${page} html=${reviewHtml.length} ` +
-        `parsed=${reviews.length} added=${added} dupes=${duplicates} total=${allReviews.length}`,
-      )
-      if (added === 0) break
-      await new Promise(r => setTimeout(r, 400))
-    } catch (err) {
-      console.log(`[DeepDiveAPI] Failed on page ${page}: ${err}`)
-      return allReviews.length > 0 ? allReviews : null
-    }
-  }
-
-  if (allReviews.length === 0) return null
-  console.log(`[DeepDiveAPI] Done — ${allReviews.length} reviews`)
-  return allReviews
-}
-
-// ── Playwright microservice scraper ──────────────────────────
-// Calls the self-hosted scraper service (scraper/ directory).
-// Set SCRAPER_URL + SCRAPER_SECRET env vars to enable this path.
-// This is the most reliable scraper — real browser + XHR interception.
-
-async function fetchReviewsViaPlaywright(
-  productUrl: string,
-): Promise<Array<{ rating: number; text: string; date: string }> | null> {
-  const scraperUrl = process.env.SCRAPER_URL
-  const secret     = process.env.SCRAPER_SECRET
-  if (!scraperUrl || !secret) return null
-
-  console.log(`[Playwright] Calling scraper service for ${productUrl}`)
-
-  try {
-    const res = await fetch(`${scraperUrl}/scrape`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: productUrl, secret, max_pages: 30 }),
-      signal: AbortSignal.timeout(120_000),
-    })
-
-    if (!res.ok) {
-      const err = await res.text()
-      console.error(`[Playwright] Service error ${res.status}: ${err.slice(0, 200)}`)
-      return null
-    }
-
-    const data = await res.json()
-    const raw: any[] = data.reviews ?? []
-    if (raw.length === 0) {
-      console.log('[Playwright] Service returned 0 reviews')
-      return null
-    }
-
-    const reviews = raw.map((r: any) => ({
-      rating: Math.min(5, Math.max(1, Math.round(r.rating ?? 5))),
-      text:   String(r.review ?? r.text ?? '').replace(/<[^>]*>/g, '').trim(),
-      date:   r.date ?? '',
-    })).filter(r => r.text.length > 5)
-
-    console.log(`[Playwright] Got ${reviews.length} reviews from service`)
-    return reviews
-  } catch (err) {
-    console.error('[Playwright] Service call failed:', err)
-    return null
-  }
-}
-
-// ── Multi-page scraper ────────────────────────────────────────
-// All Etsy HTML fetches now go through the residential proxy.
-// fetchReviewsFromInternalApi is tried first (cheapest, returns clean JSON).
-// Falls back to DeepDive API, then to paginated HTML scraping.
-
-async function scrapeAllReviews(
-  productUrl: string,
-): Promise<{ reviews: Array<{ rating: number; text: string; date: string }>; rawHtml: string }> {
-
-  // ── Playwright microservice (if SCRAPER_URL is set) ─────
-  const playwrightReviews = await fetchReviewsViaPlaywright(productUrl)
-  if (playwrightReviews && playwrightReviews.length >= 5) {
-    const firstPage = await scrapeFirstPage(productUrl).catch(() => ({ rawHtml: '' }))
-    console.log(`[Scraper] Playwright path — ${playwrightReviews.length} reviews`)
-    return { reviews: playwrightReviews, rawHtml: (firstPage as any).rawHtml }
-  }
-
-  // ── Official Etsy API (if key is present) ────────────────
-  if (process.env.ETSY_API_KEY) {
-    const listingId = extractListingId(productUrl)
-    if (listingId) {
-      try {
-        const [apiReviews, firstPage] = await Promise.all([
-          fetchReviewsViaEtsyApi(listingId),
-          scrapeFirstPage(productUrl).catch(() => ({ renderedHtml: '', rawHtml: '' })),
-        ])
-        console.log(`[Scraper] Official API path — ${apiReviews.length} reviews`)
-        return { reviews: apiReviews, rawHtml: firstPage.rawHtml }
-      } catch (err) {
-        console.warn('[Scraper] Official API failed, falling back:', err)
-      }
-    }
-  }
-
-  // ── Shared session ID — all requests for this listing use the same proxy IP ──
-  const listingId       = extractListingId(productUrl)
-  const decodoSessionId = listingId ? `etsy-${listingId}-${Date.now()}` : undefined
-
-  // ── Fetch first page + try internal API in parallel ──────
-  // The internal API now goes through residential proxy — Etsy won't 404 it.
-  const [firstPageResult, internalReviews] = await Promise.allSettled([
-    scrapeFirstPage(productUrl, decodoSessionId),
-    listingId ? fetchReviewsFromInternalApi(listingId, decodoSessionId) : Promise.resolve(null),
-  ])
-
-  const firstPage = firstPageResult.status === 'fulfilled'
-    ? firstPageResult.value
-    : { renderedHtml: '', rawHtml: '' }
-
-  const internalResult = internalReviews.status === 'fulfilled' ? internalReviews.value : null
-
-  if (internalResult && internalResult.length >= 5) {
-    console.log(`[Scraper] Internal API path — ${internalResult.length} reviews`)
-    return { reviews: internalResult, rawHtml: firstPage.rawHtml }
-  }
-  console.log(`[Scraper] Internal API returned ${internalResult?.length ?? 0} reviews — trying DeepDive API`)
-
-  const firstPageHtml  = firstPage.rawHtml || firstPage.renderedHtml
-  const deepDiveReviews = listingId
-    ? await fetchReviewsFromDeepDiveApi(listingId, productUrl, firstPageHtml, decodoSessionId)
-    : null
-
-  if (deepDiveReviews && deepDiveReviews.length > 0) {
-    console.log(`[Scraper] DeepDive API path — ${deepDiveReviews.length} reviews`)
-    return { reviews: deepDiveReviews, rawHtml: firstPage.rawHtml }
-  }
-  console.log(`[Scraper] DeepDive API returned ${deepDiveReviews?.length ?? 0} reviews — using HTML scraping`)
-
-  // ── Proxied HTML scraping fallback ────────────────────────
-  const allReviews: Array<{ rating: number; text: string; date: string }> = []
-  const seenTexts = new Set<string>()
-
-  function ingestHtml(html: string) {
-    const data         = extractJsonLd(html)
-    let reviews        = parseReviews(data)
-    if (reviews.length === 0) reviews = parseReviewsFromHtml(html)
-    const stateReviews = extractReviewsFromPageState(html)
-    const combined     = [...reviews, ...stateReviews]
-    let added = 0
-    for (const r of combined) {
-      if (r.text && !seenTexts.has(r.text)) {
-        seenTexts.add(r.text)
-        allReviews.push(r)
-        added++
-      }
-    }
-    return added
-  }
-
-  const { renderedHtml, rawHtml } = firstPage
-
-  if (!renderedHtml && !rawHtml) {
-    throw new Error('Could not fetch Etsy listing HTML. Please try again in a few minutes or upload a CSV.')
-  }
-
-  ingestHtml(renderedHtml)
-  ingestHtml(rawHtml)
-
-  const firstData    = extractJsonLd(rawHtml)
-  const totalReviews = firstData?.aggregateRating?.reviewCount
-    ? parseInt(firstData.aggregateRating.reviewCount)
-    : 0
-
-  console.log(`[Scraper] First page reviews: ${allReviews.length} | totalReviews: ${totalReviews}`)
-
-  if (totalReviews > 0 && allReviews.length >= totalReviews) {
-    console.log('[Scraper] All reviews captured on first page, done.')
-    return { reviews: allReviews, rawHtml }
-  }
-
-  // ── Paginated HTML scraping ───────────────────────────────
-  const REVIEWS_PER_PAGE      = 4
-  const MAX_BUDGET            = 300
-  const MAX_CONSECUTIVE_EMPTY = 2
-  const MAX_PAGE_ERRORS       = 2
-  const SCRAPE_DEADLINE_MS    = 210_000
-
-  const maxPages = totalReviews > 0
-    ? Math.min(75, Math.ceil(Math.min(totalReviews, MAX_BUDGET) / REVIEWS_PER_PAGE))
-    : 20
-
-  console.log(`[Scraper] Paginating up to ${maxPages} pages via ?reviews_page=N`)
-
-  let consecutiveEmpty = 0
-  let pageErrors       = 0
-  const startedAt      = Date.now()
-
-  for (let page = 2; page <= maxPages; page++) {
-    if (Date.now() - startedAt > SCRAPE_DEADLINE_MS) {
-      console.log(`[Scraper] Hit scrape deadline with ${allReviews.length} reviews, stopping`)
-      break
-    }
-    if (allReviews.length >= MAX_BUDGET) {
-      console.log(`[Scraper] Hit ${MAX_BUDGET} review budget, stopping`)
-      break
-    }
-
-    try {
-      const pageUrl = `${productUrl}?reviews_page=${page}`
-      const html    = await scrapePage(pageUrl, decodoSessionId)
-      const added   = ingestHtml(html)
-
-      console.log(`[Scraper] Page ${page}: +${added} reviews (total ${allReviews.length})`)
-
-      if (added === 0) {
-        consecutiveEmpty++
-        if (consecutiveEmpty >= MAX_CONSECUTIVE_EMPTY) {
-          console.log(`[Scraper] ${MAX_CONSECUTIVE_EMPTY} consecutive empty pages — stopping`)
-          break
-        }
-      } else {
-        consecutiveEmpty = 0
-      }
-
-      await new Promise((r) => setTimeout(r, 800))
-    } catch (err) {
-      console.error(`[Scraper] Page ${page} error:`, err)
-      pageErrors++
-      if (pageErrors >= MAX_PAGE_ERRORS) {
-        console.log(`[Scraper] ${MAX_PAGE_ERRORS} page errors — stopping`)
-        break
-      }
-      consecutiveEmpty++
-      if (consecutiveEmpty >= MAX_CONSECUTIVE_EMPTY) break
-    }
-  }
-
-  console.log(`[Scraper] Done. Total unique reviews: ${allReviews.length}`)
-  return { reviews: allReviews, rawHtml }
 }
 
 // ── Retry wrapper ─────────────────────────────────────────────
@@ -1124,12 +213,19 @@ Even if all relate to the handle, "cracks at the pin" and "loose after a month" 
 
 async function analyzeWithGroq(
   product:             any,
-  reviews:             Array<{ rating: number; text: string }>,
+  reviews:             AmazonReview[],
   ctx:                 ReturnType<typeof calculateHealthScore>,
   listingDescription?: string,
 ): Promise<any> {
-  const patterns       = extractPatterns(reviews)
-  const sampledReviews = buildSmartSample(reviews, patterns, 200)
+  // Convert AmazonReview[] to the shape pattern-extractor expects
+  const reviewsForPatterns = reviews.map(r => ({
+    rating:   r.rating,
+    text:     r.body,
+    verified: r.verified,
+    vine:     r.vine,
+  }))
+  const patterns       = extractPatterns(reviewsForPatterns)
+  const sampledReviews = buildSmartSample(reviewsForPatterns, patterns, 200)
 
   const sanitizeReview = (t: string) =>
     t.replace(/ignore\s+(previous|all|above|prior)\s+(instructions?|prompts?|context)/gi, '[…]')
@@ -1175,15 +271,20 @@ async function analyzeWithGroq(
   const negativeCount  = sampledReviews.filter(r => r.rating <= 2).length
   const complaintGuide = getComplaintCountGuidance(reviews.length, negativeCount, sampledReviews.length)
 
-  const worstReviews = extractWorstReviews(reviews)
-  const bestReviews  = extractBestReviews(reviews, 15)
-  const domainResult = await generateDomainAndSeo(
-    product.title, 'Etsy Product',
+  // Convert for domain knowledge (uses text field)
+  const reviewsForDomain = reviews.map(r => ({ rating: r.rating, text: r.body, verified: r.verified }))
+  const worstReviews     = extractWorstReviews(reviewsForDomain)
+  const bestReviews      = extractBestReviews(reviewsForDomain, 15)
+  const domainResult     = await generateDomainAndSeo(
+    product.title, product.category || 'Amazon Product',
     worstReviews, bestReviews, listingDescription,
   )
   const domainKnowledge = domainResult.knowledge
-  const seoAnalysis     = calculateSeoScore(reviews, product.title)
-  const seoTopPhrases   = domainResult.seoThemes.length >= 3
+
+  // Convert for SEO scorer (uses text field)
+  const reviewsForSeo = reviews.map(r => ({ rating: r.rating, text: r.body }))
+  const seoAnalysis   = calculateSeoScore(reviewsForSeo, product.title)
+  const seoTopPhrases = domainResult.seoThemes.length >= 3
     ? domainResult.seoThemes
     : seoAnalysis.topPhrases
 
@@ -1198,23 +299,36 @@ async function analyzeWithGroq(
     : 0
 
   const descriptionLine = listingDescription
-    ? `\nSELLER'S LISTING DESCRIPTION:\n${listingDescription.slice(0, 400).trimEnd()}\n`
+    ? `\nSELLER'S LISTING DESCRIPTION (bullet points/description):\n${listingDescription.slice(0, 400).trimEnd()}\n`
     : ''
 
+  const listingIntelligence = `LISTING INTELLIGENCE:
+- Images: ${ctx.imageCount} (top listings in this category average 7+)
+- Has A+ Content: ${ctx.hasAplus ? 'Yes' : 'No — competitors with A+ content convert 3-5% higher'}
+- Has Video: ${ctx.videoCount > 0 ? `Yes (${ctx.videoCount} videos)` : 'No — video increases conversion'}
+- BSR: ${ctx.bsr ? `#${ctx.bsr} in ${ctx.bsrCategory}` : 'Not ranked'}
+- Verified review health score: ${ctx.verifiedHealthScore}/100
+- Fake review flag: ${ctx.fakeReviewFlag ? 'WARNING: High ratio of unverified negative reviews detected' : 'Clean'}
+- Unanswered buyer questions: ${ctx.unansweredQACount}`
+
   const contextBlock = `PRODUCT: ${product.title}
-PRICE: $${product.price}
-RATING: ${product.rating}/5
+ASIN: ${product.asin || ''}
+MARKETPLACE: ${product.marketplace || 'amazon.com'}
+PRICE: $${product.price || 'N/A'}
+RATING: ${product.averageRating || product.rating}/5
 REVIEWS ANALYZED: ${reviews.length}${descriptionLine}
 
 ${healthBlock}
+
+${listingIntelligence}
 
 ${patterns.promptSummary}
 
 ${domainKnowledge}
 
-Classify each issue as SHIPPING / PRODUCTION / LISTING / DESIGN before writing fixes.`
+Classify each issue as SHIPPING / PRODUCTION / LISTING / DESIGN / COMPATIBILITY before writing fixes.`
 
-  const systemPrompt = `You are a review analysis engine. Convert reviewer language into structured JSON. Every word you write must trace back to something a reviewer actually said or described.
+  const systemPrompt = `You are an Amazon listing analysis engine. Convert reviewer language into structured JSON. Every word you write must trace back to something a reviewer actually said or described.
 
 ━━━ GROUNDING LAW ━━━
 - Quote or closely paraphrase what reviewers wrote. Do not abstract it.
@@ -1278,7 +392,8 @@ Copy exact verbatim sentences from 5★ reviews. Do not paraphrase. Do not summa
 
 ━━━ SEO ━━━
 Keywords: copy the pre-calculated phrases verbatim — do not replace them.
-Suggestions: use only phrases from 5★ reviews, never from complaint areas.`
+Suggestions: use only phrases from 5★ reviews, never from complaint areas.
+For Amazon: focus on buyer intent phrases, problem-solution language, and material specificity — these drive A10 algorithm ranking.`
 
   console.log(`[Section:complaints] Starting for ${reviews.length} reviews...`)
 
@@ -1304,7 +419,8 @@ Each distinct physical symptom or failure = one complaint. Do not merge.
 STEP 3 — FOR EACH COMPLAINT, WRITE 3 FIXES ON 3 DIFFERENT LAYERS:
   Fix 1: WHERE and HOW — the exact physical location and symptom reviewers described
   Fix 2: WHEN and WHAT TRIGGERS IT — usage pattern, timing, or condition reviewers mentioned
-  Fix 3: EXPECTATION GAP — what the listing implied vs what reviewers actually received
+  Fix 3: EXPECTATION GAP — what the Amazon listing bullet points/description implied vs what reviewers actually received
+  For COMPATIBILITY complaints: Fix 3 = what device/model/setup the buyer had that wasn't compatible, and what to add to bullet points
 
 Each fix must start: "Reviewers say [exact reviewer words] —"
 
@@ -1443,12 +559,13 @@ Return ONLY: { "complaints": [ { "title": "...", "severity": "CRITICAL|MEDIUM|LO
 
 async function analyzeFreePreview(
   product: any,
-  reviews: Array<{ rating: number; text: string }>,
+  reviews: AmazonReview[],
   ctx: ReturnType<typeof calculateHealthScore>,
   listingDescription?: string,
 ): Promise<any> {
-  const patterns        = extractPatterns(reviews)
-  const sampledReviews  = buildSmartSample(reviews, patterns, 60)
+  const reviewsNorm = reviews.map(r => ({ rating: r.rating, text: r.body, verified: r.verified, vine: r.vine }))
+  const patterns        = extractPatterns(reviewsNorm)
+  const sampledReviews  = buildSmartSample(reviewsNorm, patterns, 60)
   const negativeReviews = sampledReviews.filter(r => r.rating <= 2).slice(0, 18)
   const positiveReviews = sampledReviews.filter(r => r.rating >= 4).slice(0, 12)
   const sanitizeFree = (t: string) =>
@@ -1458,7 +575,8 @@ async function analyzeFreePreview(
     .map(r => `[${r.rating}★] ${sanitizeFree(r.text).slice(0, 180).trimEnd()}${r.text.length > 180 ? '…' : ''}`)
     .join('\n')
 
-  const seoAnalysis = calculateSeoScore(reviews, product.title)
+  const reviewsForSeo = reviews.map(r => ({ rating: r.rating, text: r.body }))
+  const seoAnalysis = calculateSeoScore(reviewsForSeo, product.title)
   const negCount    = ctx.starCounts[1] + ctx.starCounts[2]
   const negPct      = ctx.totalReviewCount > 0
     ? Math.round((negCount / ctx.totalReviewCount) * 100)
@@ -1631,12 +749,12 @@ export async function POST(request: NextRequest) {
       : undefined
 
     if (!rawUrl || typeof rawUrl !== 'string') {
-      return NextResponse.json({ error: 'Product URL is required' }, { status: 400 })
+      return NextResponse.json({ error: 'Product URL or ASIN is required' }, { status: 400 })
     }
 
-    const productUrl = sanitizeEtsyUrl(rawUrl)
+    const productUrl = sanitizeAmazonInput(rawUrl)
     if (!productUrl) {
-      return NextResponse.json({ error: 'Please provide a valid Etsy product URL' }, { status: 400 })
+      return NextResponse.json({ error: 'Please provide a valid Amazon product URL or ASIN (e.g. B073JYC4XM)' }, { status: 400 })
     }
 
     const supabase = await createClient()
@@ -1666,7 +784,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const creditCost = reportType === 'competitor' ? 48 : 24
+    const creditCost = reportType === 'competitor' ? 35 : 20
 
     if (!isAdminUser) {
       if (credits < creditCost) {
@@ -1729,46 +847,81 @@ export async function POST(request: NextRequest) {
     const reportId = reportRow.id
 
     try {
-      console.log(`[Pipeline] Starting: ${productUrl}`)
+      console.log(`[Pipeline] Starting Amazon scrape: ${productUrl}`)
 
-      const { reviews: rawReviews, rawHtml: firstRawHtml } =
-        await withRetry(() => scrapeAllReviews(productUrl), 0)
+      const scrapeResult = await withRetry(() => scrapeAmazon(productUrl), 0)
+      const { product: amazonProduct, reviews: rawReviews, qa } = scrapeResult
 
-      const firstData        = extractJsonLd(firstRawHtml)
-      const product          = parseProduct(firstData, productUrl)
-      const totalReviewCount = firstData?.aggregateRating?.reviewCount
-        ? parseInt(firstData.aggregateRating.reviewCount)
-        : 0
+      const product = {
+        title:         amazonProduct.title,
+        price:         amazonProduct.price ?? 0,
+        rating:        amazonProduct.averageRating,
+        averageRating: amazonProduct.averageRating,
+        asin:          amazonProduct.asin,
+        marketplace:   amazonProduct.marketplace,
+        category:      amazonProduct.category,
+        mainImage:     amazonProduct.mainImage,
+        reviewCount:   rawReviews.length,
+      }
 
-      const sampledReviews    = sampleReviews(rawReviews, totalReviewCount || rawReviews.length)
-      product.reviewCount     = sampledReviews.length
+      const totalReviewCount = amazonProduct.totalReviews || rawReviews.length
+      const unansweredQACount = qa.filter(q => q.answer === null).length
 
-      if (sampledReviews.length === 0) {
+      if (rawReviews.length === 0) {
         await supabase.from('reports').update({ status: 'failed' }).eq('id', reportId)
         await refundCredits()
         return NextResponse.json({ error: 'No reviews found for this product. Your credits have been refunded.' }, { status: 400 })
       }
 
-      const ctx = calculateHealthScore(sampledReviews, totalReviewCount || rawReviews.length)
+      const ctx = calculateHealthScore(
+        rawReviews,
+        totalReviewCount,
+        undefined,
+        {
+          imageCount:       amazonProduct.imageCount,
+          videoCount:       amazonProduct.videoCount,
+          hasAplus:         amazonProduct.hasAplus,
+          bsr:              amazonProduct.bsr,
+          bsrCategory:      amazonProduct.bsrCategory,
+          recentSales:      amazonProduct.recentSales,
+          unansweredQACount,
+        },
+      )
       console.log(
-        `[HealthScore] ${ctx.healthScore} | Raw: ${ctx.weightedRaw.toFixed(1)} | Penalties: ${ctx.penaltyCount}`,
+        `[HealthScore] ${ctx.healthScore} | Verified: ${ctx.verifiedHealthScore} | Fake flag: ${ctx.fakeReviewFlag} | Penalties: ${ctx.penaltyCount}`,
       )
 
       const analysis = (!isAdminUser && plan === 'free')
-        ? await analyzeFreePreview(product, sampledReviews, ctx, productDescription)
-        : await analyzeWithGroq(product, sampledReviews, ctx, productDescription)
+        ? await analyzeFreePreview(product, rawReviews, ctx, productDescription)
+        : await analyzeWithGroq(product, rawReviews, ctx, productDescription)
 
       await supabase
         .from('reports')
         .update({
           product_name:           product.title,
           health_score:           analysis.healthScore,
-          total_reviews_analyzed: sampledReviews.length,
+          total_reviews_analyzed: rawReviews.length,
           top_complaint:          analysis.complaints?.[0]?.title || null,
           top_strength:           analysis.strengths?.[0]?.title  || null,
           top_improvement:        analysis.improvements?.[0]?.title || null,
           competitors:            [],
-          full_report:            analysis,
+          full_report:            {
+            ...analysis,
+            asin:                amazonProduct.asin,
+            marketplace:         amazonProduct.marketplace,
+            productTitle:        amazonProduct.title,
+            productImage:        amazonProduct.mainImage,
+            imageCount:          amazonProduct.imageCount,
+            videoCount:          amazonProduct.videoCount,
+            hasAplus:            amazonProduct.hasAplus,
+            bsr:                 amazonProduct.bsr,
+            bsrCategory:         amazonProduct.bsrCategory,
+            verifiedHealthScore: ctx.verifiedHealthScore,
+            rawHealthScore:      ctx.rawHealthScore,
+            fakeReviewFlag:      ctx.fakeReviewFlag,
+            unansweredQAGaps:    qa.filter(q => q.answer === null).map(q => q.question).slice(0, 5),
+            recentSales:         amazonProduct.recentSales,
+          },
           status:                 (!isAdminUser && plan === 'free') ? 'completed' : 'partial',
           last_analyzed_at:       new Date().toISOString(),
         })
@@ -1787,18 +940,18 @@ export async function POST(request: NextRequest) {
         }).catch(e => console.error('[Analyze] Completion email failed:', e.message))
       }
 
-      console.log(`[Pipeline] Complaints ready. Redirecting. Report: ${reportId}`)
+      console.log(`[Pipeline] Analysis ready. Report: ${reportId}`)
 
       return NextResponse.json({
         success:        true,
         reportId,
         productName:    product.title,
         healthScore:    analysis.healthScore,
-        totalReviewed:  sampledReviews.length,
+        totalReviewed:  rawReviews.length,
         plan,
         isLimited:      plan === 'free' && !isAdminUser,
         isPartial:      !(!isAdminUser && plan === 'free'),
-        lowReviewCount: sampledReviews.length < 30,
+        lowReviewCount: rawReviews.length < 30,
       })
     } catch (err: any) {
       console.error('[Pipeline] Error:', err.message)

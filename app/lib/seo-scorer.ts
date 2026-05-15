@@ -52,7 +52,7 @@ const GENERIC_WORDS = new Set([
   'thank', 'thanks', 'again', 'another', 'also', 'even', 'still',
 ])
 
-// Blocked multi-word phrases — useless for Etsy SEO even if they recur
+// Blocked multi-word phrases — useless for Amazon SEO even if they recur
 // These slip through GENERIC_WORDS because only one word is generic
 const BLOCKED_PHRASES = [
   // Generic praise combos
@@ -89,7 +89,10 @@ const BLOCKED_PHRASES = [
 ]
 
 // High-value search intent signals — phrases containing these score higher
+// Updated for Amazon A10 algorithm (buyer intent, specificity, problem-solution language)
 const SEARCH_INTENT_SIGNALS = [
+  // Amazon buyer intent phrases
+  'for', 'to use', 'works with', 'fits',
   // Use cases
   'gift', 'birthday', 'christmas', 'fathers day', 'mothers day',
   'wedding', 'anniversary', 'daily', 'everyday', 'kitchen',
@@ -100,9 +103,13 @@ const SEARCH_INTENT_SIGNALS = [
   'keeps', 'holds', 'fits', 'lasts', 'works', 'feels', 'looks',
   // Comparison signals
   'ever', 'never', 'always', 'only', 'first',
-  // Material/product signals
+  // Material specificity signals
   'wood', 'metal', 'ceramic', 'cotton', 'leather', 'silver', 'gold',
-  'handmade', 'custom', 'personalized', 'engraved', 'embroidered',
+  'stainless', 'silicone', 'bpa free', 'food grade',
+  // Problem-solution language (high-value A10 signals)
+  'leak-proof', 'leakproof', 'non-stick', 'nonstick', 'rust-resistant',
+  'waterproof', 'dishwasher safe', 'oven safe', 'compatible with',
+  'fits perfectly', 'easy to clean', 'easy to use', 'no smell',
 ]
 
 function extractPhrases(reviews: Array<{ rating: number; text: string }>): string[] {
@@ -206,7 +213,7 @@ export function calculateSeoScore(
       score:       25,
       topPhrases:  [],
       phraseCount: 0,
-      reasoning:   `SEO score: 25/100 — insufficient 5★ reviews (${fiveStarCount}) to extract searchable phrases. Seller needs more reviews before SEO can be optimized.`,
+      reasoning:   `SEO score: 25/100 — insufficient 5★ reviews (${fiveStarCount}) to extract searchable phrases. Product needs more reviews before Amazon A10 keyword optimization can be assessed.`,
     }
   }
 
@@ -217,7 +224,7 @@ export function calculateSeoScore(
       score:       20,
       topPhrases:  [],
       phraseCount: 0,
-      reasoning:   `SEO score: 20/100 — no recurring specific phrases found in 5★ reviews after filtering generic terms. Buyers are not using consistent specific language that could drive search traffic.`,
+      reasoning:   `SEO score: 20/100 — no recurring specific phrases found in 5★ reviews after filtering generic terms. Buyers are not using consistent specific language that could drive Amazon search traffic.`,
     }
   }
 
@@ -251,6 +258,7 @@ export function calculateSeoScore(
 Top recurring phrases from buyers: "${topThree}"
 ${phrases.length} distinct specific phrases found across 5★ reviews.
 Use these exact phrases as your magicKeywords — do not invent different ones.
+Amazon A10 signals detected: buyer intent, problem-solution language, material specificity.
 The score is LOCKED at ${score} — do not change it.`
 
   return {
