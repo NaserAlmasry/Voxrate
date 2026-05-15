@@ -26,15 +26,15 @@ function CsvGuide({ show, onToggle, onClose }: { show: boolean; onToggle: () => 
   return (
     <div className="relative inline-block">
       <button onClick={onToggle} className="text-xs text-orange-500 hover:text-orange-600 underline underline-offset-2 transition-colors">
-        How to export from Etsy?
+        How to export from Amazon?
       </button>
       {show && (
         <div className="absolute right-0 top-6 z-50 w-64 bg-black text-white text-xs rounded-xl p-4 shadow-xl">
           <div className="absolute -top-1.5 right-4 w-3 h-3 bg-black rotate-45" />
-          <p className="font-semibold mb-2">Export your reviews from Etsy:</p>
+          <p className="font-semibold mb-2">Export your reviews from Amazon:</p>
           <ol className="space-y-1.5 text-neutral-300">
-            <li className="flex gap-2"><span className="text-orange-400 font-bold flex-shrink-0">1.</span>Go to your Etsy Shop Manager</li>
-            <li className="flex gap-2"><span className="text-orange-400 font-bold flex-shrink-0">2.</span>Click <strong className="text-white">Reviews</strong> in the left sidebar</li>
+            <li className="flex gap-2"><span className="text-orange-400 font-bold flex-shrink-0">1.</span>Go to your Amazon Seller Central</li>
+            <li className="flex gap-2"><span className="text-orange-400 font-bold flex-shrink-0">2.</span>Click <strong className="text-white">Feedback</strong> in the Reports menu</li>
             <li className="flex gap-2"><span className="text-orange-400 font-bold flex-shrink-0">3.</span>Click <strong className="text-white">Download CSV</strong> at the top right</li>
             <li className="flex gap-2"><span className="text-orange-400 font-bold flex-shrink-0">4.</span>Upload the downloaded file here</li>
           </ol>
@@ -180,7 +180,7 @@ const demoComplaints = [
     quote: '"snapped clean off while I was lifting it — completely unusable after 3 weeks of daily use"',
     description: 'Reviewers consistently describe the break happening at the lower attachment point after 3–6 weeks of daily use. This complaint accounts for 71% of all 1-star reviews.',
     revenueImpact: '19% of buyers affected — at $35/mug, each return costs ~$8–15 in shipping plus the unit cost',
-    riskIfIgnored: 'Each new 1-star review pushes your listing down Etsy search — at current velocity, your ranking will drop measurably within 60 days',
+    riskIfIgnored: 'Each new 1-star review pushes your listing down Amazon search — at current velocity, your ranking will drop measurably within 60 days',
     fixes: [
       { simple: 'Score both surfaces before joining the handle, use slip, and dry slowly covered in plastic — prevents the crack that forms when parts dry at different rates', why: '187 of 1,000 reviewers reported this, generating returns and active dispute cases' },
       { simple: 'Add a small clay coil to reinforce the inside of the lower handle join before firing — this is where reviewers say the break happens', why: 'Targets the exact failure point reviewers describe' },
@@ -193,10 +193,10 @@ const demoComplaints = [
     quote: '"expected the light sage green from the photos — what arrived was closer to army green, I felt completely misled"',
     description: 'Color complaints cluster in 2★ and 3★ reviews from buyers selecting for specific color-matched home decor projects. Each color complaint carries a 40% chance of a return request.',
     revenueImpact: '13% of buyers affected — color returns are the most time-intensive to resolve',
-    riskIfIgnored: '"Not as described" reviews — Etsy weights these heavily in dispute resolution',
+    riskIfIgnored: '"Not as described" reviews — Amazon weights these heavily in dispute resolution',
     fixes: [
       { simple: 'Reshoot on a cloudy day near a north-facing window — eliminates the warm color shift that makes your glaze look darker than it is', why: 'Zero cost fix that eliminates the root cause of 134 complaints' },
-      { simple: 'Add a color note: "Photos taken in natural daylight — colors may vary slightly on warm-toned screens"', why: 'Reduces return rate and protects against Etsy dispute resolutions' },
+      { simple: 'Add a color note: "Photos taken in natural daylight — colors may vary slightly on warm-toned screens"', why: 'Reduces return rate and protects against Amazon dispute resolutions' },
     ]
   },
   {
@@ -205,7 +205,7 @@ const demoComplaints = [
     quote: '"the box was completely caved in — the mug survived but I was shaking opening it, zero padding inside"',
     description: 'Single-wall boxes with no internal padding are transmitting transit impacts directly to the ceramic.',
     revenueImpact: '4% of buyers affected — each damaged arrival generates a return, replacement cost, and a probable 1-star review',
-    riskIfIgnored: '"Arrived broken" has zero ambiguity and Etsy sides with the buyer in disputes',
+    riskIfIgnored: '"Arrived broken" has zero ambiguity and Amazon sides with the buyer in disputes',
     fixes: [
       { simple: 'Switch to a double-wall box with foam inserts on all sides so the mug cannot move', why: '~$1.05/unit cost increase eliminates the transit damage reviews' },
     ]
@@ -235,7 +235,7 @@ const demoStrengths = [
 
 const demoImprovements = [
   { title: 'Add dimensions and capacity as your first listing line', description: '67 reviews mention surprise at the mug size. Adding "Height: 4.1 inches · Capacity: 14oz" as the very first line eliminates the single most common pre-purchase uncertainty and ranks you for capacity-specific searches.', impact: 'Reduces size-related returns + captures dimension-specific search traffic' },
-  { title: 'Move "keeps coffee hot" into your listing title', description: 'Your 5-star reviewers independently use "keeps coffee hot" in 312 reviews. None of these phrases appear in your title or tags. Your strongest selling point is invisible to Etsy search.', impact: 'Captures validated search intent your existing customers already proved' },
+  { title: 'Move "keeps coffee hot" into your listing title', description: 'Your 5-star reviewers independently use "keeps coffee hot" in 312 reviews. None of these phrases appear in your title or bullet points. Your strongest selling point is invisible to Amazon search.', impact: 'Captures validated search intent your existing customers already proved' },
 ]
 
 const demoMarketingCopy = [
@@ -316,8 +316,8 @@ function InlineStats() {
 // ── FAQ Section component ──────────────────────────────────────
 const FAQ_ITEMS = [
   {
-    q: 'Does this work for any Etsy product?',
-    a: 'Yes — Voxrate works for any product category on Etsy, from jewelry and ceramics to digital downloads and clothing. The AI adapts its analysis to the product type. Best results come from listings with 30+ reviews.',
+    q: 'Does this work for any Amazon product?',
+    a: 'Yes — Voxrate works for any product category on Amazon, from electronics and kitchen goods to clothing and supplements. The AI adapts its analysis to the product type. Best results come from listings with 30+ reviews.',
   },
   {
     q: 'What if my listing has very few reviews?',
@@ -328,20 +328,20 @@ const FAQ_ITEMS = [
     a: 'Voxrate is optimized for English and other Latin-script languages (French, Spanish, Italian, Portuguese, German, Dutch, etc.). It will still analyze non-Latin reviews (e.g. Japanese, Arabic, Chinese) but accuracy and depth of insights will be lower. For best results, your reviews should be primarily in a Latin-script language.',
   },
   {
-    q: 'How is Voxrate different from other Etsy tools?',
-    a: "Most Etsy tools tell you what buyers search for before they buy — keyword volume, competition, tag suggestions. Voxrate tells you what buyers say after they buy — complaints, praise, and specific fixes. They solve different problems: use keyword tools to get found, use Voxrate to improve what happens after they find you.",
+    q: 'How is Voxrate different from other Amazon tools?',
+    a: "Most Amazon tools tell you what buyers search for before they buy — keyword volume, competition, ranking. Voxrate tells you what buyers say after they buy — complaints, praise, and specific fixes. They solve different problems: use keyword tools to get found, use Voxrate to improve what happens after they find you.",
   },
   {
     q: 'Can I analyze a competitor\'s listing?',
-    a: "Yes. You can paste any public Etsy listing URL — including competitors'. Voxrate will analyze their reviews, show you their top weaknesses, what they do well, and give you a side-by-side comparison. Competitor analysis costs 48 credits (vs 24 for your own listings) and is available on Starter and Pro plans.",
+    a: "Yes. You can paste any public Amazon listing URL or ASIN — including competitors'. Voxrate will analyze their reviews, show you their top weaknesses, what they do well, and give you a side-by-side comparison. Competitor analysis costs 35 credits (vs 20 for your own listings) and is available on Starter and Pro plans.",
   },
   {
     q: 'What are credits and do they expire?',
-    a: 'Credits are the currency used for analyses. Each own-listing analysis costs 24 credits, each competitor analysis costs 48 credits. All other tools (rewriter, grader, reply generator, listing builder) are free — no credits needed. Credits purchased in packs never expire. Subscription credits refresh monthly.',
+    a: 'Credits are the currency used for analyses. Each own-listing analysis costs 20 credits, each competitor analysis costs 35 credits. All other tools (rewriter, grader, reply generator, listing builder) are free — no credits needed. Credits purchased in packs never expire. Subscription credits refresh monthly.',
   },
   {
     q: 'Is my data and my customers\' data private?',
-    a: "Voxrate only analyzes publicly available review text from Etsy — the same text anyone can read on the listing page. We don't access your Etsy account, private messages, or order data. Your generated reports are private to your account and are never shared.",
+    a: "Voxrate only analyzes publicly available review text from Amazon — the same text anyone can read on the listing page. We don't access your Amazon account, private messages, or order data. Your generated reports are private to your account and are never shared.",
   },
   {
     q: 'What if I\'m not happy with the results?',
@@ -441,8 +441,8 @@ export default function LandingPage() {
 
   const signIn = useCallback(async (url: string, requireUrl = false) => {
     if (requireUrl) {
-      if (!url.trim()) return { error: 'Please paste an Etsy product URL first' }
-      if (!url.includes('etsy.com/listing/')) return { error: 'Please paste a valid Etsy listing URL' }
+      if (!url.trim()) return { error: 'Please paste an Amazon product URL or ASIN first' }
+      if (!url.includes('amazon.com') && !/^[A-Z0-9]{10}$/i.test(url.trim())) return { error: 'Please paste a valid Amazon URL or ASIN' }
     }
     const { data: { user } } = await supabase.auth.getUser()
     if (requireUrl) {
@@ -521,13 +521,13 @@ export default function LandingPage() {
     { icon: <IconLayers className="text-orange-500" />, title: 'AI Listing Builder', desc: 'Generate a complete listing from scratch — title options, 13 SEO tags, and full description from a short prompt.', badge: 'Free tool' },
     { icon: <IconBarChart className="text-orange-500" />, title: 'Shop Health Score', desc: "See your entire shop's health at a glance — aggregated score, top recurring complaints, and 3 priority actions.", badge: 'Free' },
     { icon: <IconBell className="text-orange-500" />, title: 'Review Monitoring', desc: 'Automatic weekly re-analysis. Get alerts the moment your score drops or new complaints appear.', badge: 'Coming soon', soon: true },
-    { icon: <IconPuzzle className="text-orange-500" />, title: 'Chrome Extension', desc: 'Analyze any Etsy listing instantly while browsing — without leaving the page. One-click access to full reports.', badge: 'Coming soon', soon: true },
+    { icon: <IconPuzzle className="text-orange-500" />, title: 'Chrome Extension', desc: 'Analyze any Amazon listing instantly while browsing — without leaving the page. One-click access to full reports.', badge: 'Coming soon', soon: true },
   ]
 
   const creditItems: { action: string; cost: string; icon: React.ReactNode; free?: boolean }[] = [
-    { action: 'Own product analysis',    cost: '24 credits', icon: <IconSearch className="text-orange-500" /> },
-    { action: 'Competitor analysis',     cost: '48 credits', icon: <IconTarget className="text-orange-500" /> },
-    { action: 'Re-analyze listing',      cost: '24 credits', icon: <IconRefresh className="text-orange-500" /> },
+    { action: 'Own product analysis',    cost: '20 credits', icon: <IconSearch className="text-orange-500" /> },
+    { action: 'Competitor analysis',     cost: '35 credits', icon: <IconTarget className="text-orange-500" /> },
+    { action: 'Re-analyze listing',      cost: '20 credits', icon: <IconRefresh className="text-orange-500" /> },
     { action: 'All tools (rewrite, reply, grade, builder)', cost: 'FREE', icon: <IconGift className="text-green-500" />, free: true },
   ]
 
@@ -617,19 +617,17 @@ export default function LandingPage() {
           </p>
           <div className="min-h-[180px] md:min-h-[220px] flex flex-col items-center justify-center mb-6 hero-fade">
             <h1 className="text-4xl md:text-6xl font-bold tracking-normal leading-[1.2]">
-              Analyze your reviews.<br />
-              <span className="text-orange-600 font-bold">Discover the problems.</span><br />
-              Get exact <span className="font-bold underline decoration-orange-400 decoration-2 underline-offset-4">fixes.</span>
+              Know exactly what your Amazon customers want — and what&apos;s costing you sales
             </h1>
           </div>
-          <p className="text-sm text-neutral-500 mb-8 max-w-xl mx-auto">The Etsy review analyzer that turns customer feedback into specific, actionable improvements</p>
+          <p className="text-sm text-neutral-500 mb-8 max-w-xl mx-auto">The Amazon review analyzer that turns customer feedback into specific, actionable improvements</p>
 
           <div className="max-w-2xl mx-auto">
             <div className={`flex flex-col sm:flex-row gap-2 p-2 bg-white rounded-2xl border shadow-sm transition-colors ${heroUrlError ? 'border-red-300' : 'border-neutral-200'}`}>
-              <label htmlFor="hero-url" className="sr-only">Etsy product URL</label>
+              <label htmlFor="hero-url" className="sr-only">Amazon product URL or ASIN</label>
               <input id="hero-url" type="url" value={heroUrl} onChange={e => { setHeroUrl(e.target.value); setHeroUrlError('') }}
                 onKeyDown={e => e.key === 'Enter' && analyzeHero()}
-                placeholder="Paste your Etsy product URL..."
+                placeholder="Paste your Amazon product URL or ASIN..."
                 className="flex-1 px-4 py-3 text-base bg-transparent outline-none placeholder:text-neutral-400" />
               <button onClick={analyzeHero} className="glow px-6 py-3 bg-black text-white font-medium rounded-xl whitespace-nowrap">
                 <span className="block leading-tight">Analyze →</span>
@@ -879,7 +877,7 @@ export default function LandingPage() {
                         <div className="space-y-1.5">
                           {[
                             'Add "keeps coffee hot 45+ minutes" to listing title — appears in 312 five-star reviews',
-                            'Add "substantial and gift-worthy" as an Etsy tag — gift buyers who search this spend 40% more',
+                            'Add "substantial and gift-worthy" as a backend keyword — gift buyers who search this spend 40% more',
                             'Replace first listing bullet with the heat retention claim backed by your own reviews',
                           ].map(s => (
                             <div key={s} className="flex items-start gap-2 text-xs text-neutral-700 p-2 bg-blue-50 rounded-lg leading-relaxed">
@@ -1109,8 +1107,8 @@ export default function LandingPage() {
               {
                 n: 1,
                 icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f97316" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>,
-                title: 'Paste your Etsy URL',
-                body: "Drop in any Etsy product link or upload a CSV export of your reviews. No setup, no forms, no configuration.",
+                title: 'Paste your Amazon URL or ASIN',
+                body: "Drop in any Amazon product link or ASIN, or upload a CSV export of your reviews. No setup, no forms, no configuration.",
               },
               {
                 n: 2,
@@ -1157,7 +1155,7 @@ export default function LandingPage() {
         <div className="max-w-3xl mx-auto scroll-fade">
           <div className="text-center mb-10">
             <p className="text-xs font-semibold text-orange-600 uppercase tracking-widest mb-2">Why Voxrate</p>
-            <h2 className="text-3xl font-bold mb-3">Not all Etsy tools are equal</h2>
+            <h2 className="text-3xl font-bold mb-3">Not all Amazon tools are equal</h2>
             <p className="text-sm text-neutral-500">Other tools tell you what buyers search for. We tell you what buyers actually say — and what to do about it.</p>
           </div>
 
@@ -1199,7 +1197,7 @@ export default function LandingPage() {
               </div>
             ))}
           </div>
-          <p className="text-xs text-neutral-400 text-center mt-3">"Others" refers to general Etsy SEO tools. Comparison based on publicly available features.</p>
+          <p className="text-xs text-neutral-400 text-center mt-3">"Others" refers to general Amazon SEO tools. Comparison based on publicly available features.</p>
         </div>
       </section>
 
@@ -1235,7 +1233,7 @@ export default function LandingPage() {
                 </div>
               ))}
             </div>
-            <p className="text-xs text-neutral-400 text-center mt-3">Credits never expire · 1 analysis = 24 credits · Competitor analysis = 48 credits</p>
+            <p className="text-xs text-neutral-400 text-center mt-3">Credits never expire · 1 analysis = 20 credits · Competitor analysis = 35 credits</p>
           </div>
 
           {pricingTab === 'packs' ? (
@@ -1540,7 +1538,7 @@ export default function LandingPage() {
             <div className="grid md:grid-cols-3 gap-3">
               {[
                 "You haven't launched yet and have zero reviews",
-                "You sell on platforms other than Etsy — analysis is built around Etsy listings and review structure",
+                "You sell on platforms other than Amazon — analysis is built around Amazon listings and review structure",
                 "You're looking for keyword research before buyers find you — Voxrate works with what buyers say after they buy, not search volume",
               ].map((item, i) => (
                 <div key={i} className="flex items-start gap-2 text-xs text-neutral-500">
@@ -1560,8 +1558,8 @@ export default function LandingPage() {
       <section className="py-6 px-6 bg-[#FAF9F6]">
         <div className="max-w-4xl mx-auto text-center">
           <p className="text-xs text-neutral-400 leading-relaxed max-w-2xl mx-auto">
-            Voxrate is an Etsy review analysis tool that helps sellers understand exactly what buyers are saying about their products.
-            Paste your Etsy listing URL or upload a CSV of your reviews to get a health score, complaint analysis with specific fixes,
+            Voxrate is an Amazon review analysis tool that helps sellers understand exactly what buyers are saying about their products.
+            Paste your Amazon listing URL or ASIN, or upload a CSV of your reviews to get a health score, complaint analysis with specific fixes,
             SEO keywords extracted from real buyer language, and marketing copy from your best reviews.
           </p>
         </div>
@@ -1575,7 +1573,7 @@ export default function LandingPage() {
           <div className={`flex flex-col sm:flex-row gap-2 p-2 bg-white rounded-2xl border shadow-sm max-w-xl mx-auto transition-colors ${ctaUrlError ? 'border-red-300' : 'border-neutral-200'}`}>
             <input type="url" value={ctaUrl} onChange={e => { setCtaUrl(e.target.value); setCtaUrlError('') }}
               onKeyDown={e => e.key === 'Enter' && analyzeCta()}
-              placeholder="Paste your Etsy product URL..."
+              placeholder="Paste your Amazon product URL or ASIN..."
               className="flex-1 px-4 py-3 text-base bg-transparent outline-none placeholder:text-neutral-400" />
             <button onClick={analyzeCta} className="glow px-6 py-3 bg-black text-white font-medium rounded-xl whitespace-nowrap">Analyze →</button>
           </div>
@@ -1590,7 +1588,7 @@ export default function LandingPage() {
           <div className="grid md:grid-cols-3 gap-8 mb-8">
             <div>
               <img src="/logo.png" alt="Voxrate" height={28} style={{ objectFit: 'contain', maxWidth: 130 }} className="mb-3" />
-              <p className="text-xs text-neutral-400 leading-relaxed">The Etsy review analyzer that turns customer feedback into specific fixes. Free to try.</p>
+              <p className="text-xs text-neutral-400 leading-relaxed">The Amazon review analyzer that turns customer feedback into specific fixes. Free to try.</p>
             </div>
             <div>
               <p className="text-xs font-semibold text-neutral-700 uppercase tracking-wider mb-3">Product</p>
@@ -1603,7 +1601,7 @@ export default function LandingPage() {
             </div>
             <div>
               <p className="text-xs font-semibold text-neutral-700 uppercase tracking-wider mb-3">Stay in the loop</p>
-              <p className="text-xs text-neutral-500 mb-3">New features, tips, and exclusive discounts for Etsy sellers.</p>
+              <p className="text-xs text-neutral-500 mb-3">New features, tips, and exclusive discounts for Amazon sellers.</p>
               {footerNlSubmitted ? (
                 <p className="text-xs text-green-600 font-medium">Thanks! We'll be in touch.</p>
               ) : (

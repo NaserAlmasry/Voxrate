@@ -131,7 +131,7 @@ function DashboardHomeInner() {
   }
 
   const checkCache = async (inputUrl: string) => {
-    if (!inputUrl.includes('etsy.com/listing/')) return
+    if (!inputUrl.includes('amazon.com') && !/^[A-Z0-9]{10}$/i.test(inputUrl.trim())) return
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
     const match = inputUrl.match(/listing\/(\d+)/)
@@ -169,7 +169,7 @@ function DashboardHomeInner() {
       setUrl(pendingUrl)
       // Small delay so state settles before triggering
       const pendingTimer = setTimeout(() => {
-        if (!pendingUrl.includes('etsy.com/listing/')) return
+        if (!pendingUrl.includes('amazon.com') && !/^[A-Z0-9]{10}$/i.test(pendingUrl.trim())) return
         cancelledRef.current = false
         setLoading(true); setError('')
         const controller = new AbortController()
@@ -287,7 +287,7 @@ function DashboardHomeInner() {
 
   const handleAnalyze = async () => {
     if (!url.trim()) return
-    if (!url.includes('etsy.com/listing/')) { setError('Please paste a valid Etsy product listing URL'); return }
+    if (!url.includes('amazon.com') && !/^[A-Z0-9]{10}$/i.test(url.trim())) { setError('Please paste a valid Amazon URL or ASIN (e.g. B073JYC4XM)'); return }
     cancelledRef.current = false
     await checkCache(url)
     setLoading(true); setError(''); setShowCancelWarning(false)
@@ -355,7 +355,7 @@ function DashboardHomeInner() {
 
   const getLoadingMessage = (secs: number) => {
     if (isCsv) return secs < 10 ? 'Reading CSV...' : secs < 30 ? 'Analyzing your reviews...' : 'Building your report...'
-    return secs < 20 ? 'Connecting to Etsy...' : secs < 60 ? 'Reading customer reviews...' : secs < 120 ? 'Finding patterns...' : 'Building your report...'
+    return secs < 20 ? 'Connecting to Amazon...' : secs < 60 ? 'Reading customer reviews...' : secs < 120 ? 'Finding patterns...' : 'Building your report...'
   }
 
   const formatTime = (secs: number) => {
@@ -399,7 +399,7 @@ function DashboardHomeInner() {
       </div>
 
       {/* ── Free trial warning ── */}
-      {userPlan === 'free' && !simulatingUser && credits !== null && credits < 24 && (
+      {userPlan === 'free' && !simulatingUser && credits !== null && credits < 20 && (
         <div className="flex items-center justify-between gap-3 p-4 bg-orange-50 border border-orange-200 rounded-2xl">
           <div className="flex items-center gap-2.5">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f97316" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -472,7 +472,7 @@ function DashboardHomeInner() {
               value={url}
               onChange={e => { setUrl(e.target.value); setError('') }}
               onKeyDown={e => e.key === 'Enter' && handleAnalyze()}
-              placeholder="Paste your Etsy listing URL..."
+              placeholder="Paste Amazon URL or ASIN (e.g. B073JYC4XM)"
               disabled={loading}
               className="flex-1 px-4 py-3 text-sm border border-neutral-200 rounded-xl outline-none focus:border-orange-400 transition-colors bg-neutral-50 disabled:opacity-50"
             />
@@ -501,7 +501,7 @@ function DashboardHomeInner() {
             </div>
             <div>
               <p className="text-sm font-medium text-neutral-600">Drop CSV or <span className="text-orange-500">Browse</span></p>
-              <p className="text-xs text-neutral-400 mt-0.5">Upload your Etsy reviews export — analysis in under 60 seconds</p>
+              <p className="text-xs text-neutral-400 mt-0.5">Upload your Amazon reviews export — analysis in under 60 seconds</p>
             </div>
           </div>
           <input id="csv-dash" type="file" accept=".csv" className="hidden"

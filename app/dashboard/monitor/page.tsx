@@ -90,15 +90,10 @@ export default function MonitorPage() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-5">
-      <div className="flex items-center gap-2 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 font-medium">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="flex-shrink-0 text-amber-500"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-        Review monitoring with email alerts is coming soon. You can add listings now and we&apos;ll activate alerts automatically when it launches.
-      </div>
-
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-xl font-semibold">Review monitoring</h1>
-          <p className="text-xs text-neutral-400 mt-1">Get alerts when your product&apos;s health score drops or new complaints appear</p>
+          <p className="text-xs text-neutral-400 mt-1">Get alerts when your Amazon product&apos;s health score drops or new complaints appear</p>
         </div>
         {isPaid && (
           <button

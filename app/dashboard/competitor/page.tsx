@@ -52,8 +52,8 @@ function CompetitorPage() {
 
   const handleAnalyze = async () => {
     if (!url.trim()) return
-    if (!url.includes('etsy.com/listing/')) {
-      setError('Please paste a valid Etsy product listing URL')
+    if (!url.includes('amazon.com') && !/^[A-Z0-9]{10}$/i.test(url.trim())) {
+      setError('Please paste a valid Amazon URL or ASIN')
       return
     }
     cancelledRef.current = false
@@ -90,7 +90,7 @@ function CompetitorPage() {
     <div className="max-w-2xl mx-auto space-y-5">
       <div>
         <h1 className="text-xl font-semibold">Competitor spy</h1>
-        <p className="text-xs text-neutral-400 mt-1">Analyze any Etsy listing — uncover their weaknesses before buyers do</p>
+        <p className="text-xs text-neutral-400 mt-1">Analyze any Amazon listing — uncover their weaknesses before buyers do</p>
       </div>
 
       {!isPaid ? (
@@ -116,7 +116,7 @@ function CompetitorPage() {
           {/* How it works */}
           <div className="grid grid-cols-3 gap-3">
             {[
-              { n: '1', label: 'Paste any Etsy listing URL' },
+              { n: '1', label: 'Paste any Amazon listing URL or ASIN' },
               { n: '2', label: 'We analyze their reviews with AI' },
               { n: '3', label: 'See their weaknesses & your edge' },
             ].map(step => (
@@ -130,13 +130,13 @@ function CompetitorPage() {
           {/* Input */}
           <div className="bg-white rounded-2xl border border-neutral-200 p-6 space-y-4">
             <div>
-              <label className="text-xs font-semibold text-neutral-600 block mb-2">Competitor Etsy listing URL</label>
+              <label className="text-xs font-semibold text-neutral-600 block mb-2">Competitor Amazon listing URL or ASIN</label>
               <input
                 type="url"
                 value={url}
                 onChange={e => { setUrl(e.target.value); setError('') }}
                 onKeyDown={e => e.key === 'Enter' && !loading && handleAnalyze()}
-                placeholder="https://www.etsy.com/listing/..."
+                placeholder="Paste competitor's Amazon URL or ASIN"
                 className="w-full text-sm border border-neutral-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:border-transparent transition-all"
               />
             </div>

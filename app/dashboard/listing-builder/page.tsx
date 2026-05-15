@@ -31,9 +31,9 @@ function ValidationError({ message }: { message: string }) {
 }
 
 const CATEGORIES = [
-  'Home Decor', 'Jewelry & Accessories', 'Clothing & Apparel', 'Art & Prints',
-  'Handmade Crafts', 'Candles & Bath', 'Stationery & Paper', 'Toys & Games',
-  'Food & Drink', 'Wedding', 'Baby & Kids', 'Pet Supplies', 'Other',
+  'Electronics', 'Kitchen & Home', 'Health & Personal Care', 'Sports & Outdoors',
+  'Toys & Games', 'Pet Supplies', 'Beauty', 'Tools & Home Improvement',
+  'Clothing & Apparel', 'Baby & Kids', 'Other',
 ]
 
 function CopyButton({ text }: { text: string }) {
@@ -90,7 +90,7 @@ export default function ListingBuilderPage() {
     <div className="max-w-2xl mx-auto space-y-5">
       <div>
         <h1 className="text-xl font-semibold">AI listing builder</h1>
-        <p className="text-xs text-neutral-400 mt-1">Describe your product in plain language — get a complete, SEO-optimized Etsy listing instantly</p>
+        <p className="text-xs text-neutral-400 mt-1">Describe your product in plain language — get a complete, SEO-optimized Amazon listing instantly</p>
       </div>
 
       <div className="bg-white rounded-2xl border border-neutral-200 p-5 space-y-4">
@@ -99,7 +99,7 @@ export default function ListingBuilderPage() {
           <textarea
             value={prompt}
             onChange={e => setPrompt(e.target.value)}
-            placeholder="e.g. A handmade wooden cutting board with a custom name engraved on it, perfect as a wedding or housewarming gift. Made from maple wood, finished with food-safe oil."
+            placeholder="e.g. A stainless steel insulated water bottle, 32oz, keeps drinks cold 24hrs or hot 12hrs. BPA free, leak-proof lid, fits standard cup holders. Perfect for gym, hiking, and office use."
             rows={4}
             maxLength={1000}
             className="w-full text-sm border border-neutral-200 rounded-xl px-3 py-2.5 resize-none focus:outline-none focus:border-black transition-colors"
@@ -207,7 +207,7 @@ export default function ListingBuilderPage() {
           <div className="bg-white rounded-2xl border border-neutral-200 p-5">
             <div className="flex items-center justify-between mb-3">
               <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">
-                Tags <span className="font-normal normal-case text-neutral-400">({result.tags?.length || 0}/13)</span>
+                Keywords/Tags <span className="font-normal normal-case text-neutral-400">({result.tags?.length || 0})</span>
               </p>
               <CopyButton text={result.tags?.join(', ') || ''} />
             </div>

@@ -46,6 +46,7 @@ function GradeCard({ label, data }: { label: string; data: any }) {
 export default function GradePage() {
   const [title, setTitle]       = useState('')
   const [tags, setTags]         = useState('')
+  const [bullets, setBullets]   = useState('')
   const [description, setDesc]  = useState('')
   const [price, setPrice]       = useState('')
   const [grading, setGrading]   = useState(false)
@@ -61,7 +62,7 @@ export default function GradePage() {
       const res = await fetch('/api/grade', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-        body:    JSON.stringify({ title, tags, description, price }),
+        body:    JSON.stringify({ title, tags, bullets, description, price }),
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error || 'Failed to grade listing. Please try again.'); return }
@@ -88,29 +89,41 @@ export default function GradePage() {
           <input
             value={title}
             onChange={e => setTitle(e.target.value)}
-            placeholder="e.g. Personalized Wood Sign, Custom Kitchen Decor, Housewarming Gift"
+            placeholder="e.g. Stainless Steel Water Bottle 32oz, Insulated, BPA Free, Leak Proof"
             maxLength={500}
             className="w-full text-sm border border-neutral-200 rounded-xl px-3 py-2.5 focus:outline-none focus:border-black transition-colors"
           />
-          <p className="text-xs text-neutral-400 mt-1">{title.length}/140 chars {title.length > 140 ? '— Etsy truncates at 140' : ''}</p>
+          <p className="text-xs text-neutral-400 mt-1">{title.length}/200 chars {title.length > 200 ? '— Amazon limit is 200' : ''}</p>
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-neutral-600 mb-1.5">Tags <span className="font-normal text-neutral-400">(comma separated, 13 max)</span></label>
+          <label className="block text-xs font-semibold text-neutral-600 mb-1.5">Backend Keywords (comma-separated)</label>
           <input
             value={tags}
             onChange={e => setTags(e.target.value)}
-            placeholder="personalized sign, wood wall art, kitchen decor, housewarming gift..."
+            placeholder="stainless steel water bottle, BPA free, insulated, 32oz..."
             className="w-full text-sm border border-neutral-200 rounded-xl px-3 py-2.5 focus:outline-none focus:border-black transition-colors"
           />
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-neutral-600 mb-1.5">Description <span className="font-normal text-neutral-400">(optional but recommended)</span></label>
+          <label className="block text-xs font-semibold text-neutral-600 mb-1.5">Bullet Points <span className="font-normal text-neutral-400">(optional)</span></label>
+          <textarea
+            value={bullets}
+            onChange={e => setBullets(e.target.value)}
+            placeholder="One bullet point per line..."
+            rows={4}
+            maxLength={2000}
+            className="w-full text-sm border border-neutral-200 rounded-xl px-3 py-2.5 resize-none focus:outline-none focus:border-black transition-colors"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-semibold text-neutral-600 mb-1.5">Product Description / A+ Content <span className="font-normal text-neutral-400">(optional but recommended)</span></label>
           <textarea
             value={description}
             onChange={e => setDesc(e.target.value)}
-            placeholder="Paste your listing description..."
+            placeholder="Paste your product description or A+ Content..."
             rows={5}
             maxLength={3000}
             className="w-full text-sm border border-neutral-200 rounded-xl px-3 py-2.5 resize-none focus:outline-none focus:border-black transition-colors"

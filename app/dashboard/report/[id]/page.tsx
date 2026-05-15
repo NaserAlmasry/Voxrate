@@ -905,7 +905,7 @@ export default function ReportPage() {
           <button onClick={() => router.push('/dashboard')} className="text-xs text-neutral-400 hover:text-black mb-2 flex items-center gap-1">
             ← Back to dashboard
           </button>
-          <h1 className="text-lg font-semibold leading-tight truncate">{safeStr(report.product_name, 'Etsy Product')}</h1>
+          <h1 className="text-lg font-semibold leading-tight truncate">{safeStr(report.product_name, 'Amazon Product')}</h1>
           <p className="text-xs text-neutral-400 mt-0.5">
             {report.total_reviews_analyzed} reviews analyzed · {new Date(report.created_at).toLocaleDateString()}
           </p>

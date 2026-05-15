@@ -76,7 +76,7 @@ export default function RewritePage() {
     <div className="max-w-2xl mx-auto space-y-5">
       <div>
         <h1 className="text-xl font-semibold">Description rewriter</h1>
-        <p className="text-xs text-neutral-400 mt-1">Paste your current Etsy listing description and get an SEO-optimized rewrite in seconds</p>
+        <p className="text-xs text-neutral-400 mt-1">Paste your current Amazon bullet points and description and get an SEO-optimized rewrite in seconds</p>
       </div>
 
       {/* Optional: link to a report */}
@@ -123,11 +123,11 @@ export default function RewritePage() {
 
       {/* Description input */}
       <div className="bg-white rounded-2xl border border-neutral-200 p-5">
-        <p className="text-xs font-semibold text-neutral-600 mb-2">Current description</p>
+        <p className="text-xs font-semibold text-neutral-600 mb-2">Current Bullet Points &amp; Description</p>
         <textarea
           value={description}
           onChange={e => setDescription(e.target.value)}
-          placeholder="Paste your current Etsy listing description here..."
+          placeholder="e.g. ✓ KEEPS DRINKS HOT OR COLD — Double-wall vacuum insulation maintains temperature for 24 hours&#10;✓ LEAK-PROOF LID — Secure twist-top lid prevents spills in your bag&#10;Paste your current bullet points and description here..."
           rows={8}
           maxLength={3000}
           className="w-full text-sm border border-neutral-200 rounded-xl p-3 resize-none focus:outline-none focus:border-black transition-colors"
@@ -160,7 +160,7 @@ export default function RewritePage() {
         <div className="space-y-4">
           <div className="bg-white rounded-2xl border border-neutral-200 p-5">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-semibold text-neutral-600">Rewritten description</p>
+              <p className="text-xs font-semibold text-neutral-600">Optimized Bullet Points &amp; Description</p>
               <button
                 onClick={() => copy(result.rewritten)}
                 className="text-xs px-3 py-1.5 border border-neutral-200 rounded-lg hover:bg-neutral-50 transition-colors flex items-center gap-1.5"

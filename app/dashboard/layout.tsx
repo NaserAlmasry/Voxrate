@@ -431,7 +431,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
         <div className="px-6 pb-6">
           <p className="text-[10px] text-neutral-300 leading-relaxed">
-            The term &quot;Etsy&quot; is a trademark of Etsy, Inc. This application uses Etsy&apos;s API, but is not endorsed or certified by Etsy.
+            Amazon is a trademark of Amazon.com, Inc. This application is not affiliated with, endorsed by, or certified by Amazon.
           </p>
         </div>
       </main>

@@ -116,7 +116,7 @@ export default function ReplyPage() {
           <textarea
             value={review}
             onChange={e => setReview(e.target.value)}
-            placeholder="Paste the customer review here..."
+            placeholder="e.g. The bottle looks great but the lid started leaking after a week of use. Very disappointed as I paid premium price for this. Also the color is slightly different from the photos."
             rows={4}
             maxLength={1000}
             className="w-full text-sm border border-neutral-200 rounded-xl px-4 py-3 resize-none focus:outline-none focus:ring-2 focus:ring-orange-300 focus:border-transparent transition-all"
