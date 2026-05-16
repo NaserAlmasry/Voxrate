@@ -5,8 +5,8 @@ const CANOPY_API_KEY = process.env.CANOPY_API_KEY!
 const RAINFOREST_BASE = 'https://api.rainforestapi.com/request'
 const CANOPY_BASE = 'https://rest.canopyapi.co/api/amazon/product/reviews'
 
-// Max pages to fetch per star (each page ~10 reviews, so 5 pages = ~50 per star)
-const MAX_PAGES_PER_STAR = 5
+// Max pages to fetch per star (each page ~10 reviews, so 2 pages = ~20 per star = 100 total)
+const MAX_PAGES_PER_STAR = 2
 
 const STAR_FILTER_MAP: Record<1 | 2 | 3 | 4 | 5, string> = {
   1: 'ONE_STAR',
