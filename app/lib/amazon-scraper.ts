@@ -55,8 +55,7 @@ const STAR_FILTER_MAP: Record<1 | 2 | 3 | 4 | 5, string> = {
 async function fetchStarBatch(asin: string, marketplace: string, star: 1 | 2 | 3 | 4 | 5): Promise<AmazonReview[]> {
   try {
     const runInput = {
-      asins: [asin],
-      marketplace,
+      products: [`https://${marketplace}/dp/${asin}`],
       filterByRating: STAR_FILTER_MAP[star],
       maxReviews: PAGES_PER_STAR * 10,
       sortBy: 'recent',
