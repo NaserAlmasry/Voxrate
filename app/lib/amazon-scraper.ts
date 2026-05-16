@@ -17,28 +17,31 @@ export async function scrapeAmazon(input: string): Promise<AmazonScrapeResult> {
   const { asin, marketplace } = parseInput(input)
   console.log(`[Scraper] ASIN: ${asin} | Marketplace: ${marketplace}`)
 
-  // Run product, all star-filtered review pages, and Q&A in parallel
-  const [{ product: productData }, qaData, ...starBatches] = await Promise.all([
+  // Product and Q&A in parallel first
+  const [{ product: productData }, qaData] = await Promise.all([
     fetchProduct(asin, marketplace),
     fetchQA(asin, marketplace),
-    fetchReviewsByStar(asin, marketplace, 1),
-    fetchReviewsByStar(asin, marketplace, 2),
-    fetchReviewsByStar(asin, marketplace, 3),
-    fetchReviewsByStar(asin, marketplace, 4),
-    fetchReviewsByStar(asin, marketplace, 5),
   ])
 
-  // Merge all star batches into one flat array
-  const allReviews: AmazonReview[] = (starBatches as AmazonReview[][]).flat()
+  // Star-filtered review batches run sequentially to avoid Rainforest rate limiting
+  // 300ms gap between each star to stay within their per-second limit
+  const starBatches: AmazonReview[][] = []
+  for (const star of [1, 2, 3, 4, 5] as const) {
+    const batch = await fetchReviewsByStar(asin, marketplace, star)
+    starBatches.push(batch)
+    await sleep(300)
+  }
+
+  const allReviews: AmazonReview[] = starBatches.flat()
 
   console.log(
     `[Scraper] "${productData.title.slice(0, 50)}" | ` +
     `${productData.totalReviews} total ratings | ` +
-    `${allReviews.length} review texts (1★:${(starBatches[0] as AmazonReview[]).length} ` +
-    `2★:${(starBatches[1] as AmazonReview[]).length} ` +
-    `3★:${(starBatches[2] as AmazonReview[]).length} ` +
-    `4★:${(starBatches[3] as AmazonReview[]).length} ` +
-    `5★:${(starBatches[4] as AmazonReview[]).length}) | ` +
+    `${allReviews.length} texts (1★:${starBatches[0].length} ` +
+    `2★:${starBatches[1].length} ` +
+    `3★:${starBatches[2].length} ` +
+    `4★:${starBatches[3].length} ` +
+    `5★:${starBatches[4].length}) | ` +
     `${qaData.length} Q&A`
   )
 
@@ -50,6 +53,8 @@ export async function scrapeAmazon(input: string): Promise<AmazonScrapeResult> {
     marketplace,
   }
 }
+
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 const STAR_FILTER_MAP: Record<1 | 2 | 3 | 4 | 5, string> = {
   1: 'one_star',
@@ -78,9 +83,17 @@ async function fetchReviewsByStar(
     })
 
     try {
-      const res = await fetch(`${BASE_URL}?${params}`)
+      let res = await fetch(`${BASE_URL}?${params}`)
+
+      // Retry once on 503 after a short back-off
+      if (res.status === 503) {
+        console.warn(`[Scraper] ${star}★ page ${page} 503 — retrying in 1s`)
+        await sleep(1000)
+        res = await fetch(`${BASE_URL}?${params}`)
+      }
+
       if (!res.ok) {
-        console.warn(`[Scraper] ${star}★ page ${page} HTTP ${res.status}`)
+        console.warn(`[Scraper] ${star}★ page ${page} HTTP ${res.status} — stopping this star`)
         break
       }
 
