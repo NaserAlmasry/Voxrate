@@ -39,23 +39,31 @@ export async function scrapeAmazon(input: string): Promise<AmazonScrapeResult> {
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
-// web_wanderer/amazon-reviews-extractor
-// One run with allStarsMode fetches 100 per star (5 stars × 10 pages × 10 reviews)
+// sovereigntaylor/amazon-reviews-scraper
+// 5 parallel runs, one per star rating, 100 reviews each
 async function fetchAllReviews(asin: string, marketplace: string): Promise<AmazonReview[]> {
+  const batches = await Promise.all(
+    ([1, 2, 3, 4, 5] as const).map(star => fetchStarBatch(asin, marketplace, star))
+  )
+  return batches.flat()
+}
+
+const STAR_FILTER_MAP: Record<1 | 2 | 3 | 4 | 5, string> = {
+  1: 'one_star', 2: 'two_star', 3: 'three_star', 4: 'four_star', 5: 'five_star',
+}
+
+async function fetchStarBatch(asin: string, marketplace: string, star: 1 | 2 | 3 | 4 | 5): Promise<AmazonReview[]> {
   try {
     const runInput = {
-      products: [`https://${marketplace}/dp/${asin}`],
-      all_stars: true,
-      pages: PAGES_PER_STAR,     // 10 pages per star = ~100 reviews per star
-      personal_data: false,
-      avp_reviews: false,
-      include_variants: false,
-      scrape_image_reviews: false,
-      scrape_video_reviews: false,
+      asins: [asin],
+      marketplace,
+      filterByRating: STAR_FILTER_MAP[star],
+      maxReviews: PAGES_PER_STAR * 10,
+      sortBy: 'recent',
     }
 
     const startRes = await fetch(
-      `${APIFY_BASE}/acts/web_wanderer~amazon-reviews-extractor/runs?token=${APIFY_API_TOKEN}`,
+      `${APIFY_BASE}/acts/sovereigntaylor~amazon-reviews-scraper/runs?token=${APIFY_API_TOKEN}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -64,80 +72,73 @@ async function fetchAllReviews(asin: string, marketplace: string): Promise<Amazo
     )
 
     if (!startRes.ok) {
-      console.warn(`[Scraper] Apify start failed: HTTP ${startRes.status}`)
+      console.warn(`[Scraper] Apify ${star}★ start failed: HTTP ${startRes.status}`)
       return []
     }
 
     const { data: runData } = await startRes.json()
     const runId: string = runData.id
-    console.log(`[Scraper] Apify run started: ${runId}`)
 
-    // Poll until finished (timeout 3 min — 500 reviews takes time)
-    const deadline = Date.now() + 180_000
+    // Poll until finished (timeout 120s per star)
+    const deadline = Date.now() + 120_000
     let status = runData.status as string
 
     while (status !== 'SUCCEEDED' && status !== 'FAILED' && status !== 'ABORTED') {
       if (Date.now() > deadline) {
-        console.warn(`[Scraper] Apify run ${runId} timed out`)
+        console.warn(`[Scraper] Apify ${star}★ run timed out`)
         return []
       }
-      await sleep(4000)
+      await sleep(3000)
 
       const pollRes = await fetch(`${APIFY_BASE}/actor-runs/${runId}?token=${APIFY_API_TOKEN}`)
-      if (!pollRes.ok) {
-        console.warn(`[Scraper] Apify poll failed: HTTP ${pollRes.status}`)
-        return []
-      }
+      if (!pollRes.ok) return []
       const { data: pollData } = await pollRes.json()
       status = pollData.status
     }
 
     if (status !== 'SUCCEEDED') {
-      console.warn(`[Scraper] Apify run ended with: ${status}`)
+      console.warn(`[Scraper] Apify ${star}★ ended with: ${status}`)
       return []
     }
 
     const datasetRes = await fetch(
-      `${APIFY_BASE}/actor-runs/${runId}/dataset/items?token=${APIFY_API_TOKEN}&limit=600`
+      `${APIFY_BASE}/actor-runs/${runId}/dataset/items?token=${APIFY_API_TOKEN}&limit=200`
     )
-    if (!datasetRes.ok) {
-      console.warn(`[Scraper] Apify dataset fetch failed: HTTP ${datasetRes.status}`)
-      return []
-    }
+    if (!datasetRes.ok) return []
 
-    const items: WebWandererReviewItem[] = await datasetRes.json()
-    const reviews = items.filter(r => r.reviewId).map(mapWebWandererReview)
-    console.log(`[Scraper] Apify returned ${items.length} items, ${reviews.length} valid reviews`)
+    const items: SovereignReviewItem[] = await datasetRes.json()
+    const reviews = items.filter(r => r.reviewId).map(mapSovereignReview)
+    console.log(`[Scraper] ${star}★ — ${reviews.length} reviews`)
     return reviews
   } catch (e) {
-    console.warn(`[Scraper] Apify exception:`, e)
+    console.warn(`[Scraper] Apify ${star}★ exception:`, e)
     return []
   }
 }
 
-interface WebWandererReviewItem {
+interface SovereignReviewItem {
   reviewId?: string
-  rating?: number
+  ratingScore?: number
   reviewTitle?: string
-  reviewText?: string
-  reviewDate?: string
-  verifiedPurchase?: boolean
-  vineReview?: boolean
-  helpfulVoteCount?: number
-  country?: string
+  reviewDescription?: string
+  date?: string
+  isVerified?: boolean
+  isVineVoice?: boolean
+  helpfulVotes?: number
+  reviewCountry?: string
 }
 
-function mapWebWandererReview(r: WebWandererReviewItem): AmazonReview {
+function mapSovereignReview(r: SovereignReviewItem): AmazonReview {
   return {
     id: r.reviewId ?? '',
-    rating: Math.round(r.rating ?? 0),
+    rating: r.ratingScore ?? 0,
     title: r.reviewTitle ?? '',
-    body: r.reviewText ?? '',
-    date: r.reviewDate ?? '',
-    verified: r.verifiedPurchase ?? false,
-    vine: r.vineReview ?? false,
-    helpful: r.helpfulVoteCount ?? 0,
-    country: r.country ?? 'us',
+    body: r.reviewDescription ?? '',
+    date: r.date ?? '',
+    verified: r.isVerified ?? false,
+    vine: r.isVineVoice ?? false,
+    helpful: r.helpfulVotes ?? 0,
+    country: r.reviewCountry ?? 'us',
   }
 }
 
