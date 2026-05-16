@@ -878,13 +878,14 @@ export async function POST(request: NextRequest) {
         totalReviewCount,
         undefined,
         {
-          imageCount:       amazonProduct.imageCount,
-          videoCount:       amazonProduct.videoCount,
-          hasAplus:         amazonProduct.hasAplus,
-          bsr:              amazonProduct.bsr,
-          bsrCategory:      amazonProduct.bsrCategory,
-          recentSales:      amazonProduct.recentSales,
+          imageCount:        amazonProduct.imageCount,
+          videoCount:        amazonProduct.videoCount,
+          hasAplus:          amazonProduct.hasAplus,
+          bsr:               amazonProduct.bsr,
+          bsrCategory:       amazonProduct.bsrCategory,
+          recentSales:       amazonProduct.recentSales,
           unansweredQACount,
+          ratingBreakdown:   amazonProduct.ratingBreakdown,
         },
       )
       console.log(

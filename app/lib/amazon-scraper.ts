@@ -12,20 +12,20 @@ export async function scrapeAmazon(input: string): Promise<AmazonScrapeResult> {
   const { asin, marketplace } = parseInput(input)
   console.log(`[Scraper] ASIN: ${asin} | Marketplace: ${marketplace}`)
 
-  // Fetch product first — we need top_reviews as fallback if reviews API returns empty
-  const { product: productData, topReviews } = await fetchProduct(asin, marketplace)
-
-  // Fetch reviews and Q&A in parallel
-  const [reviewsData, qaData] = await Promise.all([
-    fetchReviews(asin, marketplace, topReviews),
+  // Strategy: 1 product call (1 credit) + 1 Q&A call (1 credit) = 2 credits total.
+  // The product call returns top_reviews (8-10 texts) AND rating_breakdown (real counts
+  // across ALL reviews). We use rating_breakdown for the health score and top_reviews
+  // for AI text analysis. This is more accurate than paginating through reviews.
+  const [{ product: productData, topReviews }, qaData] = await Promise.all([
+    fetchProduct(asin, marketplace),
     fetchQA(asin, marketplace),
   ])
 
-  console.log(`[Scraper] Got ${reviewsData.length} reviews, ${qaData.length} Q&A items`)
+  console.log(`[Scraper] "${productData.title.slice(0, 50)}" | ${productData.totalReviews} total ratings | ${topReviews.length} review texts | ${qaData.length} Q&A`)
 
   return {
     product: productData,
-    reviews: reviewsData,
+    reviews: topReviews,
     qa: qaData,
     scrapedAt: new Date().toISOString(),
     marketplace,
@@ -140,50 +140,6 @@ async function fetchProduct(asin: string, marketplace: string): Promise<{ produc
   return { product, topReviews }
 }
 
-async function fetchReviews(asin: string, marketplace: string, fallback: AmazonReview[]): Promise<AmazonReview[]> {
-  const allReviews: AmazonReview[] = []
-  let page = 1
-  const maxPages = 10 // 10 pages × ~10 reviews = ~100 reviews max (credit-efficient)
-
-  while (page <= maxPages) {
-    const params = new URLSearchParams({
-      api_key: RAINFOREST_API_KEY,
-      type: 'reviews',
-      asin,
-      amazon_domain: marketplace,
-      page: String(page),
-    })
-
-    const res = await fetch(`${BASE_URL}?${params}`)
-    if (!res.ok) {
-      console.warn(`[Scraper] Reviews fetch failed on page ${page}: HTTP ${res.status}`)
-      break
-    }
-
-    const data = await res.json()
-    if (!data.request_info?.success) {
-      console.warn(`[Scraper] Reviews API unsuccessful on page ${page}:`, JSON.stringify(data.request_info))
-      break
-    }
-
-    const reviews: AmazonReview[] = (data.reviews ?? []).map(mapRawReview)
-    console.log(`[Scraper] Page ${page}: ${reviews.length} reviews (total: ${allReviews.length + reviews.length})`)
-
-    if (reviews.length === 0) break
-    allReviews.push(...reviews)
-    page++
-  }
-
-  console.log(`[Scraper] Reviews fetch complete. Got ${allReviews.length} total.`)
-
-  // Fall back to top_reviews from product call if dedicated reviews fetch returned nothing
-  if (allReviews.length === 0 && fallback.length > 0) {
-    console.warn(`[Scraper] Reviews API empty — using ${fallback.length} top_reviews from product call`)
-    return fallback
-  }
-
-  return allReviews
-}
 
 async function fetchQA(asin: string, marketplace: string): Promise<AmazonQA[]> {
   const params = new URLSearchParams({

@@ -178,16 +178,18 @@ export function calculateHealthScore(
   totalReviewCount: number,
   tier?:            'pro' | 'free',
   amazonData?: {
-    imageCount:       number
-    videoCount:       number
-    hasAplus:         boolean
-    bsr:              number | null
-    bsrCategory:      string | null
-    recentSales:      string | null
+    imageCount:        number
+    videoCount:        number
+    hasAplus:          boolean
+    bsr:               number | null
+    bsrCategory:       string | null
+    recentSales:       string | null
     unansweredQACount: number
+    // When provided, use these counts for scoring instead of iterating review texts.
+    // Covers ALL ratings (e.g. 750 total) not just the 10 top_reviews we scraped.
+    ratingBreakdown?: { five: number; four: number; three: number; two: number; one: number }
   },
 ): ReportContext {
-  const starCounts: StarDistribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
   const penalizedReviews: string[] = []
   let penaltyCount = 0
 
@@ -201,10 +203,8 @@ export function calculateHealthScore(
       : r as ReviewSample
     )
 
+  // Damage penalty: always scan the text samples we have
   for (const review of normalizedReviews) {
-    const star = Math.min(5, Math.max(1, Math.round(review.rating))) as 1 | 2 | 3 | 4 | 5
-    starCounts[star]++
-
     if (hasDamageKeyword(review.text)) {
       penaltyCount++
       if (penalizedReviews.length < 5) {
@@ -213,7 +213,23 @@ export function calculateHealthScore(
     }
   }
 
-  const total = normalizedReviews.length
+  // Star distribution: prefer ratingBreakdown (covers ALL reviews) over counting text samples
+  let starCounts: StarDistribution
+  let total: number
+
+  if (amazonData?.ratingBreakdown) {
+    const rb = amazonData.ratingBreakdown
+    starCounts = { 5: rb.five, 4: rb.four, 3: rb.three, 2: rb.two, 1: rb.one }
+    total = rb.five + rb.four + rb.three + rb.two + rb.one
+    console.log(`[HealthScore] Using ratingBreakdown (${total} total ratings): 5★${rb.five} 4★${rb.four} 3★${rb.three} 2★${rb.two} 1★${rb.one}`)
+  } else {
+    starCounts = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
+    for (const review of normalizedReviews) {
+      const star = Math.min(5, Math.max(1, Math.round(review.rating))) as 1 | 2 | 3 | 4 | 5
+      starCounts[star]++
+    }
+    total = normalizedReviews.length
+  }
 
   // Weighted score formula: 5★=100 · 4★=75 · 3★=50 · 2★=25 · 1★=0
   const weightedRaw = total === 0
