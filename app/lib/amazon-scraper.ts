@@ -8,28 +8,84 @@ const BASE_URL = 'https://api.rainforestapi.com/request'
 //   https://www.amazon.com/dp/B073JYC4XM
 //   https://www.amazon.co.uk/dp/B073JYC4XM
 //   B073JYC4XM
+// How many pages to fetch per star rating (1 page = ~10 reviews)
+// 3 pages × 5 stars = up to 150 review texts total
+// Credits: 1 product + 15 reviews + 1 Q&A = 17 per analysis
+const PAGES_PER_STAR = 3
+
 export async function scrapeAmazon(input: string): Promise<AmazonScrapeResult> {
   const { asin, marketplace } = parseInput(input)
   console.log(`[Scraper] ASIN: ${asin} | Marketplace: ${marketplace}`)
 
-  // Strategy: 1 product call (1 credit) + 1 Q&A call (1 credit) = 2 credits total.
-  // The product call returns top_reviews (8-10 texts) AND rating_breakdown (real counts
-  // across ALL reviews). We use rating_breakdown for the health score and top_reviews
-  // for AI text analysis. This is more accurate than paginating through reviews.
-  const [{ product: productData, topReviews }, qaData] = await Promise.all([
+  // Run product, all star-filtered review pages, and Q&A in parallel
+  const [{ product: productData }, qaData, ...starBatches] = await Promise.all([
     fetchProduct(asin, marketplace),
     fetchQA(asin, marketplace),
+    fetchReviewsByStar(asin, marketplace, 1),
+    fetchReviewsByStar(asin, marketplace, 2),
+    fetchReviewsByStar(asin, marketplace, 3),
+    fetchReviewsByStar(asin, marketplace, 4),
+    fetchReviewsByStar(asin, marketplace, 5),
   ])
 
-  console.log(`[Scraper] "${productData.title.slice(0, 50)}" | ${productData.totalReviews} total ratings | ${topReviews.length} review texts | ${qaData.length} Q&A`)
+  // Merge all star batches into one flat array
+  const allReviews: AmazonReview[] = (starBatches as AmazonReview[][]).flat()
+
+  console.log(
+    `[Scraper] "${productData.title.slice(0, 50)}" | ` +
+    `${productData.totalReviews} total ratings | ` +
+    `${allReviews.length} review texts (1★:${(starBatches[0] as AmazonReview[]).length} ` +
+    `2★:${(starBatches[1] as AmazonReview[]).length} ` +
+    `3★:${(starBatches[2] as AmazonReview[]).length} ` +
+    `4★:${(starBatches[3] as AmazonReview[]).length} ` +
+    `5★:${(starBatches[4] as AmazonReview[]).length}) | ` +
+    `${qaData.length} Q&A`
+  )
 
   return {
     product: productData,
-    reviews: topReviews,
+    reviews: allReviews,
     qa: qaData,
     scrapedAt: new Date().toISOString(),
     marketplace,
   }
+}
+
+// Fetches up to PAGES_PER_STAR pages of reviews for a specific star rating
+async function fetchReviewsByStar(
+  asin: string,
+  marketplace: string,
+  star: 1 | 2 | 3 | 4 | 5,
+): Promise<AmazonReview[]> {
+  const reviews: AmazonReview[] = []
+
+  for (let page = 1; page <= PAGES_PER_STAR; page++) {
+    const params = new URLSearchParams({
+      api_key:      RAINFOREST_API_KEY,
+      type:         'reviews',
+      asin,
+      amazon_domain: marketplace,
+      star_rating:  String(star),
+      page:         String(page),
+    })
+
+    try {
+      const res = await fetch(`${BASE_URL}?${params}`)
+      if (!res.ok) break
+
+      const data = await res.json()
+      if (!data.request_info?.success) break
+
+      const batch: AmazonReview[] = (data.reviews ?? []).map(mapRawReview)
+      if (batch.length === 0) break
+      reviews.push(...batch)
+    } catch {
+      break
+    }
+  }
+
+  console.log(`[Scraper] ${star}★ reviews: ${reviews.length}`)
+  return reviews
 }
 
 function parseInput(input: string): { asin: string; marketplace: string } {
@@ -82,7 +138,7 @@ function mapRawReview(r: {
   }
 }
 
-async function fetchProduct(asin: string, marketplace: string): Promise<{ product: AmazonProduct; topReviews: AmazonReview[] }> {
+async function fetchProduct(asin: string, marketplace: string): Promise<{ product: AmazonProduct }> {
   const params = new URLSearchParams({
     api_key: RAINFOREST_API_KEY,
     type: 'product',
@@ -107,9 +163,6 @@ async function fetchProduct(asin: string, marketplace: string): Promise<{ produc
     two: p.rating_breakdown?.two_star?.count ?? 0,
     one: p.rating_breakdown?.one_star?.count ?? 0,
   }
-
-  // top_reviews from product call — used as fallback if reviews API returns empty
-  const topReviews: AmazonReview[] = (p.top_reviews ?? []).map(mapRawReview)
 
   const product: AmazonProduct = {
     asin: p.asin,
@@ -137,7 +190,7 @@ async function fetchProduct(asin: string, marketplace: string): Promise<{ produc
     isFBA: p.buybox_winner?.fulfillment?.is_fulfilled_by_amazon ?? false,
   }
 
-  return { product, topReviews }
+  return { product }
 }
 
 
