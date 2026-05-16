@@ -5,36 +5,20 @@ const APIFY_API_TOKEN = process.env.APIFY_API_TOKEN!
 const RAINFOREST_BASE = 'https://api.rainforestapi.com/request'
 const APIFY_BASE = 'https://api.apify.com/v2'
 
-// 4 pages × ~10 reviews = ~40 per star, 200 max texts per analysis
-const MAX_PAGES_PER_STAR = 4
-
-const STAR_FILTER_MAP: Record<1 | 2 | 3 | 4 | 5, string> = {
-  1: 'one_star',
-  2: 'two_star',
-  3: 'three_star',
-  4: 'four_star',
-  5: 'five_star',
-}
-
-// Extract domainCode from marketplace string (amazon.co.uk → co.uk, amazon.com → com)
-function toDomainCode(marketplace: string): string {
-  return marketplace.replace(/^amazon\./, '')
-}
+// 10 pages × 10 reviews = 100 per star, 500 total (web_wanderer actor max)
+const PAGES_PER_STAR = 10
 
 export async function scrapeAmazon(input: string): Promise<AmazonScrapeResult> {
   const { asin, marketplace } = parseInput(input)
   console.log(`[Scraper] ASIN: ${asin} | Marketplace: ${marketplace}`)
 
-  const domainCode = toDomainCode(marketplace)
-
-  // Product + Q&A via Rainforest (type=product works on free plan), reviews via Apify
+  // Product + Q&A via Rainforest, reviews via Apify — all in parallel
   const [{ product: productData }, qaData, allReviews] = await Promise.all([
     fetchProduct(asin, marketplace),
     fetchQA(asin, marketplace),
-    fetchAllReviews(asin, domainCode),
+    fetchAllReviews(asin, marketplace),
   ])
 
-  // Group reviews by star for logging
   const bystar = [1, 2, 3, 4, 5].map(s => allReviews.filter(r => r.rating === s).length)
 
   console.log(
@@ -55,28 +39,21 @@ export async function scrapeAmazon(input: string): Promise<AmazonScrapeResult> {
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
-// One Apify run per star rating, all 5 in parallel
-async function fetchAllReviews(asin: string, domainCode: string): Promise<AmazonReview[]> {
-  const marketplace = `amazon.${domainCode}`
-  const batches = await Promise.all(
-    ([1, 2, 3, 4, 5] as const).map(star => fetchStarBatch(asin, marketplace, star))
-  )
-  return batches.flat()
-}
-
-async function fetchStarBatch(asin: string, marketplace: string, star: 1 | 2 | 3 | 4 | 5): Promise<AmazonReview[]> {
+// web_wanderer/amazon-reviews-extractor
+// One run with allStarsMode fetches 100 per star (5 stars × 10 pages × 10 reviews)
+async function fetchAllReviews(asin: string, marketplace: string): Promise<AmazonReview[]> {
   try {
     const runInput = {
-      asins: [asin],
-      marketplace,
-      filterByRating: STAR_FILTER_MAP[star],
-      maxReviews: MAX_PAGES_PER_STAR * 10,
+      startUrls: [`https://${marketplace}/dp/${asin}`],
+      pages: PAGES_PER_STAR,
       sortBy: 'recent',
+      allStarsMode: true,    // fetches 100 per star rating automatically
+      includePersonalData: false,
+      amazonRegion: marketplace,
     }
 
-    // Start actor run
     const startRes = await fetch(
-      `${APIFY_BASE}/acts/sovereigntaylor~amazon-reviews-scraper/runs?token=${APIFY_API_TOKEN}`,
+      `${APIFY_BASE}/acts/web_wanderer~amazon-reviews-extractor/runs?token=${APIFY_API_TOKEN}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -93,8 +70,8 @@ async function fetchStarBatch(asin: string, marketplace: string, star: 1 | 2 | 3
     const runId: string = runData.id
     console.log(`[Scraper] Apify run started: ${runId}`)
 
-    // Poll until finished (timeout 120s)
-    const deadline = Date.now() + 120_000
+    // Poll until finished (timeout 3 min — 500 reviews takes time)
+    const deadline = Date.now() + 180_000
     let status = runData.status as string
 
     while (status !== 'SUCCEEDED' && status !== 'FAILED' && status !== 'ABORTED') {
@@ -102,7 +79,7 @@ async function fetchStarBatch(asin: string, marketplace: string, star: 1 | 2 | 3
         console.warn(`[Scraper] Apify run ${runId} timed out`)
         return []
       }
-      await sleep(3000)
+      await sleep(4000)
 
       const pollRes = await fetch(`${APIFY_BASE}/actor-runs/${runId}?token=${APIFY_API_TOKEN}`)
       if (!pollRes.ok) {
@@ -118,48 +95,47 @@ async function fetchStarBatch(asin: string, marketplace: string, star: 1 | 2 | 3
       return []
     }
 
-    // Fetch results
     const datasetRes = await fetch(
-      `${APIFY_BASE}/actor-runs/${runId}/dataset/items?token=${APIFY_API_TOKEN}&limit=1000`
+      `${APIFY_BASE}/actor-runs/${runId}/dataset/items?token=${APIFY_API_TOKEN}&limit=600`
     )
     if (!datasetRes.ok) {
       console.warn(`[Scraper] Apify dataset fetch failed: HTTP ${datasetRes.status}`)
       return []
     }
 
-    const items: SovereignReviewItem[] = await datasetRes.json()
-    const reviews = items.filter(r => r.reviewId).map(mapSovereignReview)
-    console.log(`[Scraper] ${star}★ — ${reviews.length} reviews`)
+    const items: WebWandererReviewItem[] = await datasetRes.json()
+    const reviews = items.filter(r => r.reviewId).map(mapWebWandererReview)
+    console.log(`[Scraper] Apify returned ${items.length} items, ${reviews.length} valid reviews`)
     return reviews
   } catch (e) {
-    console.warn(`[Scraper] Apify ${star}★ exception:`, e)
+    console.warn(`[Scraper] Apify exception:`, e)
     return []
   }
 }
 
-interface SovereignReviewItem {
+interface WebWandererReviewItem {
   reviewId?: string
-  ratingScore?: number
+  rating?: number
   reviewTitle?: string
-  reviewDescription?: string
-  date?: string
-  isVerified?: boolean
-  isVineVoice?: boolean
-  helpfulVotes?: number
-  reviewCountry?: string
+  reviewText?: string
+  reviewDate?: string
+  verifiedPurchase?: boolean
+  vineReview?: boolean
+  helpfulVoteCount?: number
+  country?: string
 }
 
-function mapSovereignReview(r: SovereignReviewItem): AmazonReview {
+function mapWebWandererReview(r: WebWandererReviewItem): AmazonReview {
   return {
     id: r.reviewId ?? '',
-    rating: r.ratingScore ?? 0,
+    rating: Math.round(r.rating ?? 0),
     title: r.reviewTitle ?? '',
-    body: r.reviewDescription ?? '',
-    date: r.date ?? '',
-    verified: r.isVerified ?? false,
-    vine: r.isVineVoice ?? false,
-    helpful: r.helpfulVotes ?? 0,
-    country: r.reviewCountry ?? 'us',
+    body: r.reviewText ?? '',
+    date: r.reviewDate ?? '',
+    verified: r.verifiedPurchase ?? false,
+    vine: r.vineReview ?? false,
+    helpful: r.helpfulVoteCount ?? 0,
+    country: r.country ?? 'us',
   }
 }
 
