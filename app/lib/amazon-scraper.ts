@@ -44,11 +44,12 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 async function fetchAllReviews(asin: string, marketplace: string): Promise<AmazonReview[]> {
   try {
     const runInput = {
-      startUrls: [{ url: `https://${marketplace}/dp/${asin}` }],
-      pages: PAGES_PER_STAR,
-      sortBy: 'recent',
-      allStarsMode: true,
-      includePersonalData: false,
+      products: [asin],          // accepts bare ASIN or full URL
+      personal_data: false,
+      avp_reviews: false,        // all reviews, not just verified
+      include_variants: false,
+      scrape_image_reviews: false,
+      scrape_video_reviews: false,
     }
 
     const startRes = await fetch(
