@@ -152,7 +152,6 @@ async function fetchReviews(asin: string, marketplace: string, fallback: AmazonR
       asin,
       amazon_domain: marketplace,
       page: String(page),
-      reviewer_type: 'all_reviews',
     })
 
     const res = await fetch(`${BASE_URL}?${params}`)
@@ -174,6 +173,8 @@ async function fetchReviews(asin: string, marketplace: string, fallback: AmazonR
     allReviews.push(...reviews)
     page++
   }
+
+  console.log(`[Scraper] Reviews fetch complete. Got ${allReviews.length} total.`)
 
   // Fall back to top_reviews from product call if dedicated reviews fetch returned nothing
   if (allReviews.length === 0 && fallback.length > 0) {
