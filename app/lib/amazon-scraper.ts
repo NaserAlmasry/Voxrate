@@ -1,22 +1,49 @@
 import { AmazonScrapeResult, AmazonProduct, AmazonReview, AmazonQA } from './amazon-types'
 
 const RAINFOREST_API_KEY = process.env.RAINFOREST_API_KEY!
-const APIFY_API_TOKEN = process.env.APIFY_API_TOKEN!
+const CANOPY_API_KEY = process.env.CANOPY_API_KEY!
 const RAINFOREST_BASE = 'https://api.rainforestapi.com/request'
-const APIFY_BASE = 'https://api.apify.com/v2'
+const CANOPY_BASE = 'https://rest.canopyapi.co/api/amazon/product/reviews'
 
-// 10 pages × 10 reviews = 100 per star, 500 total (web_wanderer actor max)
-const PAGES_PER_STAR = 10
+// Max pages to fetch per star (each page ~10 reviews, so 5 pages = ~50 per star)
+const MAX_PAGES_PER_STAR = 5
+
+const STAR_FILTER_MAP: Record<1 | 2 | 3 | 4 | 5, string> = {
+  1: 'ONE_STAR',
+  2: 'TWO_STAR',
+  3: 'THREE_STAR',
+  4: 'FOUR_STAR',
+  5: 'FIVE_STAR',
+}
+
+// Maps amazon marketplace domain to Canopy domain code
+const DOMAIN_MAP: Record<string, string> = {
+  'amazon.com':    'US',
+  'amazon.co.uk':  'UK',
+  'amazon.ca':     'CA',
+  'amazon.de':     'DE',
+  'amazon.fr':     'FR',
+  'amazon.it':     'IT',
+  'amazon.es':     'ES',
+  'amazon.com.au': 'AU',
+  'amazon.co.jp':  'JP',
+  'amazon.in':     'IN',
+  'amazon.com.mx': 'MX',
+  'amazon.com.br': 'BR',
+  'amazon.pl':     'PL',
+}
 
 export async function scrapeAmazon(input: string): Promise<AmazonScrapeResult> {
   const { asin, marketplace } = parseInput(input)
   console.log(`[Scraper] ASIN: ${asin} | Marketplace: ${marketplace}`)
 
-  // Product + Q&A via Rainforest, reviews via Apify — all in parallel
+  const domain = DOMAIN_MAP[marketplace] ?? 'US'
+
+  // Product + Q&A via Rainforest, reviews via Canopy — all in parallel
   const [{ product: productData }, qaData, allReviews] = await Promise.all([
     fetchProduct(asin, marketplace),
     fetchQA(asin, marketplace),
-    fetchAllReviews(asin, marketplace),
+    fetchAllReviews(asin, domain),
   ])
 
   const bystar = [1, 2, 3, 4, 5].map(s => allReviews.filter(r => r.rating === s).length)
@@ -37,108 +64,70 @@ export async function scrapeAmazon(input: string): Promise<AmazonScrapeResult> {
   }
 }
 
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
-
-// sovereigntaylor/amazon-reviews-scraper
-// 5 parallel runs, one per star rating, 100 reviews each
-async function fetchAllReviews(asin: string, marketplace: string): Promise<AmazonReview[]> {
+// Fetch all 5 star tiers in parallel
+async function fetchAllReviews(asin: string, domain: string): Promise<AmazonReview[]> {
   const batches = await Promise.all(
-    ([1, 2, 3, 4, 5] as const).map(star => fetchStarBatch(asin, marketplace, star))
+    ([1, 2, 3, 4, 5] as const).map(star => fetchStarReviews(asin, domain, star))
   )
   return batches.flat()
 }
 
-const STAR_FILTER_MAP: Record<1 | 2 | 3 | 4 | 5, string> = {
-  1: 'one_star', 2: 'two_star', 3: 'three_star', 4: 'four_star', 5: 'five_star',
-}
+async function fetchStarReviews(
+  asin: string,
+  domain: string,
+  star: 1 | 2 | 3 | 4 | 5,
+): Promise<AmazonReview[]> {
+  const reviews: AmazonReview[] = []
+  const rating = STAR_FILTER_MAP[star]
 
-async function fetchStarBatch(asin: string, marketplace: string, star: 1 | 2 | 3 | 4 | 5): Promise<AmazonReview[]> {
-  try {
-    const runInput = {
-      products: [`https://${marketplace}/dp/${asin}`],
-      filterByRating: STAR_FILTER_MAP[star],
-      maxReviews: PAGES_PER_STAR * 10,
-      sortBy: 'recent',
-    }
+  for (let page = 1; page <= MAX_PAGES_PER_STAR; page++) {
+    try {
+      const url = `${CANOPY_BASE}?asin=${asin}&domain=${domain}&page=${page}&rating=${rating}`
+      const res = await fetch(url, {
+        headers: { 'API-KEY': CANOPY_API_KEY, 'accept': 'application/json' },
+      })
 
-    const startRes = await fetch(
-      `${APIFY_BASE}/acts/sovereigntaylor~amazon-reviews-scraper/runs?token=${APIFY_API_TOKEN}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(runInput),
+      if (!res.ok) {
+        console.warn(`[Scraper] Canopy ${star}★ page ${page} HTTP ${res.status}`)
+        break
       }
-    )
 
-    if (!startRes.ok) {
-      console.warn(`[Scraper] Apify ${star}★ start failed: HTTP ${startRes.status}`)
-      return []
+      const data = await res.json()
+      const paginated = data?.data?.amazonProduct?.reviewsPaginated
+      if (!paginated) break
+
+      const batch: AmazonReview[] = (paginated.reviews ?? []).map((r: CanopyReview, i: number) => ({
+        id: r.id ?? `${asin}-${star}-${page}-${i}`,
+        rating: r.rating ?? star,
+        title: r.title ?? '',
+        body: r.body ?? '',
+        date: '',
+        verified: r.verifiedPurchase ?? false,
+        vine: false,
+        helpful: r.helpfulVotes ?? 0,
+        country: domain.toLowerCase(),
+      }))
+
+      reviews.push(...batch)
+
+      if (!paginated.pageInfo?.hasNextPage) break
+    } catch (e) {
+      console.warn(`[Scraper] Canopy ${star}★ page ${page} exception:`, e)
+      break
     }
-
-    const { data: runData } = await startRes.json()
-    const runId: string = runData.id
-
-    // Poll until finished (timeout 120s per star)
-    const deadline = Date.now() + 120_000
-    let status = runData.status as string
-
-    while (status !== 'SUCCEEDED' && status !== 'FAILED' && status !== 'ABORTED') {
-      if (Date.now() > deadline) {
-        console.warn(`[Scraper] Apify ${star}★ run timed out`)
-        return []
-      }
-      await sleep(3000)
-
-      const pollRes = await fetch(`${APIFY_BASE}/actor-runs/${runId}?token=${APIFY_API_TOKEN}`)
-      if (!pollRes.ok) return []
-      const { data: pollData } = await pollRes.json()
-      status = pollData.status
-    }
-
-    if (status !== 'SUCCEEDED') {
-      console.warn(`[Scraper] Apify ${star}★ ended with: ${status}`)
-      return []
-    }
-
-    const datasetRes = await fetch(
-      `${APIFY_BASE}/actor-runs/${runId}/dataset/items?token=${APIFY_API_TOKEN}&limit=200`
-    )
-    if (!datasetRes.ok) return []
-
-    const items: SovereignReviewItem[] = await datasetRes.json()
-    const reviews = items.filter(r => r.reviewId).map(mapSovereignReview)
-    console.log(`[Scraper] ${star}★ — ${reviews.length} reviews`)
-    return reviews
-  } catch (e) {
-    console.warn(`[Scraper] Apify ${star}★ exception:`, e)
-    return []
   }
+
+  console.log(`[Scraper] ${star}★ — ${reviews.length} reviews`)
+  return reviews
 }
 
-interface SovereignReviewItem {
-  reviewId?: string
-  ratingScore?: number
-  reviewTitle?: string
-  reviewDescription?: string
-  date?: string
-  isVerified?: boolean
-  isVineVoice?: boolean
-  helpfulVotes?: number
-  reviewCountry?: string
-}
-
-function mapSovereignReview(r: SovereignReviewItem): AmazonReview {
-  return {
-    id: r.reviewId ?? '',
-    rating: r.ratingScore ?? 0,
-    title: r.reviewTitle ?? '',
-    body: r.reviewDescription ?? '',
-    date: r.date ?? '',
-    verified: r.isVerified ?? false,
-    vine: r.isVineVoice ?? false,
-    helpful: r.helpfulVotes ?? 0,
-    country: r.reviewCountry ?? 'us',
-  }
+interface CanopyReview {
+  id?: string | null
+  title?: string
+  body?: string
+  rating?: number
+  helpfulVotes?: number | null
+  verifiedPurchase?: boolean
 }
 
 function parseInput(input: string): { asin: string; marketplace: string } {
