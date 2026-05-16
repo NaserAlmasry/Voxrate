@@ -51,6 +51,14 @@ export async function scrapeAmazon(input: string): Promise<AmazonScrapeResult> {
   }
 }
 
+const STAR_FILTER_MAP: Record<1 | 2 | 3 | 4 | 5, string> = {
+  1: 'one_star',
+  2: 'two_star',
+  3: 'three_star',
+  4: 'four_star',
+  5: 'five_star',
+}
+
 // Fetches up to PAGES_PER_STAR pages of reviews for a specific star rating
 async function fetchReviewsByStar(
   asin: string,
@@ -61,25 +69,32 @@ async function fetchReviewsByStar(
 
   for (let page = 1; page <= PAGES_PER_STAR; page++) {
     const params = new URLSearchParams({
-      api_key:      RAINFOREST_API_KEY,
-      type:         'reviews',
+      api_key:        RAINFOREST_API_KEY,
+      type:           'reviews',
       asin,
-      amazon_domain: marketplace,
-      star_rating:  String(star),
-      page:         String(page),
+      amazon_domain:  marketplace,
+      filter_by_star: STAR_FILTER_MAP[star],
+      page:           String(page),
     })
 
     try {
       const res = await fetch(`${BASE_URL}?${params}`)
-      if (!res.ok) break
+      if (!res.ok) {
+        console.warn(`[Scraper] ${star}★ page ${page} HTTP ${res.status}`)
+        break
+      }
 
       const data = await res.json()
-      if (!data.request_info?.success) break
+      if (!data.request_info?.success) {
+        console.warn(`[Scraper] ${star}★ page ${page} API error:`, JSON.stringify(data.request_info))
+        break
+      }
 
       const batch: AmazonReview[] = (data.reviews ?? []).map(mapRawReview)
       if (batch.length === 0) break
       reviews.push(...batch)
-    } catch {
+    } catch (e) {
+      console.warn(`[Scraper] ${star}★ page ${page} exception:`, e)
       break
     }
   }
