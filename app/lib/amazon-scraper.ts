@@ -1,8 +1,8 @@
 import { AmazonScrapeResult, AmazonProduct, AmazonReview, AmazonQA } from './amazon-types'
 
-const RAINFOREST_API_KEY = process.env.RAINFOREST_API_KEY!
+const SCRAPINGDOG_API_KEY = process.env.SCRAPINGDOG_API_KEY!
 const CANOPY_API_KEY = process.env.CANOPY_API_KEY!
-const RAINFOREST_BASE = 'https://api.rainforestapi.com/request'
+const SCRAPINGDOG_BASE = 'https://api.scrapingdog.com/amazon/product'
 const CANOPY_BASE = 'https://rest.canopyapi.co/api/amazon/product/reviews'
 
 // Max pages to fetch per star (each page ~10 reviews, so 2 pages = ~20 per star = 100 total)
@@ -149,86 +149,89 @@ function parseInput(input: string): { asin: string; marketplace: string } {
   }
 }
 
+// Marketplace → Scrapingdog country/domain params
+function toScrapingdogParams(marketplace: string): { country: string; domain: string } {
+  const map: Record<string, { country: string; domain: string }> = {
+    'amazon.com':    { country: 'us',  domain: 'com'    },
+    'amazon.co.uk':  { country: 'uk',  domain: 'co.uk'  },
+    'amazon.de':     { country: 'de',  domain: 'de'     },
+    'amazon.fr':     { country: 'fr',  domain: 'fr'     },
+    'amazon.it':     { country: 'it',  domain: 'it'     },
+    'amazon.es':     { country: 'es',  domain: 'es'     },
+    'amazon.ca':     { country: 'ca',  domain: 'ca'     },
+    'amazon.com.au': { country: 'au',  domain: 'com.au' },
+    'amazon.co.jp':  { country: 'jp',  domain: 'co.jp'  },
+    'amazon.in':     { country: 'in',  domain: 'in'     },
+    'amazon.com.mx': { country: 'mx',  domain: 'com.mx' },
+    'amazon.com.br': { country: 'br',  domain: 'com.br' },
+  }
+  return map[marketplace] ?? { country: 'us', domain: 'com' }
+}
+
 async function fetchProduct(asin: string, marketplace: string): Promise<{ product: AmazonProduct }> {
+  const { country, domain } = toScrapingdogParams(marketplace)
   const params = new URLSearchParams({
-    api_key: RAINFOREST_API_KEY,
-    type: 'product',
+    api_key: SCRAPINGDOG_API_KEY,
     asin,
-    amazon_domain: marketplace,
-    include_summarization_attributes: 'true',
+    country,
+    domain,
   })
 
-  const res = await fetch(`${RAINFOREST_BASE}?${params}`)
-  if (!res.ok) throw new Error(`Rainforest product fetch failed: ${res.status}`)
+  const res = await fetch(`${SCRAPINGDOG_BASE}?${params}`)
+  if (!res.ok) throw new Error(`Scrapingdog product fetch failed: ${res.status}`)
 
-  const data = await res.json()
-  if (!data.request_info?.success) throw new Error(`Rainforest API error: ${JSON.stringify(data.request_info)}`)
+  const p = await res.json()
+  console.log(`[Scraper] Product: "${String(p?.title ?? '').slice(0, 60)}" | Total reviews: ${p?.product_information?.['Customer Reviews']?.ratings_count}`)
 
-  const p = data.product
-  console.log(`[Scraper] Product: "${p?.title?.slice(0, 60)}" | Total reviews: ${p?.ratings_total}`)
-
-  const ratingBreakdown = {
-    five: p.rating_breakdown?.five_star?.count ?? 0,
-    four: p.rating_breakdown?.four_star?.count ?? 0,
-    three: p.rating_breakdown?.three_star?.count ?? 0,
-    two: p.rating_breakdown?.two_star?.count ?? 0,
-    one: p.rating_breakdown?.one_star?.count ?? 0,
+  // ratings_distribution gives percentages — convert to counts
+  const totalReviews = parseInt(String(p?.total_reviews ?? '0').replace(/\D/g, '')) || 0
+  const dist: Array<{ rating: number; distribution: string }> = p?.ratings_distribution ?? []
+  const pct = (star: number) => {
+    const entry = dist.find(d => d.rating === star)
+    return entry ? Math.round(totalReviews * (parseFloat(entry.distribution) / 100)) : 0
   }
+  const ratingBreakdown = { five: pct(5), four: pct(4), three: pct(3), two: pct(2), one: pct(1) }
+
+  // Parse BSR: "#391 in Electronics (See Top 100...) #1 in Portable..."
+  const bsrRaw: string = p?.product_information?.['Best Sellers Rank'] ?? ''
+  const bsrMatch = bsrRaw.match(/#([\d,]+)\s+in\s+([^(#\n]+)/)
+  const bsr = bsrMatch ? parseInt(bsrMatch[1].replace(/,/g, '')) : null
+  const bsrCategory = bsrMatch ? bsrMatch[2].trim() : null
+
+  // Parse price: "$29.99 with 88 percent savings" → 29.99
+  const priceMatch = String(p?.price ?? '').match(/\$([\d.]+)/)
+  const price = priceMatch ? parseFloat(priceMatch[1]) : null
 
   const product: AmazonProduct = {
-    asin: p.asin,
+    asin,
     marketplace,
-    title: p.title ?? '',
-    brand: p.brand ?? '',
-    mainImage: p.main_image?.link ?? '',
-    images: (p.images ?? []).map((img: { link: string }) => img.link),
-    imageCount: p.images_count ?? 0,
-    videoCount: p.videos_count ?? 0,
-    hasAplus: p.a_plus_content?.has_a_plus_content ?? false,
-    bulletPoints: p.feature_bullets ?? [],
-    description: p.description ?? '',
-    bsr: p.bestsellers_rank?.[0]?.rank ?? null,
-    bsrCategory: p.bestsellers_rank?.[0]?.category ?? null,
-    price: p.buybox_winner?.price?.value ?? null,
-    currency: p.buybox_winner?.price?.currency ?? 'USD',
-    category: p.categories?.[0]?.name ?? '',
-    categoriesFlat: p.categories_flat ?? '',
-    averageRating: p.rating ?? 0,
-    totalReviews: p.ratings_total ?? 0,
+    title: p?.title ?? '',
+    brand: p?.product_information?.['Brand Name'] ?? '',
+    mainImage: p?.main_image ?? '',
+    images: p?.images ?? [],
+    imageCount: (p?.images ?? []).length,
+    videoCount: p?.number_of_videos ?? 0,
+    hasAplus: p?.aplus ?? false,
+    bulletPoints: p?.feature_bullets ?? [],
+    description: '',
+    bsr,
+    bsrCategory,
+    price,
+    currency: 'USD',
+    category: p?.product_category ?? '',
+    categoriesFlat: p?.product_category ?? '',
+    averageRating: parseFloat(p?.average_rating ?? '0') || 0,
+    totalReviews,
     ratingBreakdown,
-    specifications: p.specifications ?? [],
-    recentSales: p.recent_sales ?? null,
-    isFBA: p.buybox_winner?.fulfillment?.is_fulfilled_by_amazon ?? false,
+    specifications: [],
+    recentSales: p?.number_of_people_bought ?? null,
+    isFBA: String(p?.ships_from ?? '').toLowerCase().includes('amazon'),
   }
 
   return { product }
 }
 
-async function fetchQA(asin: string, marketplace: string): Promise<AmazonQA[]> {
-  const params = new URLSearchParams({
-    api_key: RAINFOREST_API_KEY,
-    type: 'questions',
-    asin,
-    amazon_domain: marketplace,
-  })
-
-  try {
-    const res = await fetch(`${RAINFOREST_BASE}?${params}`)
-    if (!res.ok) return []
-
-    const data = await res.json()
-    if (!data.request_info?.success) return []
-
-    return (data.questions ?? []).map((q: {
-      question: string
-      answers?: Array<{ body?: string }>
-      votes?: number
-    }) => ({
-      question: q.question,
-      answer: q.answers?.[0]?.body ?? null,
-      votes: q.votes ?? 0,
-    }))
-  } catch {
-    return []
-  }
+// Q&A not available via Scrapingdog — return empty
+async function fetchQA(_asin: string, _marketplace: string): Promise<AmazonQA[]> {
+  return []
 }
