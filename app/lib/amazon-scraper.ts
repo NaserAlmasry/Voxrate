@@ -143,7 +143,7 @@ async function fetchProduct(asin: string, marketplace: string): Promise<{ produc
 async function fetchReviews(asin: string, marketplace: string, fallback: AmazonReview[]): Promise<AmazonReview[]> {
   const allReviews: AmazonReview[] = []
   let page = 1
-  const maxPages = 20 // up to 400 reviews (20 per page)
+  const maxPages = 10 // 10 pages × ~10 reviews = ~100 reviews max (credit-efficient)
 
   while (page <= maxPages) {
     const params = new URLSearchParams({
@@ -152,7 +152,7 @@ async function fetchReviews(asin: string, marketplace: string, fallback: AmazonR
       asin,
       amazon_domain: marketplace,
       page: String(page),
-      sort_by: 'recent',
+      reviewer_type: 'all_reviews',
     })
 
     const res = await fetch(`${BASE_URL}?${params}`)
@@ -163,22 +163,21 @@ async function fetchReviews(asin: string, marketplace: string, fallback: AmazonR
 
     const data = await res.json()
     if (!data.request_info?.success) {
-      console.warn(`[Scraper] Reviews API unsuccessful on page ${page}:`, data.request_info)
+      console.warn(`[Scraper] Reviews API unsuccessful on page ${page}:`, JSON.stringify(data.request_info))
       break
     }
 
     const reviews: AmazonReview[] = (data.reviews ?? []).map(mapRawReview)
+    console.log(`[Scraper] Page ${page}: ${reviews.length} reviews (total: ${allReviews.length + reviews.length})`)
 
     if (reviews.length === 0) break
     allReviews.push(...reviews)
-    console.log(`[Scraper] Page ${page}: ${reviews.length} reviews (total so far: ${allReviews.length})`)
-    if (reviews.length < 10) break // last page
     page++
   }
 
   // Fall back to top_reviews from product call if dedicated reviews fetch returned nothing
   if (allReviews.length === 0 && fallback.length > 0) {
-    console.warn(`[Scraper] Reviews API returned empty — using ${fallback.length} top_reviews from product call as fallback`)
+    console.warn(`[Scraper] Reviews API empty — using ${fallback.length} top_reviews from product call`)
     return fallback
   }
 
