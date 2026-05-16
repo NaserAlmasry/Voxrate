@@ -1240,12 +1240,27 @@ export default function LandingPage() {
           {pricingTab === 'packs' ? (
             <div className="grid md:grid-cols-3 gap-5 mb-8">
               {[
-                { name: 'Starter', id: 'starter_pack', credits: 100, price: 4.99, analyses: '≈ 5 analyses', desc: 'Try it out — no subscription', popular: false },
-                { name: 'Growth',  id: 'growth_pack',  credits: 300, price: 12.99, analyses: '≈ 15 analyses', desc: 'Most popular for active sellers', popular: true },
-                { name: 'Pro',     id: 'pro_pack',     credits: 700, price: 24.99, analyses: '≈ 35 analyses', desc: 'Best value per credit', popular: false },
+                {
+                  name: 'Starter', id: 'starter_pack', credits: 100, price: 4.99, analyses: '≈ 5 own analyses', desc: 'Test the tool on your listing',
+                  badge: null,
+                  features: ['5 full own-listing analyses', '1 free competitor analysis included', 'Credits never expire', 'All free tools included'],
+                  popular: false,
+                },
+                {
+                  name: 'Growth', id: 'growth_pack', credits: 300, price: 12.99, analyses: '≈ 15 analyses', desc: 'Most popular top-up for active sellers',
+                  badge: 'Most popular',
+                  features: ['15 own analyses OR 8 competitor analyses', 'Competitor analysis included', 'Credits never expire', 'All free tools included'],
+                  popular: true,
+                },
+                {
+                  name: 'Pro', id: 'pro_pack', credits: 700, price: 24.99, analyses: '≈ 35 analyses', desc: 'Best value — lowest cost per analysis',
+                  badge: 'Best value',
+                  features: ['35 own analyses OR 20 competitor analyses', 'Lowest cost per credit ($0.036/cr)', 'Credits never expire', 'All free tools included'],
+                  popular: false,
+                },
               ].map(pack => (
                 <div key={pack.name} className={`pcard p-6 rounded-2xl border relative ${pack.popular ? 'bg-black text-white border-black' : 'bg-white border-neutral-200'}`}>
-                  {pack.popular && <div className="absolute top-4 right-4 px-2 py-0.5 text-xs bg-orange-500 rounded-full text-white">Most popular</div>}
+                  {pack.badge && <div className="absolute top-4 right-4 px-2 py-0.5 text-xs bg-orange-500 rounded-full text-white">{pack.badge}</div>}
                   <h3 className={`font-semibold mb-1 ${pack.popular ? 'text-white' : ''}`}>{pack.name}</h3>
                   <p className={`text-xs mb-4 ${pack.popular ? 'text-neutral-400' : 'text-neutral-500'}`}>{pack.desc}</p>
                   <p className="text-4xl font-black mb-1">${pack.price}</p>
@@ -1255,7 +1270,7 @@ export default function LandingPage() {
                     <p className={`text-xs ${pack.popular ? 'text-neutral-400' : 'text-neutral-500'}`}>credits · {pack.analyses}</p>
                   </div>
                   <ul className={`space-y-1.5 text-xs mb-6 ${pack.popular ? 'text-neutral-300' : 'text-neutral-600'}`}>
-                    {['All analysis features', 'Credits never expire', 'Top up anytime', 'All free tools included'].map(f => (
+                    {pack.features.map(f => (
                       <li key={f} className="flex gap-2"><span className={pack.popular ? 'text-orange-400' : 'text-green-500'}>✓</span>{f}</li>
                     ))}
                   </ul>
@@ -1272,25 +1287,51 @@ export default function LandingPage() {
               {[
                 {
                   name: 'Starter', price: 9.99, credits: 300, analyses: '≈ 15 analyses/mo',
-                  desc: 'For sellers with 1 active listing',
-                  features: ['300 credits every month', '1 free competitor analysis (lifetime)', 'Own-listing analysis only', 'Full reports — no limits', 'All free tools included'],
+                  desc: 'For sellers focused on 1 listing',
+                  badge: null,
+                  features: [
+                    '300 credits every month',
+                    '1 competitor analysis included — see exactly why they outsell you',
+                    'Full own-listing reports, no limits',
+                    'All free tools included',
+                    'Credits roll over monthly',
+                  ],
+                  upsell: 'Want to track more competitors? Upgrade to Growth →',
                   popular: false, plan: 'starter'
                 },
                 {
                   name: 'Growth', price: 24.99, credits: 800, analyses: '≈ 40 analyses/mo',
                   desc: 'For active sellers managing 2–3 products',
-                  features: ['800 credits every month', 'Competitor analysis unlocked', 'Up to 3 competitors per cycle', '3 products tracked', 'Full reports + SEO keywords', 'Review monitoring & alerts'],
+                  badge: 'Most popular',
+                  features: [
+                    '800 credits every month',
+                    'Competitor analysis unlocked — up to 3 per cycle',
+                    'Side-by-side battle card vs any competitor',
+                    'Full reports + SEO keyword gaps',
+                    'Review monitoring & alerts',
+                    'Credits roll over monthly',
+                  ],
+                  upsell: null,
                   popular: true, plan: 'growth'
                 },
                 {
                   name: 'Pro', price: 49.99, credits: 2000, analyses: '≈ 100 analyses/mo',
                   desc: 'For scaling sellers and agencies',
-                  features: ['2,000 credits every month', 'Up to 10 competitors per cycle', 'Unlimited products tracked', 'Full reports + CSV/PDF export', 'Priority email support', 'Re-analyze free (no credits)'],
+                  badge: 'Best value',
+                  features: [
+                    '2,000 credits every month',
+                    'Up to 10 competitor analyses per cycle',
+                    'Unlimited products tracked',
+                    'CSV/PDF export for every report',
+                    'Re-analyze free — no credits deducted',
+                    'Priority email support',
+                  ],
+                  upsell: null,
                   popular: false, plan: 'pro'
                 },
               ].map(sub => (
                 <div key={sub.name} className={`pcard p-6 rounded-2xl border relative ${sub.popular ? 'bg-black text-white border-black' : 'bg-white border-neutral-200'}`}>
-                  {sub.popular && <div className="absolute top-4 right-4 px-2 py-0.5 text-xs bg-orange-500 rounded-full text-white">Best value</div>}
+                  {sub.badge && <div className="absolute top-4 right-4 px-2 py-0.5 text-xs bg-orange-500 rounded-full text-white">{sub.badge}</div>}
                   <h3 className={`font-semibold mb-1 ${sub.popular ? 'text-white' : ''}`}>{sub.name}</h3>
                   <p className={`text-xs mb-4 ${sub.popular ? 'text-neutral-400' : 'text-neutral-500'}`}>{sub.desc}</p>
                   <div className="mb-1">
@@ -1301,13 +1342,16 @@ export default function LandingPage() {
                     <p className={`text-2xl font-black ${sub.popular ? 'text-orange-400' : 'text-orange-600'}`}>{sub.credits.toLocaleString()}</p>
                     <p className={`text-xs ${sub.popular ? 'text-neutral-400' : 'text-neutral-500'}`}>credits/month · {sub.analyses}</p>
                   </div>
-                  <ul className={`space-y-1.5 text-xs mb-6 ${sub.popular ? 'text-neutral-300' : 'text-neutral-600'}`}>
+                  <ul className={`space-y-1.5 text-xs mb-4 ${sub.popular ? 'text-neutral-300' : 'text-neutral-600'}`}>
                     {sub.features.map(f => (
                       <li key={f} className="flex gap-2"><span className={sub.popular ? 'text-orange-400' : 'text-green-500'}>✓</span>{f}</li>
                     ))}
                   </ul>
+                  {sub.upsell && (
+                    <p className="text-xs text-orange-500 font-medium mb-4 border border-orange-100 bg-orange-50 rounded-lg px-3 py-2">{sub.upsell}</p>
+                  )}
                   <CheckoutButton plan={sub.plan as any} billing="monthly" label={`Start ${sub.name} →`}
-                    className="glow w-full py-2.5 text-sm font-medium rounded-xl transition-colors cursor-pointer bg-black hover:bg-neutral-800 text-white"
+                    className={`w-full py-2.5 text-sm font-medium rounded-xl transition-colors cursor-pointer ${sub.popular ? 'bg-orange-500 hover:bg-orange-600 text-white' : 'bg-black hover:bg-neutral-800 text-white'}`}
                   />
                 </div>
               ))}
