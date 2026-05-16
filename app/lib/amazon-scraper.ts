@@ -55,27 +55,32 @@ export async function scrapeAmazon(input: string): Promise<AmazonScrapeResult> {
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
-// Single Apify run with all 5 star filters as separate input entries
+// One Apify run per star rating, all 5 in parallel
 async function fetchAllReviews(asin: string, domainCode: string): Promise<AmazonReview[]> {
+  const marketplace = `amazon.${domainCode}`
+  const batches = await Promise.all(
+    ([1, 2, 3, 4, 5] as const).map(star => fetchStarBatch(asin, marketplace, star))
+  )
+  return batches.flat()
+}
+
+async function fetchStarBatch(asin: string, marketplace: string, star: 1 | 2 | 3 | 4 | 5): Promise<AmazonReview[]> {
   try {
-    const inputEntries = ([1, 2, 3, 4, 5] as const).map(star => ({
-      asin,
-      domainCode,
+    const runInput = {
+      asins: [asin],
+      marketplace,
+      filterByRating: STAR_FILTER_MAP[star],
+      maxReviews: MAX_PAGES_PER_STAR * 10,
       sortBy: 'recent',
-      filterByStar: STAR_FILTER_MAP[star],
-      maxPages: MAX_PAGES_PER_STAR,
-      reviewerType: 'all_reviews',
-      formatType: 'current_format',
-      mediaType: 'all_contents',
-    }))
+    }
 
     // Start actor run
     const startRes = await fetch(
-      `${APIFY_BASE}/acts/codingfrontend~amazon-reviews-scraper/runs?token=${APIFY_API_TOKEN}`,
+      `${APIFY_BASE}/acts/sovereigntaylor~amazon-reviews-scraper/runs?token=${APIFY_API_TOKEN}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ input: inputEntries }),
+        body: JSON.stringify(runInput),
       }
     )
 
@@ -122,52 +127,39 @@ async function fetchAllReviews(asin: string, domainCode: string): Promise<Amazon
       return []
     }
 
-    const items: CodingFrontendReviewItem[] = await datasetRes.json()
-
-    // Filter out penalty entries (statusCode !== 200 or no reviewId)
-    const reviews = items
-      .filter(item => item.statusCode === 200 && item.reviewId)
-      .map(mapCodingFrontendReview)
-
-    console.log(`[Scraper] Apify returned ${items.length} items, ${reviews.length} valid reviews`)
+    const items: SovereignReviewItem[] = await datasetRes.json()
+    const reviews = items.filter(r => r.reviewId).map(mapSovereignReview)
+    console.log(`[Scraper] ${star}★ — ${reviews.length} reviews`)
     return reviews
   } catch (e) {
-    console.warn(`[Scraper] Apify exception:`, e)
+    console.warn(`[Scraper] Apify ${star}★ exception:`, e)
     return []
   }
 }
 
-interface CodingFrontendReviewItem {
-  statusCode?: number
+interface SovereignReviewItem {
   reviewId?: string
-  title?: string
-  text?: string
-  rating?: string  // "5.0 out of 5 stars"
-  date?: string    // "Reviewed in the United States on December 15, 2025"
-  verified?: boolean
-  vine?: boolean
-  numberOfHelpful?: number
-  locale?: string
+  ratingScore?: number
+  reviewTitle?: string
+  reviewDescription?: string
+  date?: string
+  isVerified?: boolean
+  isVineVoice?: boolean
+  helpfulVotes?: number
+  reviewCountry?: string
 }
 
-function mapCodingFrontendReview(r: CodingFrontendReviewItem): AmazonReview {
-  // Parse rating from "5.0 out of 5 stars" → 5
-  const ratingNum = r.rating ? parseFloat(r.rating) : 0
-
-  // Parse date from "Reviewed in the United States on December 15, 2025"
-  const dateMatch = r.date?.match(/on (.+)$/)
-  const dateStr = dateMatch ? dateMatch[1] : (r.date ?? '')
-
+function mapSovereignReview(r: SovereignReviewItem): AmazonReview {
   return {
     id: r.reviewId ?? '',
-    rating: Math.round(ratingNum),
-    title: r.title ?? '',
-    body: r.text ?? '',
-    date: dateStr,
-    verified: r.verified ?? false,
-    vine: r.vine ?? false,
-    helpful: r.numberOfHelpful ?? 0,
-    country: r.locale ?? 'us',
+    rating: r.ratingScore ?? 0,
+    title: r.reviewTitle ?? '',
+    body: r.reviewDescription ?? '',
+    date: r.date ?? '',
+    verified: r.isVerified ?? false,
+    vine: r.isVineVoice ?? false,
+    helpful: r.helpfulVotes ?? 0,
+    country: r.reviewCountry ?? 'us',
   }
 }
 
