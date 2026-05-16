@@ -1,36 +1,27 @@
 import { AmazonScrapeResult, AmazonProduct, AmazonReview, AmazonQA } from './amazon-types'
 
 const RAINFOREST_API_KEY = process.env.RAINFOREST_API_KEY!
-const BASE_URL = 'https://api.rainforestapi.com/request'
+const APIFY_API_TOKEN = process.env.APIFY_API_TOKEN!
+const RAINFOREST_BASE = 'https://api.rainforestapi.com/request'
+const APIFY_BASE = 'https://api.apify.com/v2'
 
-// Accepts full Amazon URL (any marketplace) or bare ASIN
-// Examples:
-//   https://www.amazon.com/dp/B073JYC4XM
-//   https://www.amazon.co.uk/dp/B073JYC4XM
-//   B073JYC4XM
-// How many pages to fetch per star rating (1 page = ~10 reviews)
-// 3 pages × 5 stars = up to 150 review texts total
-// Credits: 1 product + 15 reviews + 1 Q&A = 17 per analysis
-const PAGES_PER_STAR = 3
+// Target reviews per star rating — Apify charges per result so keep reasonable
+const REVIEWS_PER_STAR = 40 // 40 × 5 = 200 max texts per analysis
 
 export async function scrapeAmazon(input: string): Promise<AmazonScrapeResult> {
   const { asin, marketplace } = parseInput(input)
   console.log(`[Scraper] ASIN: ${asin} | Marketplace: ${marketplace}`)
 
-  // Product and Q&A in parallel first
+  // Product and Q&A in parallel (both Rainforest type=product/questions — works on free plan)
   const [{ product: productData }, qaData] = await Promise.all([
     fetchProduct(asin, marketplace),
     fetchQA(asin, marketplace),
   ])
 
-  // Star-filtered review batches run sequentially to avoid Rainforest rate limiting
-  // 300ms gap between each star to stay within their per-second limit
-  const starBatches: AmazonReview[][] = []
-  for (const star of [1, 2, 3, 4, 5] as const) {
-    const batch = await fetchReviewsByStar(asin, marketplace, star)
-    starBatches.push(batch)
-    await sleep(300)
-  }
+  // Reviews via Apify — fetch all stars in parallel (no Rainforest rate limit concern)
+  const starBatches = await Promise.all(
+    ([1, 2, 3, 4, 5] as const).map(star => fetchReviewsByStar(asin, marketplace, star))
+  )
 
   const allReviews: AmazonReview[] = starBatches.flat()
 
@@ -56,6 +47,7 @@ export async function scrapeAmazon(input: string): Promise<AmazonScrapeResult> {
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
+// sovereigntaylor/amazon-reviews-scraper star filter values
 const STAR_FILTER_MAP: Record<1 | 2 | 3 | 4 | 5, string> = {
   1: 'one_star',
   2: 'two_star',
@@ -64,56 +56,111 @@ const STAR_FILTER_MAP: Record<1 | 2 | 3 | 4 | 5, string> = {
   5: 'five_star',
 }
 
-// Fetches up to PAGES_PER_STAR pages of reviews for a specific star rating
 async function fetchReviewsByStar(
   asin: string,
   marketplace: string,
   star: 1 | 2 | 3 | 4 | 5,
 ): Promise<AmazonReview[]> {
-  const reviews: AmazonReview[] = []
+  try {
+    // Build the Amazon domain format Apify expects (amazon.com, amazon.co.uk, etc.)
+    const domain = marketplace.startsWith('amazon.') ? marketplace : `amazon.${marketplace}`
 
-  for (let page = 1; page <= PAGES_PER_STAR; page++) {
-    const params = new URLSearchParams({
-      api_key:        RAINFOREST_API_KEY,
-      type:           'reviews',
-      asin,
-      amazon_domain:  marketplace,
-      filter_by_star: STAR_FILTER_MAP[star],
-      page:           String(page),
-    })
-
-    try {
-      let res = await fetch(`${BASE_URL}?${params}`)
-
-      // Retry once on 503 after a short back-off
-      if (res.status === 503) {
-        console.warn(`[Scraper] ${star}★ page ${page} 503 — retrying in 1s`)
-        await sleep(1000)
-        res = await fetch(`${BASE_URL}?${params}`)
-      }
-
-      if (!res.ok) {
-        console.warn(`[Scraper] ${star}★ page ${page} HTTP ${res.status} — stopping this star`)
-        break
-      }
-
-      const data = await res.json()
-      if (!data.request_info?.success) {
-        console.warn(`[Scraper] ${star}★ page ${page} API error:`, JSON.stringify(data.request_info))
-        break
-      }
-
-      const batch: AmazonReview[] = (data.reviews ?? []).map(mapRawReview)
-      if (batch.length === 0) break
-      reviews.push(...batch)
-    } catch (e) {
-      console.warn(`[Scraper] ${star}★ page ${page} exception:`, e)
-      break
+    const input = {
+      asins: [asin],
+      marketplace: domain,
+      filterByStar: STAR_FILTER_MAP[star],
+      maxReviews: REVIEWS_PER_STAR,
+      // Proxy is handled by Apify internally
     }
-  }
 
-  console.log(`[Scraper] ${star}★ reviews: ${reviews.length}`)
-  return reviews
+    // Start the actor run
+    const startRes = await fetch(
+      `${APIFY_BASE}/acts/sovereigntaylor~amazon-reviews-scraper/runs?token=${APIFY_API_TOKEN}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      }
+    )
+
+    if (!startRes.ok) {
+      console.warn(`[Scraper] Apify ${star}★ start failed: HTTP ${startRes.status}`)
+      return []
+    }
+
+    const { data: runData } = await startRes.json()
+    const runId: string = runData.id
+
+    // Poll until finished (timeout 90s)
+    const deadline = Date.now() + 90_000
+    let status = runData.status as string
+
+    while (status !== 'SUCCEEDED' && status !== 'FAILED' && status !== 'ABORTED') {
+      if (Date.now() > deadline) {
+        console.warn(`[Scraper] Apify ${star}★ run ${runId} timed out`)
+        return []
+      }
+      await sleep(3000)
+
+      const pollRes = await fetch(
+        `${APIFY_BASE}/actor-runs/${runId}?token=${APIFY_API_TOKEN}`
+      )
+      if (!pollRes.ok) {
+        console.warn(`[Scraper] Apify ${star}★ poll failed: HTTP ${pollRes.status}`)
+        return []
+      }
+      const { data: pollData } = await pollRes.json()
+      status = pollData.status
+    }
+
+    if (status !== 'SUCCEEDED') {
+      console.warn(`[Scraper] Apify ${star}★ run ended with status: ${status}`)
+      return []
+    }
+
+    // Fetch dataset items
+    const datasetRes = await fetch(
+      `${APIFY_BASE}/actor-runs/${runId}/dataset/items?token=${APIFY_API_TOKEN}&limit=${REVIEWS_PER_STAR}`
+    )
+    if (!datasetRes.ok) {
+      console.warn(`[Scraper] Apify ${star}★ dataset fetch failed: HTTP ${datasetRes.status}`)
+      return []
+    }
+
+    const items: ApifyReviewItem[] = await datasetRes.json()
+    const reviews = items.map(mapApifyReview)
+    console.log(`[Scraper] ${star}★ reviews: ${reviews.length}`)
+    return reviews
+  } catch (e) {
+    console.warn(`[Scraper] Apify ${star}★ exception:`, e)
+    return []
+  }
+}
+
+interface ApifyReviewItem {
+  reviewId?: string
+  ratingScore?: number
+  reviewTitle?: string
+  reviewDescription?: string
+  date?: string
+  isVerified?: boolean
+  isVineVoice?: boolean
+  helpfulVotes?: number
+  reviewCountry?: string
+}
+
+function mapApifyReview(r: ApifyReviewItem): AmazonReview {
+  return {
+    id: r.reviewId ?? '',
+    rating: r.ratingScore ?? 0,
+    title: r.reviewTitle ?? '',
+    body: r.reviewDescription ?? '',
+    date: r.date ?? '',
+    verified: r.isVerified ?? false,
+    vine: r.isVineVoice ?? false,
+    helpful: r.helpfulVotes ?? 0,
+    country: r.reviewCountry ?? 'us',
+  }
 }
 
 function parseInput(input: string): { asin: string; marketplace: string } {
@@ -128,41 +175,12 @@ function parseInput(input: string): { asin: string; marketplace: string } {
   try {
     const url = new URL(input)
     const host = url.hostname.toLowerCase()
-
-    // Extract marketplace from hostname
     const marketplace = host.replace('www.', '')
-
-    // Extract ASIN from URL patterns: /dp/ASIN or /gp/product/ASIN
     const asinMatch = url.pathname.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})/i)
     if (!asinMatch) throw new Error('Could not extract ASIN from URL')
-
     return { asin: asinMatch[1].toUpperCase(), marketplace }
   } catch {
     throw new Error('Invalid input: provide an Amazon URL or ASIN (e.g. B073JYC4XM)')
-  }
-}
-
-function mapRawReview(r: {
-  id?: string
-  rating?: number
-  title?: string
-  body?: string
-  date?: { utc?: string }
-  verified_purchase?: boolean
-  vine_program?: boolean
-  helpful_votes?: number
-  review_country?: string
-}): AmazonReview {
-  return {
-    id: r.id ?? '',
-    rating: r.rating ?? 0,
-    title: r.title ?? '',
-    body: r.body ?? '',
-    date: r.date?.utc ?? '',
-    verified: r.verified_purchase ?? false,
-    vine: r.vine_program ?? false,
-    helpful: r.helpful_votes ?? 0,
-    country: r.review_country ?? 'us',
   }
 }
 
@@ -175,7 +193,7 @@ async function fetchProduct(asin: string, marketplace: string): Promise<{ produc
     include_summarization_attributes: 'true',
   })
 
-  const res = await fetch(`${BASE_URL}?${params}`)
+  const res = await fetch(`${RAINFOREST_BASE}?${params}`)
   if (!res.ok) throw new Error(`Rainforest product fetch failed: ${res.status}`)
 
   const data = await res.json()
@@ -221,7 +239,6 @@ async function fetchProduct(asin: string, marketplace: string): Promise<{ produc
   return { product }
 }
 
-
 async function fetchQA(asin: string, marketplace: string): Promise<AmazonQA[]> {
   const params = new URLSearchParams({
     api_key: RAINFOREST_API_KEY,
@@ -231,7 +248,7 @@ async function fetchQA(asin: string, marketplace: string): Promise<AmazonQA[]> {
   })
 
   try {
-    const res = await fetch(`${BASE_URL}?${params}`)
+    const res = await fetch(`${RAINFOREST_BASE}?${params}`)
     if (!res.ok) return []
 
     const data = await res.json()
