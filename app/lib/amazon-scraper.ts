@@ -44,8 +44,9 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 async function fetchAllReviews(asin: string, marketplace: string): Promise<AmazonReview[]> {
   try {
     const runInput = {
-      products: [asin],
-      all_stars: true,           // fetches 100 per star rating (500 total)
+      products: [`https://${marketplace}/dp/${asin}`],
+      all_stars: true,
+      pages: PAGES_PER_STAR,     // 10 pages per star = ~100 reviews per star
       personal_data: false,
       avp_reviews: false,
       include_variants: false,
