@@ -333,11 +333,11 @@ const FAQ_ITEMS = [
   },
   {
     q: 'Can I analyze a competitor\'s listing?',
-    a: "Yes. You can paste any public Amazon listing URL or ASIN — including competitors'. Voxrate will analyze their reviews, show you their top weaknesses, what they do well, and give you a side-by-side comparison. Competitor analysis costs 35 credits (vs 20 for your own listings) and is available on Starter and Pro plans.",
+    a: "Yes. Competitor analysis runs both products through the AI simultaneously and produces a battle card — why buyers choose them over you, your exact keyword gaps, and a ranked fix list. It costs 35 credits (vs 20 for own listings). Starter gets 1 free lifetime competitor analysis. Growth unlocks up to 3 per billing cycle. Pro unlocks up to 10.",
   },
   {
     q: 'What are credits and do they expire?',
-    a: 'Credits are the currency used for analyses. Each own-listing analysis costs 20 credits, each competitor analysis costs 35 credits. All other tools (rewriter, grader, reply generator, listing builder) are free — no credits needed. Credits purchased in packs never expire. Subscription credits refresh monthly.',
+    a: 'Credits are the currency used for analyses. Each own-listing analysis costs 20 credits, each competitor analysis costs 35 credits. All other tools (rewriter, grader, reply generator, listing builder) are free. Credits purchased in packs never expire. Subscription credits refresh monthly.',
   },
   {
     q: 'Is my data and my customers\' data private?',
@@ -506,15 +506,16 @@ export default function LandingPage() {
   const creditsNeeded = calcFrequency === 'monthly'
     ? calcProducts * 24
     : Math.ceil(calcProducts * 24 / 3)
-  const packRecommendation = creditsNeeded <= 120 ? { name: 'Starter Pack', credits: 120, price: 5.99 }
-    : creditsNeeded <= 360 ? { name: 'Standard Pack', credits: 360, price: 14.99 }
-    : { name: 'Pro Pack', credits: 840, price: 29.99 }
-  const subRecommendation = creditsNeeded <= 720 ? { name: 'Starter', price: 9.99, credits: 720 }
-    : { name: 'Pro', price: 19.99, credits: 2400 }
+  const packRecommendation = creditsNeeded <= 100 ? { name: 'Starter Pack', credits: 100, price: 4.99 }
+    : creditsNeeded <= 300 ? { name: 'Growth Pack', credits: 300, price: 12.99 }
+    : { name: 'Pro Pack', credits: 700, price: 24.99 }
+  const subRecommendation = creditsNeeded <= 300 ? { name: 'Starter', price: 9.99, credits: 300 }
+    : creditsNeeded <= 800 ? { name: 'Growth', price: 24.99, credits: 800 }
+    : { name: 'Pro', price: 49.99, credits: 2000 }
 
   const featureItems: { icon: React.ReactNode; title: string; desc: string; badge: string; soon?: boolean }[] = [
     { icon: <IconSearch className="text-orange-500" />, title: 'Review Analysis', desc: 'Deep AI analysis of every review — complaints ranked by severity, strengths by frequency, with exact step-by-step fixes.', badge: 'Core feature' },
-    { icon: <IconTarget className="text-orange-500" />, title: 'Competitor Spy', desc: "Analyze any competitor's listing. See their weaknesses before they fix them. Turn their problems into your positioning.", badge: 'Starter & Pro' },
+    { icon: <IconTarget className="text-orange-500" />, title: 'Competitor Spy', desc: "Analyze any competitor's listing. See their weaknesses before they fix them. Turn their problems into your positioning.", badge: 'Growth & Pro' },
     { icon: <IconZap className="text-orange-500" />, title: 'Listing Grader', desc: 'Get an A–F grade on your title, tags, description and pricing separately — with specific fixes for each.', badge: 'Free tool' },
     { icon: <IconEdit className="text-orange-500" />, title: 'AI Description Rewriter', desc: 'Rewrite your listing description using your own review keywords and insights. SEO-optimized in one click.', badge: 'Free tool' },
     { icon: <IconMessageCircle className="text-orange-500" />, title: 'Review Reply Generator', desc: '3 ready-to-paste reply options for any review — empathetic, professional, or personal tone.', badge: 'Free tool' },
@@ -1239,9 +1240,9 @@ export default function LandingPage() {
           {pricingTab === 'packs' ? (
             <div className="grid md:grid-cols-3 gap-5 mb-8">
               {[
-                { name: 'Starter', id: 'starter_pack', credits: 120, price: 5.99, analyses: '≈ 5 analyses', desc: 'Try it out — no subscription', popular: false },
-                { name: 'Standard', id: 'growth_pack', credits: 360, price: 14.99, analyses: '≈ 15 analyses', desc: 'Most popular for small shops', popular: true },
-                { name: 'Pro Pack', id: 'pro_pack',    credits: 840, price: 29.99, analyses: '≈ 35 analyses', desc: 'Best value per credit', popular: false },
+                { name: 'Starter', id: 'starter_pack', credits: 100, price: 4.99, analyses: '≈ 5 analyses', desc: 'Try it out — no subscription', popular: false },
+                { name: 'Growth',  id: 'growth_pack',  credits: 300, price: 12.99, analyses: '≈ 15 analyses', desc: 'Most popular for active sellers', popular: true },
+                { name: 'Pro',     id: 'pro_pack',     credits: 700, price: 24.99, analyses: '≈ 35 analyses', desc: 'Best value per credit', popular: false },
               ].map(pack => (
                 <div key={pack.name} className={`pcard p-6 rounded-2xl border relative ${pack.popular ? 'bg-black text-white border-black' : 'bg-white border-neutral-200'}`}>
                   {pack.popular && <div className="absolute top-4 right-4 px-2 py-0.5 text-xs bg-orange-500 rounded-full text-white">Most popular</div>}
@@ -1267,19 +1268,25 @@ export default function LandingPage() {
               ))}
             </div>
           ) : (
-            <div className="grid md:grid-cols-2 gap-5 mb-8">
+            <div className="grid md:grid-cols-3 gap-5 mb-8">
               {[
                 {
-                  name: 'Starter', price: 9.99, credits: 720, analyses: '≈ 30 analyses/mo',
-                  desc: 'For sellers with a few active listings',
-                  features: ['720 credits every month', 'Credits roll over (unused credits stack)', 'Buy extra credits anytime', 'All analysis features', 'Review monitoring & alerts', 'Competitor watchlist'],
+                  name: 'Starter', price: 9.99, credits: 300, analyses: '≈ 15 analyses/mo',
+                  desc: 'For sellers with 1 active listing',
+                  features: ['300 credits every month', '1 free competitor analysis (lifetime)', 'Own-listing analysis only', 'Full reports — no limits', 'All free tools included'],
                   popular: false, plan: 'starter'
                 },
                 {
-                  name: 'Pro', price: 19.99, credits: 2400, analyses: '≈ 100 analyses/mo',
-                  desc: 'For serious sellers managing multiple products',
-                  features: ['2,400 credits every month', 'Credits roll over (unused credits stack)', 'Buy extra credits anytime', 'Re-analyze free (no credits)', 'Review monitoring & weekly digest', 'Competitor watchlist + alerts', 'Priority email support'],
-                  popular: true, plan: 'pro'
+                  name: 'Growth', price: 24.99, credits: 800, analyses: '≈ 40 analyses/mo',
+                  desc: 'For active sellers managing 2–3 products',
+                  features: ['800 credits every month', 'Competitor analysis unlocked', 'Up to 3 competitors per cycle', '3 products tracked', 'Full reports + SEO keywords', 'Review monitoring & alerts'],
+                  popular: true, plan: 'growth'
+                },
+                {
+                  name: 'Pro', price: 49.99, credits: 2000, analyses: '≈ 100 analyses/mo',
+                  desc: 'For scaling sellers and agencies',
+                  features: ['2,000 credits every month', 'Up to 10 competitors per cycle', 'Unlimited products tracked', 'Full reports + CSV/PDF export', 'Priority email support', 'Re-analyze free (no credits)'],
+                  popular: false, plan: 'pro'
                 },
               ].map(sub => (
                 <div key={sub.name} className={`pcard p-6 rounded-2xl border relative ${sub.popular ? 'bg-black text-white border-black' : 'bg-white border-neutral-200'}`}>
@@ -1312,7 +1319,7 @@ export default function LandingPage() {
             <p className="text-sm text-neutral-500">
               Not ready to pay?{' '}
               <button onClick={() => setShowAuthModal(true)} className="font-medium text-neutral-700 hover:text-black underline underline-offset-2 bg-transparent border-none cursor-pointer p-0">Start free</button>
-              {' '}— 1 full analysis included, no credit card required.
+              {' '}— 3 full analyses included, no credit card required. Expires in 7 days.
             </p>
           </div>
 

@@ -5,7 +5,7 @@ import { createClient } from '@/app/lib/supabase/client'
 import { useToast } from '@/app/components/Toast'
 
 interface CheckoutButtonProps {
-  plan?: 'starter' | 'pro'
+  plan?: 'starter' | 'growth' | 'pro'
   billing?: 'monthly' | 'annual'
   pack?: 'starter_pack' | 'growth_pack' | 'pro_pack'
   label: string

@@ -15,7 +15,14 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 // ── Subscription price IDs ────────────────────────────────────
 const SUBSCRIPTION_PRICE_IDS: Record<string, string> = {
   starter_monthly: process.env.STRIPE_PRICE_STARTER_MONTHLY!,
+  growth_monthly:  process.env.STRIPE_PRICE_GROWTH_MONTHLY!,
   pro_monthly:     process.env.STRIPE_PRICE_PRO_MONTHLY!,
+}
+
+const SUBSCRIPTION_CREDITS: Record<string, number> = {
+  starter: 300,
+  growth:  800,
+  pro:     2000,
 }
 
 const CREDIT_PACK_PRICE_IDS: Record<string, string> = {
@@ -25,9 +32,9 @@ const CREDIT_PACK_PRICE_IDS: Record<string, string> = {
 }
 
 const CREDIT_PACK_AMOUNTS: Record<string, number> = {
-  starter_pack: 120,
-  growth_pack:  360,
-  pro_pack:     840,
+  starter_pack: 100,
+  growth_pack:  300,
+  pro_pack:     700,
 }
 
 export async function POST(request: NextRequest) {
@@ -81,7 +88,7 @@ export async function POST(request: NextRequest) {
 
     // ── Subscription ──────────────────────────────────────────
     const billingMode = billing || 'monthly'
-    if (!['starter', 'pro'].includes(plan) || !['monthly'].includes(billingMode)) {
+    if (!['starter', 'growth', 'pro'].includes(plan) || !['monthly'].includes(billingMode)) {
       return NextResponse.json({ error: 'Invalid plan selected' }, { status: 400 })
     }
 
@@ -91,7 +98,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid plan selected' }, { status: 400 })
     }
 
-    const subscriptionCredits = plan === 'pro' ? 2400 : 720
+    const subscriptionCredits = SUBSCRIPTION_CREDITS[plan] ?? 300
     const idempotencyKey = `checkout_${user.id}_${plan}_${billingMode}_${window}`
 
     const session = await stripe.checkout.sessions.create(

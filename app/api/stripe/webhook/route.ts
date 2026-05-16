@@ -68,9 +68,9 @@ export async function POST(request: NextRequest) {
           break
         }
 
-        // Max credits per pack is 840 (pro_pack); max per subscription is 2400 (pro monthly)
-        const MAX_PACK_CREDITS = 840
-        const MAX_SUB_CREDITS  = 2400
+        // Max credits per pack is 700 (pro_pack); max per subscription is 2000 (pro monthly)
+        const MAX_PACK_CREDITS = 700
+        const MAX_SUB_CREDITS  = 2000
 
         if (type === 'credit_pack') {
           // Add credits for one-time purchase
@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
           const plan    = session.metadata?.plan
           const credits = parseInt(session.metadata?.credits || '0', 10)
 
-          if (!plan || !['starter', 'pro'].includes(plan)) {
+          if (!plan || !['starter', 'growth', 'pro'].includes(plan)) {
             console.error('[Webhook] Invalid plan value:', plan)
             break
           }
@@ -142,7 +142,7 @@ export async function POST(request: NextRequest) {
         const credits = parseInt(subscription.metadata?.credits || '0', 10)
 
         if (!userId || !plan) break
-        if (!['starter', 'pro'].includes(plan)) break
+        if (!['starter', 'growth', 'pro'].includes(plan)) break
 
         console.log(`[Webhook] Monthly renewal for user ${userId} — adding ${credits} credits`)
         const { error: renewUpdateError } = await supabase.from('users').update({ plan }).eq('id', userId)
@@ -151,14 +151,16 @@ export async function POST(request: NextRequest) {
           await supabase.from('processed_webhook_events').delete().eq('stripe_event_id', event.id)
           return NextResponse.json({ error: 'Plan update failed' }, { status: 500 })
         }
-        if (credits > 0 && credits <= 2400) {
+        // On renewal, reset competitor_analyses_used for the new billing cycle
+        await supabase.from('users').update({ competitor_analyses_used: 0 }).eq('id', userId)
+        if (credits > 0 && credits <= 2000) {
           const { error: rpcError } = await supabase.rpc('add_credits', { p_user_id: userId, p_amount: credits })
           if (rpcError) {
             console.error(`[Webhook] add_credits RPC failed on renewal:`, rpcError.message)
             await supabase.from('processed_webhook_events').delete().eq('stripe_event_id', event.id)
             return NextResponse.json({ error: 'Credit update failed' }, { status: 500 })
           }
-        } else if (credits > 2400) {
+        } else if (credits > 2000) {
           console.error(`[Webhook] Suspicious renewal credit amount ${credits} — rejected`)
         }
         break

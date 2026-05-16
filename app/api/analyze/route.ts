@@ -688,16 +688,19 @@ export function applyPlanLimits(
   if (isAdminUser || plan === 'pro')
     return { ...report, _isLimited: false }
 
-  if (plan === 'starter') {
+  if (plan === 'growth' || plan === 'starter') {
     return {
       ...report,
       complaints:   report.complaints   || [],
       strengths:    report.strengths    || [],
       improvements: report.improvements || [],
+      seo:          report.seo          || null,
+      marketingCopy: report.marketingCopy || [],
       _isLimited:   false,
     }
   }
 
+  // free plan
   return {
     ...report,
     complaints:      (report.complaints || []).slice(0, 2),
@@ -765,13 +768,15 @@ export async function POST(request: NextRequest) {
 
     const { data: userData } = await supabase
       .from('users')
-      .select('plan, is_admin, credits')
+      .select('plan, is_admin, credits, competitor_analyses_used, free_competitor_used')
       .eq('id', user.id)
       .single()
 
-    const isAdminUser = userData?.is_admin === true
-    const plan        = userData?.plan    || 'free'
-    const credits     = userData?.credits ?? 0
+    const isAdminUser              = userData?.is_admin === true
+    const plan                     = userData?.plan    || 'free'
+    const credits                  = userData?.credits ?? 0
+    const competitorAnalysesUsed   = userData?.competitor_analyses_used ?? 0
+    const freeCompetitorUsed       = userData?.free_competitor_used ?? false
 
     if (!isAdminUser) {
       const limit = await enforceRateLimit(user.id, ip)
@@ -786,6 +791,59 @@ export async function POST(request: NextRequest) {
 
     const creditCost = reportType === 'competitor' ? 35 : 20
 
+    // ── Competitor analysis gates ─────────────────────────────
+    if (!isAdminUser && reportType === 'competitor') {
+      // Starter: 1 lifetime free competitor analysis, no paid competitor access
+      if (plan === 'starter') {
+        if (freeCompetitorUsed) {
+          return NextResponse.json(
+            {
+              error: 'You\'ve used your free competitor analysis. Upgrade to Growth to unlock unlimited competitor analyses.',
+              upgradeRequired: true,
+              upgradePrompt: 'growth',
+            },
+            { status: 403 },
+          )
+        }
+        // Allow but mark as free — credits will not be deducted for this one
+      }
+
+      // Free plan: no competitor analysis at all
+      if (plan === 'free') {
+        return NextResponse.json(
+          {
+            error: 'Competitor analysis is not available on the free plan. Upgrade to Growth to unlock it.',
+            upgradeRequired: true,
+            upgradePrompt: 'growth',
+          },
+          { status: 403 },
+        )
+      }
+
+      // Growth: max 3 competitor analyses per billing cycle
+      if (plan === 'growth' && competitorAnalysesUsed >= 3) {
+        return NextResponse.json(
+          {
+            error: 'You\'ve reached your 3 competitor analyses for this billing cycle. Upgrade to Pro for up to 10 per cycle.',
+            upgradeRequired: true,
+            upgradePrompt: 'pro',
+          },
+          { status: 403 },
+        )
+      }
+
+      // Pro: max 10 competitor analyses per billing cycle
+      if (plan === 'pro' && competitorAnalysesUsed >= 10) {
+        return NextResponse.json(
+          {
+            error: 'You\'ve reached your 10 competitor analyses for this billing cycle. Your limit resets on your next renewal date.',
+            upgradeRequired: false,
+          },
+          { status: 403 },
+        )
+      }
+    }
+
     if (!isAdminUser) {
       if (credits < creditCost) {
         return NextResponse.json(
@@ -798,20 +856,37 @@ export async function POST(request: NextRequest) {
           { status: 403 },
         )
       }
-      const { error: deductError } = await supabase.rpc('deduct_credits', {
-        p_user_id: user.id,
-        p_amount:  creditCost,
-      })
-      if (deductError) {
-        console.error('[Analyze] Credit deduction failed:', deductError.message)
-        return NextResponse.json(
-          { error: 'Could not deduct credits. Please refresh and try again.', upgradeRequired: false },
-          { status: 503 },
-        )
+      // Starter's one free competitor analysis: skip credit deduction
+      const skipCreditDeduction = plan === 'starter' && reportType === 'competitor' && !freeCompetitorUsed
+
+      if (!skipCreditDeduction) {
+        const { error: deductError } = await supabase.rpc('deduct_credits', {
+          p_user_id: user.id,
+          p_amount:  creditCost,
+        })
+        if (deductError) {
+          console.error('[Analyze] Credit deduction failed:', deductError.message)
+          return NextResponse.json(
+            { error: 'Could not deduct credits. Please refresh and try again.', upgradeRequired: false },
+            { status: 503 },
+          )
+        }
+        creditsDeducted    = true
+        creditRefundUserId = user.id
+        creditRefundAmount = creditCost
       }
-      creditsDeducted    = true
-      creditRefundUserId = user.id
-      creditRefundAmount = creditCost
+
+      // Mark free competitor slot used (Starter)
+      if (plan === 'starter' && reportType === 'competitor' && !freeCompetitorUsed) {
+        await supabase.from('users').update({ free_competitor_used: true }).eq('id', user.id)
+      }
+
+      // Increment competitor analysis counter (Growth / Pro)
+      if (reportType === 'competitor' && (plan === 'growth' || plan === 'pro')) {
+        await supabase.from('users')
+          .update({ competitor_analyses_used: competitorAnalysesUsed + 1 })
+          .eq('id', user.id)
+      }
     }
 
     if (isReAnalyze) {
