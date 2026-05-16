@@ -1287,7 +1287,7 @@ export default function LandingPage() {
               {[
                 {
                   name: 'Starter', price: 9.99, credits: 300, analyses: '≈ 15 analyses/mo',
-                  desc: 'For sellers focused on 1 listing',
+                  desc: '',
                   badge: null,
                   features: [
                     '300 credits every month',
@@ -1301,7 +1301,7 @@ export default function LandingPage() {
                 },
                 {
                   name: 'Growth', price: 24.99, credits: 800, analyses: '≈ 40 analyses/mo',
-                  desc: 'For active sellers managing 2–3 products',
+                  desc: '',
                   badge: 'Most popular',
                   features: [
                     '800 credits every month',
@@ -1316,7 +1316,7 @@ export default function LandingPage() {
                 },
                 {
                   name: 'Pro', price: 49.99, credits: 2000, analyses: '≈ 100 analyses/mo',
-                  desc: 'For scaling sellers and agencies',
+                  desc: '',
                   badge: 'Best value',
                   features: [
                     '2,000 credits every month',
@@ -1333,7 +1333,7 @@ export default function LandingPage() {
                 <div key={sub.name} className={`pcard p-6 rounded-2xl border relative ${sub.popular ? 'bg-black text-white border-black' : 'bg-white border-neutral-200'}`}>
                   {sub.badge && <div className="absolute top-4 right-4 px-2 py-0.5 text-xs bg-orange-500 rounded-full text-white">{sub.badge}</div>}
                   <h3 className={`font-semibold mb-1 ${sub.popular ? 'text-white' : ''}`}>{sub.name}</h3>
-                  <p className={`text-xs mb-4 ${sub.popular ? 'text-neutral-400' : 'text-neutral-500'}`}>{sub.desc}</p>
+                  {sub.desc && <p className={`text-xs mb-2 ${sub.popular ? 'text-neutral-400' : 'text-neutral-500'}`}>{sub.desc}</p>}
                   <div className="mb-1">
                     <span className="text-4xl font-black">${sub.price}</span>
                     <span className={`text-sm ml-1 ${sub.popular ? 'text-neutral-400' : 'text-neutral-500'}`}>/month</span>
