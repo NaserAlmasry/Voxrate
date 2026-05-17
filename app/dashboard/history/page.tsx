@@ -81,8 +81,9 @@ export default function HistoryPage() {
         if (isFreeUser && userData?.plan === 'free') {
           const seen = new Set<string>()
           const deduped = reportData.filter(r => {
-            const match = r.product_url?.match(/listing\/(\d+)/)
-            const key = match ? match[1] : r.product_url
+            const asinMatch = r.product_url?.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})/i)
+            const asinBare  = /^[A-Z0-9]{10}$/i.test(r.product_url ?? '') ? r.product_url : null
+            const key = asinMatch?.[1]?.toUpperCase() ?? asinBare?.toUpperCase() ?? r.product_url
             if (seen.has(key)) return false
             seen.add(key)
             return true

@@ -1410,7 +1410,7 @@ export default function LandingPage() {
             <p className="text-sm text-neutral-500">
               Not ready to pay?{' '}
               <button onClick={() => setShowAuthModal(true)} className="font-medium text-neutral-700 hover:text-black underline underline-offset-2 bg-transparent border-none cursor-pointer p-0">Start free</button>
-              {' '}— 3 full analyses included, no credit card required. Expires in 7 days.
+              {' '}— 1 analysis included, no credit card required. Expires in 7 days.
             </p>
           </div>
 

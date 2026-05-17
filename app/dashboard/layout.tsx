@@ -374,6 +374,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                 <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
                   plan === 'pro'     ? 'bg-orange-100 text-orange-700' :
+                  plan === 'growth'  ? 'bg-green-50 text-green-700' :
                   plan === 'starter' ? 'bg-blue-50 text-blue-700' :
                                        'bg-neutral-100 text-neutral-500'
                 }`}>

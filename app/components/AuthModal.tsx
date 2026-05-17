@@ -15,8 +15,8 @@ const PLANS = [
     sub: '',
     badge: 'No credit card',
     badgeCls: 'bg-neutral-100 text-neutral-600',
-    desc: '3 full analyses included · expires in 7 days',
-    features: ['60 credits (3 analyses)', 'Listing grader', 'AI rewriter', 'Reply generator'],
+    desc: '1 partial analysis included · expires in 7 days',
+    features: ['20 credits (1 analysis)', 'Listing grader', 'AI rewriter', 'Reply generator'],
     highlight: false,
   },
   {

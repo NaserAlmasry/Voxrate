@@ -6,9 +6,9 @@ import CheckoutButton from '@/app/components/CheckoutButton'
 import { useToast } from '@/app/components/Toast'
 
 const CREDIT_PACKS = [
-  { id: 'starter_pack', credits: 120, price: '$5.99',  analyses: '5 analyses',  label: 'Starter Pack' },
-  { id: 'growth_pack',  credits: 360, price: '$14.99', analyses: '15 analyses', label: 'Standard Pack', popular: true },
-  { id: 'pro_pack',     credits: 840, price: '$29.99', analyses: '35 analyses', label: 'Pro Pack' },
+  { id: 'starter_pack', credits: 100, price: '$4.99',  analyses: '5 analyses',  label: 'Starter Pack' },
+  { id: 'growth_pack',  credits: 300, price: '$12.99', analyses: '15 analyses', label: 'Growth Pack', popular: true },
+  { id: 'pro_pack',     credits: 700, price: '$24.99', analyses: '35 analyses', label: 'Pro Pack' },
 ]
 
 export default function SettingsPage() {
@@ -127,7 +127,7 @@ export default function SettingsPage() {
             </div>
             <div>
               <p className="text-2xl font-bold text-amber-700">{credits ?? '—'}</p>
-              <p className="text-xs text-amber-600">credits remaining · 24 per analysis, 48 per competitor</p>
+              <p className="text-xs text-amber-600">credits remaining · 20 per analysis, 35 per competitor</p>
             </div>
           </div>
         )}
@@ -135,7 +135,7 @@ export default function SettingsPage() {
         {/* Subscription info */}
         {!isAdmin && plan !== 'free' && (
           <div className="flex items-center justify-between text-xs text-neutral-500 mb-4 px-1">
-            <span>{plan === 'pro' ? '2,400' : '720'} credits refresh monthly</span>
+            <span>{plan === 'pro' ? '2,000' : plan === 'growth' ? '800' : '300'} credits refresh monthly</span>
             <button
               onClick={openCustomerPortal}
               disabled={portalLoading}

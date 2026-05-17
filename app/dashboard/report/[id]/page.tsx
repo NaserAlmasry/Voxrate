@@ -709,6 +709,7 @@ export default function ReportPage() {
       .from('reports')
       .select('id, product_name, health_score, created_at')
       .eq('status', 'completed')
+      .eq('user_id', user.id)
       .or('report_type.eq.own,report_type.is.null')
       .order('created_at', { ascending: false })
       .limit(20)
@@ -756,6 +757,7 @@ export default function ReportPage() {
   const fr = useMemo(() => {
     if (effectiveAdmin)              return { ...normalised, _isLimited: false }
     if (effectivePlan === 'pro')     return { ...normalised, _isLimited: false }
+    if (effectivePlan === 'growth')  return { ...normalised, _isLimited: false }
     if (effectivePlan === 'starter') return { ...normalised, _isLimited: false }
     return {
       ...normalised,

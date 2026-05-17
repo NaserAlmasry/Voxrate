@@ -27,7 +27,7 @@ export async function GET(request: Request) {
   if (
     pendingPlan &&
     pendingBilling &&
-    ['starter', 'pro'].includes(pendingPlan) &&
+    ['starter', 'growth', 'pro'].includes(pendingPlan) &&
     ['monthly'].includes(pendingBilling)
   ) {
     return NextResponse.redirect(`${origin}/dashboard?checkout=${pendingPlan}&billing=${pendingBilling}`)
