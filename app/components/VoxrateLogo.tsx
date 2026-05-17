@@ -34,21 +34,21 @@ export default function VoxrateLogo({ size = 'md', showText = true, className = 
         {/* Right stroke of V becoming orange arrow base */}
         <path
           d="M22 40 L32 20"
-          stroke="#f97316"
+          stroke="#f05a1e"
           strokeWidth="8"
           strokeLinecap="round"
         />
         {/* Arrow shaft going up-right */}
         <path
           d="M32 20 L46 4"
-          stroke="#f97316"
+          stroke="#f05a1e"
           strokeWidth="8"
           strokeLinecap="round"
         />
         {/* Arrow head */}
         <path
           d="M38 2 L50 2 L50 14"
-          stroke="#f97316"
+          stroke="#f05a1e"
           strokeWidth="7"
           strokeLinecap="round"
           strokeLinejoin="round"

@@ -12,6 +12,17 @@
   --font-mono: var(--font-geist-mono);
 }
 
+@theme {
+  --color-orange-50:  #fff3ed;
+  --color-orange-100: #ffe4d0;
+  --color-orange-200: #ffc59e;
+  --color-orange-300: #ff9e6b;
+  --color-orange-400: #f87440;
+  --color-orange-500: #f05a1e;
+  --color-orange-600: #d44918;
+  --color-orange-700: #b03b14;
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;

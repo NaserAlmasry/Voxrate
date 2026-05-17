@@ -26,7 +26,7 @@ export async function sendWeeklyDigest({
 
   const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://voxrate.app'
 
-  const scoreColor = (n: number) => n >= 66 ? '#22c55e' : n >= 38 ? '#f97316' : '#ef4444'
+  const scoreColor = (n: number) => n >= 66 ? '#22c55e' : n >= 38 ? '#f05a1e' : '#ef4444'
 
   const listingsHtml = listings.map(l => {
     const trend = l.previousScore !== null
@@ -50,7 +50,7 @@ export async function sendWeeklyDigest({
         </div>
       </div>
       <a href="${SITE_URL}/dashboard/report/${l.reportId}"
-         style="display:inline-block;margin-top:10px;font-size:11px;color:#f97316;text-decoration:none;font-weight:600;">
+         style="display:inline-block;margin-top:10px;font-size:11px;color:#f05a1e;text-decoration:none;font-weight:600;">
         View report →
       </a>
     </div>`
@@ -94,7 +94,7 @@ export async function sendWeeklyDigest({
 
     <div style="padding:16px 24px;border-top:1px solid #f3f4f6;text-align:center;">
       <p style="font-size:11px;color:#9ca3af;margin:0;">
-        Weekly digest from <a href="${SITE_URL}" style="color:#f97316;text-decoration:none;">Voxrate</a>.
+        Weekly digest from <a href="${SITE_URL}" style="color:#f05a1e;text-decoration:none;">Voxrate</a>.
         <a href="${SITE_URL}/dashboard/monitor" style="color:#9ca3af;">Unsubscribe</a>
       </p>
     </div>
@@ -119,7 +119,7 @@ export async function sendReportComplete({
 
   const SITE_URL  = process.env.NEXT_PUBLIC_SITE_URL || 'https://voxrate.app'
   const reportUrl = `${SITE_URL}/dashboard/report/${reportId}`
-  const scoreColor = healthScore >= 66 ? '#22c55e' : healthScore >= 38 ? '#f97316' : '#ef4444'
+  const scoreColor = healthScore >= 66 ? '#22c55e' : healthScore >= 38 ? '#f05a1e' : '#ef4444'
   const scoreLabel = healthScore >= 66 ? 'Great shape' : healthScore >= 38 ? 'Needs work' : 'Critical issues'
 
   await resend.emails.send({
@@ -144,13 +144,13 @@ export async function sendReportComplete({
         <p style="font-size:52px;font-weight:900;color:${scoreColor};margin:0;line-height:1;">${healthScore}</p>
         <p style="font-size:11px;color:${scoreColor};margin:4px 0 0;font-weight:600;">${scoreLabel}</p>
       </div>
-      <a href="${reportUrl}" style="display:block;text-align:center;padding:14px;background:#f97316;color:#fff;text-decoration:none;border-radius:10px;font-size:13px;font-weight:700;">
+      <a href="${reportUrl}" style="display:block;text-align:center;padding:14px;background:#f05a1e;color:#fff;text-decoration:none;border-radius:10px;font-size:13px;font-weight:700;">
         View full report →
       </a>
     </div>
     <div style="padding:16px 24px;border-top:1px solid #f3f4f6;text-align:center;">
       <p style="font-size:11px;color:#9ca3af;margin:0;">
-        <a href="${SITE_URL}" style="color:#f97316;text-decoration:none;">Voxrate</a> — Amazon review intelligence
+        <a href="${SITE_URL}" style="color:#f05a1e;text-decoration:none;">Voxrate</a> — Amazon review intelligence
       </p>
     </div>
   </div>
@@ -184,7 +184,7 @@ export async function sendMonitorAlert({
   const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://voxrate.app'
   const reportUrl = `${SITE_URL}/dashboard/report/${reportId}`
 
-  const scoreColor = newScore >= 66 ? '#22c55e' : newScore >= 38 ? '#f97316' : '#ef4444'
+  const scoreColor = newScore >= 66 ? '#22c55e' : newScore >= 38 ? '#f05a1e' : '#ef4444'
   const diffText   = dropped ? `dropped ${Math.abs(diff)} points` : `improved ${diff} points`
   const safeProductName = productName.replace(/[^\w\s\-.,!?']/g, '')
   const subject    = dropped
@@ -234,7 +234,7 @@ export async function sendMonitorAlert({
 
       ${complaintsHtml}
 
-      <a href="${reportUrl}" style="display:block;text-align:center;padding:14px;background:#f97316;color:#fff;text-decoration:none;border-radius:10px;font-size:13px;font-weight:700;margin-top:8px;">
+      <a href="${reportUrl}" style="display:block;text-align:center;padding:14px;background:#f05a1e;color:#fff;text-decoration:none;border-radius:10px;font-size:13px;font-weight:700;margin-top:8px;">
         View full report →
       </a>
     </div>
@@ -242,7 +242,7 @@ export async function sendMonitorAlert({
     <div style="padding:16px 24px;border-top:1px solid #f3f4f6;text-align:center;">
       <p style="font-size:11px;color:#9ca3af;margin:0;">
         You're receiving this because you're monitoring this listing on
-        <a href="${SITE_URL}" style="color:#f97316;text-decoration:none;">Voxrate</a>.
+        <a href="${SITE_URL}" style="color:#f05a1e;text-decoration:none;">Voxrate</a>.
         <a href="${SITE_URL}/dashboard/monitor" style="color:#9ca3af;">Manage alerts</a>
       </p>
     </div>

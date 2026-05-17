@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 
 function scoreColor(n: number) {
   if (n <= 37) return { text: 'text-red-500',    bg: 'bg-red-50',    border: 'border-red-100',    hex: '#ef4444' }
-  if (n <= 65) return { text: 'text-orange-500', bg: 'bg-orange-50', border: 'border-orange-100', hex: '#f97316' }
+  if (n <= 65) return { text: 'text-orange-500', bg: 'bg-orange-50', border: 'border-orange-100', hex: '#f05a1e' }
   return               { text: 'text-green-500',  bg: 'bg-green-50',  border: 'border-green-100',  hex: '#22c55e' }
 }
 

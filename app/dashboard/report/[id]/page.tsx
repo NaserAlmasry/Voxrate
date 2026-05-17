@@ -35,14 +35,14 @@ const FREE_PLAN_LIMIT   = 3   // change here if the limit ever changes
 
 function scoreColor(n: number) {
   if (n <= 37) return { text: 'text-red-500',    bg: 'bg-red-50',    border: 'border-red-100',    hex: '#ef4444' }
-  if (n <= 65) return { text: 'text-orange-500', bg: 'bg-orange-50', border: 'border-orange-100', hex: '#f97316' }
+  if (n <= 65) return { text: 'text-orange-500', bg: 'bg-orange-50', border: 'border-orange-100', hex: '#f05a1e' }
   return               { text: 'text-green-500',  bg: 'bg-green-50',  border: 'border-green-100',  hex: '#22c55e' }
 }
 
 function severityConfig(s: string) {
   switch (s?.toUpperCase()) {
     case 'CRITICAL': return { label: 'Critical', bg: 'bg-red-100',    text: 'text-red-700',    border: 'border-red-200',    dot: 'bg-red-500',    hex: '#ef4444', lightBg: '#fee2e2', borderHex: '#fca5a5' }
-    case 'MEDIUM':   return { label: 'Medium',   bg: 'bg-orange-100', text: 'text-orange-700', border: 'border-orange-200', dot: 'bg-orange-500', hex: '#f97316', lightBg: '#ffedd5', borderHex: '#fdba74' }
+    case 'MEDIUM':   return { label: 'Medium',   bg: 'bg-orange-100', text: 'text-orange-700', border: 'border-orange-200', dot: 'bg-orange-500', hex: '#f05a1e', lightBg: '#ffedd5', borderHex: '#fdba74' }
     default:         return { label: 'Low',       bg: 'bg-yellow-50',  text: 'text-yellow-700', border: 'border-yellow-200', dot: 'bg-yellow-400', hex: '#eab308', lightBg: '#fefce8', borderHex: '#fde68a' }
   }
 }
@@ -137,7 +137,7 @@ function buildPrintHTML(report: any, fr: any): string {
     return `
       <div style="margin-bottom:8px;padding:12px;border:1px solid #292524;border-radius:8px;background:#1c1917;page-break-inside:avoid;">
         <div style="display:flex;gap:10px;align-items:flex-start;">
-          <span style="width:20px;height:20px;background:#f97316;border-radius:999px;font-size:11px;font-weight:700;color:#fff;flex-shrink:0;text-align:center;line-height:20px;">${i + 1}</span>
+          <span style="width:20px;height:20px;background:#f05a1e;border-radius:999px;font-size:11px;font-weight:700;color:#fff;flex-shrink:0;text-align:center;line-height:20px;">${i + 1}</span>
           <div>
             <div style="font-size:12px;font-weight:700;color:#fff;">${title}</div>
             ${detail ? `<div style="font-size:11px;color:#d6d3d1;margin-top:6px;line-height:1.6;">${esc(detail)}</div>` : ''}
@@ -148,7 +148,7 @@ function buildPrintHTML(report: any, fr: any): string {
 
   return `
     <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:12px;color:#111;background:#fff;">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:16px;border-bottom:3px solid #f97316;margin-bottom:20px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:16px;border-bottom:3px solid #f05a1e;margin-bottom:20px;">
         <div>
           <div style="font-size:24px;font-weight:900;color:#111;">Voxrate</div>
           <div style="font-size:11px;color:#9ca3af;margin-top:2px;">AI Review Intelligence Report · ${new Date(report.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
@@ -163,16 +163,16 @@ function buildPrintHTML(report: any, fr: any): string {
         <div style="font-size:11px;color:#9ca3af;">${report.total_reviews_analyzed} reviews analyzed</div>
       </div>
       ${fr.summary    ? `<div style="padding:14px;background:#fafafa;border:1px solid #e5e7eb;border-radius:10px;margin-bottom:20px;"><div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#9ca3af;margin-bottom:6px;">Executive Summary</div><div style="font-size:12px;color:#374151;line-height:1.7;">${esc(fr.summary)}</div></div>` : ''}
-      ${fr.quickWin   ? `<div style="padding:14px;background:#f97316;border-radius:10px;margin-bottom:20px;color:#fff;"><div style="font-size:10px;font-weight:700;text-transform:uppercase;opacity:0.8;margin-bottom:6px;">Quick Win — Do This Today</div><div style="font-size:13px;font-weight:700;">${esc(fr.quickWin.action)}</div></div>` : ''}
-      ${safeArray(fr.topActions).length  > 0 ? `<div style="margin-bottom:20px;"><div style="font-size:14px;font-weight:800;color:#111;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #f97316;">Top 3 Actions</div><div style="background:#111;padding:12px;border-radius:10px;">${topActionsHTML}</div></div>` : ''}
-      ${safeArray(fr.complaints).length  > 0 ? `<div style="margin-bottom:20px;"><div style="font-size:14px;font-weight:800;color:#111;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #f97316;">Problems Found (${safeArray(fr.complaints).length})</div>${complaintsHTML}</div>` : ''}
-      ${safeArray(fr.strengths).length   > 0 ? `<div style="margin-bottom:20px;"><div style="font-size:14px;font-weight:800;color:#111;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #f97316;">Strengths (${safeArray(fr.strengths).length})</div>${strengthsHTML}</div>` : ''}
-      ${safeArray(fr.improvements).length  > 0 ? `<div style="margin-bottom:20px;"><div style="font-size:14px;font-weight:800;color:#111;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #f97316;">Improvements (${safeArray(fr.improvements).length})</div>${improvementsHTML}</div>` : ''}
-      ${fr.seo && seoHTML ? `<div style="margin-bottom:20px;"><div style="font-size:14px;font-weight:800;color:#111;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #f97316;">SEO Analysis</div>${seoHTML}</div>` : ''}
-      ${safeArray(fr.marketingCopy).length  > 0 ? `<div style="margin-bottom:20px;"><div style="font-size:14px;font-weight:800;color:#111;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #f97316;">Marketing Copy</div>${marketingHTML}</div>` : ''}
-      ${safeArray(fr.reviewTemplates).length > 0 ? `<div style="margin-bottom:20px;"><div style="font-size:14px;font-weight:800;color:#111;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #f97316;">Review Response Templates</div>${templatesHTML}</div>` : ''}
+      ${fr.quickWin   ? `<div style="padding:14px;background:#f05a1e;border-radius:10px;margin-bottom:20px;color:#fff;"><div style="font-size:10px;font-weight:700;text-transform:uppercase;opacity:0.8;margin-bottom:6px;">Quick Win — Do This Today</div><div style="font-size:13px;font-weight:700;">${esc(fr.quickWin.action)}</div></div>` : ''}
+      ${safeArray(fr.topActions).length  > 0 ? `<div style="margin-bottom:20px;"><div style="font-size:14px;font-weight:800;color:#111;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #f05a1e;">Top 3 Actions</div><div style="background:#111;padding:12px;border-radius:10px;">${topActionsHTML}</div></div>` : ''}
+      ${safeArray(fr.complaints).length  > 0 ? `<div style="margin-bottom:20px;"><div style="font-size:14px;font-weight:800;color:#111;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #f05a1e;">Problems Found (${safeArray(fr.complaints).length})</div>${complaintsHTML}</div>` : ''}
+      ${safeArray(fr.strengths).length   > 0 ? `<div style="margin-bottom:20px;"><div style="font-size:14px;font-weight:800;color:#111;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #f05a1e;">Strengths (${safeArray(fr.strengths).length})</div>${strengthsHTML}</div>` : ''}
+      ${safeArray(fr.improvements).length  > 0 ? `<div style="margin-bottom:20px;"><div style="font-size:14px;font-weight:800;color:#111;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #f05a1e;">Improvements (${safeArray(fr.improvements).length})</div>${improvementsHTML}</div>` : ''}
+      ${fr.seo && seoHTML ? `<div style="margin-bottom:20px;"><div style="font-size:14px;font-weight:800;color:#111;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #f05a1e;">SEO Analysis</div>${seoHTML}</div>` : ''}
+      ${safeArray(fr.marketingCopy).length  > 0 ? `<div style="margin-bottom:20px;"><div style="font-size:14px;font-weight:800;color:#111;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #f05a1e;">Marketing Copy</div>${marketingHTML}</div>` : ''}
+      ${safeArray(fr.reviewTemplates).length > 0 ? `<div style="margin-bottom:20px;"><div style="font-size:14px;font-weight:800;color:#111;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #f05a1e;">Review Response Templates</div>${templatesHTML}</div>` : ''}
       <div style="margin-top:30px;padding-top:16px;border-top:1px solid #e5e7eb;text-align:center;">
-        <div style="font-size:11px;color:#9ca3af;">Generated by <strong style="color:#f97316;">Voxrate</strong> · voxrate.app</div>
+        <div style="font-size:11px;color:#9ca3af;">Generated by <strong style="color:#f05a1e;">Voxrate</strong> · voxrate.app</div>
       </div>
     </div>`
 }
@@ -269,7 +269,7 @@ function ProgressChart({ history }: { history: { date: string; score: number }[]
   const firstScore = scores[0]
   const lastScore  = scores[scores.length - 1]
   const diff       = lastScore - firstScore
-  const color      = lastScore >= 66 ? '#22c55e' : lastScore >= 38 ? '#f97316' : '#ef4444'
+  const color      = lastScore >= 66 ? '#22c55e' : lastScore >= 38 ? '#f05a1e' : '#ef4444'
 
   return (
     <div>
@@ -1121,7 +1121,7 @@ export default function ReportPage() {
                       {segment && <p className="text-xs text-neutral-400 mt-0.5">Affects: {segment}</p>}
                     </div>
                     {detail && (
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f97316" strokeWidth="2.5"
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f05a1e" strokeWidth="2.5"
                         className={`flex-shrink-0 transition-transform mt-0.5 ${expandedTopActions.has(i) ? 'rotate-180' : ''}`}>
                         <polyline points="6 9 12 15 18 9"/>
                       </svg>
@@ -1758,7 +1758,7 @@ export default function ReportPage() {
                   onMouseEnter={() => setRatingHover(star)}
                   onMouseLeave={() => setRatingHover(0)}
                   className="text-4xl transition-transform hover:scale-125 leading-none"
-                  style={{ color: star <= (ratingHover || ratingValue) ? '#f97316' : '#e5e7eb' }}
+                  style={{ color: star <= (ratingHover || ratingValue) ? '#f05a1e' : '#e5e7eb' }}
                 >
                   ★
                 </button>
@@ -1775,7 +1775,7 @@ export default function ReportPage() {
             </p>
             <div className="flex gap-1 justify-center mb-3">
               {[1, 2, 3, 4, 5].map(star => (
-                <span key={star} className="text-2xl leading-none" style={{ color: star <= ratingValue ? '#f97316' : '#e5e7eb' }}>★</span>
+                <span key={star} className="text-2xl leading-none" style={{ color: star <= ratingValue ? '#f05a1e' : '#e5e7eb' }}>★</span>
               ))}
             </div>
             <textarea

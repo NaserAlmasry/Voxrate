@@ -21,7 +21,7 @@ export async function GET() {
         {/* Logo mark */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '48px' }}>
           <div style={{
-            width: '48px', height: '48px', background: '#f97316',
+            width: '48px', height: '48px', background: '#f05a1e',
             borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
             <div style={{ width: '24px', height: '24px', background: 'white', borderRadius: '50%', display: 'flex' }} />
@@ -34,7 +34,7 @@ export async function GET() {
           <span style={{ color: 'white', fontSize: '64px', fontWeight: '800', lineHeight: '1.1', letterSpacing: '-2px' }}>
             AI Review Analyzer
           </span>
-          <span style={{ color: '#f97316', fontSize: '64px', fontWeight: '800', lineHeight: '1.1', letterSpacing: '-2px' }}>
+          <span style={{ color: '#f05a1e', fontSize: '64px', fontWeight: '800', lineHeight: '1.1', letterSpacing: '-2px' }}>
             for Amazon Sellers
           </span>
         </div>

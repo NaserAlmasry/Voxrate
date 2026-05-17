@@ -644,7 +644,7 @@ function DashboardHomeInner() {
               <div className="relative w-28 h-28">
                 <svg viewBox="0 0 36 36" className="w-28 h-28 -rotate-90">
                   <circle cx="18" cy="18" r="15.9" fill="none" stroke="#f5f5f4" strokeWidth="3" />
-                  <circle cx="18" cy="18" r="15.9" fill="none" stroke={latestReport.health_score > 65 ? '#22c55e' : latestReport.health_score > 37 ? '#f97316' : '#ef4444'}
+                  <circle cx="18" cy="18" r="15.9" fill="none" stroke={latestReport.health_score > 65 ? '#22c55e' : latestReport.health_score > 37 ? '#f05a1e' : '#ef4444'}
                     strokeWidth="3" strokeDasharray={`${latestReport.health_score} 100`} strokeLinecap="round" />
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">

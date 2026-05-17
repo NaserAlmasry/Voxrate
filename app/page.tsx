@@ -624,7 +624,7 @@ export default function LandingPage() {
         .scroll-fade.visible { opacity:1; transform:translateY(0); }
         .feat-card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
         .feat-card:hover { transform: translateY(-3px); box-shadow: 0 0 0 2px rgba(249,115,22,0.3), 0 8px 32px rgba(249,115,22,0.12); }
-        .step-connector { background: linear-gradient(90deg, #f97316, #fb923c); }
+        .step-connector { background: linear-gradient(90deg, #f05a1e, #fb923c); }
       `}</style>
 
       {/* ── NAVBAR ── */}
@@ -686,7 +686,7 @@ export default function LandingPage() {
                 You're getting reviews. You don't know what they're actually costing you.
               </p>
               <HeroHeadline />
-              <p className="text-sm text-neutral-500 mb-6 max-w-lg mx-auto">The Amazon review analyzer that turns customer feedback into specific, actionable improvements</p>
+              <p className="text-sm text-neutral-500 mb-4 max-w-lg mx-auto">Analyze · Spy competitors · Fix · Sell more</p>
 
               <div className="max-w-lg mx-auto">
                 <div className={`flex flex-col sm:flex-row gap-2 p-2 bg-white rounded-2xl border shadow-sm transition-colors ${heroUrlError ? 'border-red-300' : 'border-neutral-200'}`}>
@@ -728,8 +728,8 @@ export default function LandingPage() {
             <p className="text-xs font-semibold text-orange-600 uppercase tracking-widest mb-4">Live Demo</p>
             <div className="flex justify-center mb-3">
               <div className="relative inline-block text-left">
-                <svg width="48" height="48" viewBox="0 0 48 48" fill="none" className="absolute -top-4 -left-6 opacity-20" style={{ color: '#f97316' }}>
-                  <text x="0" y="48" fontSize="64" fill="#f97316" fontFamily="Georgia, serif">"</text>
+                <svg width="48" height="48" viewBox="0 0 48 48" fill="none" className="absolute -top-4 -left-6 opacity-20" style={{ color: '#f05a1e' }}>
+                  <text x="0" y="48" fontSize="64" fill="#f05a1e" fontFamily="Georgia, serif">"</text>
                 </svg>
                 <h2 className="text-3xl md:text-4xl font-bold italic text-neutral-900 pl-6" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
                   1,000 reviews.<br />Decisions in one page.
@@ -1191,19 +1191,19 @@ export default function LandingPage() {
             {[
               {
                 n: 1,
-                icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f97316" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>,
+                icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f05a1e" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>,
                 title: 'Paste your Amazon URL or ASIN',
                 body: "Drop in any Amazon product link or ASIN, or upload a CSV export of your reviews. No setup, no forms, no configuration.",
               },
               {
                 n: 2,
-                icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f97316" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>,
+                icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f05a1e" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>,
                 title: 'AI analyzes every review',
                 body: 'Our AI reads all your reviews, finds complaint patterns, hidden strengths, and buyer keywords specific to your listing.',
               },
               {
                 n: 3,
-                icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f97316" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>,
+                icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f05a1e" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>,
                 title: 'Get your full action plan',
                 body: 'See exactly what to fix, what to promote, and which words to add to your listing — grounded in real buyer language.',
               },
@@ -1223,7 +1223,7 @@ export default function LandingPage() {
                 {/* Arrow between steps only */}
                 {idx < 2 && (
                   <div className="flex-shrink-0 my-4 md:my-0 md:mx-2 rotate-90 md:rotate-0">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f97316" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f05a1e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <line x1="5" y1="12" x2="19" y2="12"/>
                       <polyline points="13 6 19 12 13 18"/>
                     </svg>
@@ -1657,7 +1657,7 @@ export default function LandingPage() {
           <div className="grid md:grid-cols-3 gap-5 scroll-fade">
             {[
               {
-                emoji_replaced: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f97316" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>,
+                emoji_replaced: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f05a1e" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>,
                 who: 'New sellers',
                 fit: 'Great fit',
                 fitColor: 'text-green-600 bg-green-50',
@@ -1665,7 +1665,7 @@ export default function LandingPage() {
                 useCase: 'Fix problems early, before your ranking takes a hit',
               },
               {
-                emoji_replaced: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f97316" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>,
+                emoji_replaced: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f05a1e" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>,
                 who: 'Growing sellers',
                 fit: 'Best fit',
                 fitColor: 'text-orange-600 bg-orange-50',
@@ -1673,7 +1673,7 @@ export default function LandingPage() {
                 useCase: 'Break through the plateau with data, not guesswork',
               },
               {
-                emoji_replaced: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f97316" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>,
+                emoji_replaced: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f05a1e" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>,
                 who: 'Experienced sellers',
                 fit: 'Great fit',
                 fitColor: 'text-green-600 bg-green-50',

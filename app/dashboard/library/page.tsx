@@ -39,7 +39,7 @@ function Sparkline({ scores }: { scores: number[] }) {
   })
   const last = scores[scores.length - 1]
   const sc = scoreColor(last)
-  const color = sc.text === 'text-green-500' ? '#22c55e' : sc.text === 'text-orange-500' ? '#f97316' : '#ef4444'
+  const color = sc.text === 'text-green-500' ? '#22c55e' : sc.text === 'text-orange-500' ? '#f05a1e' : '#ef4444'
   return (
     <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
       <polyline
