@@ -63,6 +63,8 @@ function DashboardHomeInner() {
   const [showCancelWarning, setShowCancelWarning] = useState(false)
   const [isCsv, setIsCsv] = useState(false)
   const cancelledRef = useRef(false)
+  const [weeklyDigest, setWeeklyDigest] = useState<{ productName: string; score: number; topComplaint: string | null; prevScore: number | null } | null>(null)
+  const [digestDismissed, setDigestDismissed] = useState(false)
 
   // ── Product info modal (CSV upload) ──────────────────────
   const [showProductModal, setShowProductModal] = useState(false)
@@ -226,6 +228,30 @@ function DashboardHomeInner() {
           .order('created_at', { ascending: false })
           .limit(20)
         if (ownReportData) setOwnReports(ownReportData)
+
+        // Load weekly digest: most recently monitored listing with a score change
+        try {
+          const dismissed = localStorage.getItem('voxrate_digest_week')
+          const thisWeek  = `${new Date().getFullYear()}-W${Math.ceil(new Date().getDate() / 7)}`
+          if (dismissed !== thisWeek) {
+            const { data: monData } = await supabase
+              .from('monitored_listings')
+              .select('product_name, last_score, initial_score, top_complaint')
+              .eq('user_id', user.id)
+              .eq('is_active', true)
+              .order('last_checked_at', { ascending: false })
+              .limit(1)
+            if (monData && monData.length > 0) {
+              const m = monData[0]
+              setWeeklyDigest({
+                productName: m.product_name || 'your listing',
+                score: m.last_score ?? 0,
+                prevScore: m.initial_score ?? null,
+                topComplaint: m.top_complaint ?? null,
+              })
+            }
+          }
+        } catch {}
 
         // Load competitor usage counts for this month per product
         const now        = new Date()
@@ -411,6 +437,40 @@ function DashboardHomeInner() {
           <a href="/#pricing" className="flex-shrink-0 px-3 py-1.5 bg-orange-500 text-white text-xs font-semibold rounded-lg hover:bg-orange-600 transition-colors">
             Get credits →
           </a>
+        </div>
+      )}
+
+      {/* ── Weekly digest card ── */}
+      {weeklyDigest && !digestDismissed && (
+        <div className="bg-white border border-orange-200 rounded-2xl p-4 flex items-start gap-4">
+          <div className="w-9 h-9 bg-orange-50 rounded-xl flex items-center justify-center flex-shrink-0">
+            <TrendingUp size={18} className="text-orange-500" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-neutral-700 mb-0.5">
+              This week's snapshot — <span className="text-orange-600">{weeklyDigest.productName}</span>
+            </p>
+            <p className="text-xs text-neutral-500">
+              Health score: <span className={`font-semibold ${weeklyDigest.score <= 37 ? 'text-red-500' : weeklyDigest.score <= 65 ? 'text-orange-500' : 'text-green-500'}`}>{weeklyDigest.score}/100</span>
+              {weeklyDigest.prevScore !== null && weeklyDigest.prevScore !== weeklyDigest.score && (
+                <span className={`ml-1.5 font-medium ${weeklyDigest.score > weeklyDigest.prevScore ? 'text-green-500' : 'text-red-500'}`}>
+                  {weeklyDigest.score > weeklyDigest.prevScore ? `↑ up ${weeklyDigest.score - weeklyDigest.prevScore} pts` : `↓ down ${weeklyDigest.prevScore - weeklyDigest.score} pts`} since you started monitoring
+                </span>
+              )}
+            </p>
+            {weeklyDigest.topComplaint && (
+              <p className="text-xs text-neutral-400 mt-0.5">
+                Top complaint still open: <span className="text-neutral-600 font-medium">{weeklyDigest.topComplaint}</span>
+              </p>
+            )}
+          </div>
+          <button
+            onClick={() => { setDigestDismissed(true); const w = `${new Date().getFullYear()}-W${Math.ceil(new Date().getDate() / 7)}`; localStorage.setItem('voxrate_digest_week', w) }}
+            className="text-neutral-300 hover:text-neutral-500 flex-shrink-0 transition-colors"
+            aria-label="Dismiss"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
         </div>
       )}
 

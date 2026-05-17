@@ -12,6 +12,40 @@ function scoreColor(n: number) {
   return               { text: 'text-green-500',  bg: 'bg-green-50',  border: 'border-green-100'  }
 }
 
+function ScoreSparkline({ history, current }: { history: number[], current: number }) {
+  const pts = history.length > 0 ? [...history] : [current]
+  if (pts[pts.length - 1] !== current) pts.push(current)
+  if (pts.length < 2) return null
+
+  const W = 80, H = 28, PAD = 3
+  const min = Math.max(0,   Math.min(...pts) - 5)
+  const max = Math.min(100, Math.max(...pts) + 5)
+  const range = max - min || 1
+
+  const toX = (i: number) => PAD + (i / (pts.length - 1)) * (W - PAD * 2)
+  const toY = (v: number) => H - PAD - ((v - min) / range) * (H - PAD * 2)
+
+  const d = pts.map((v, i) => `${i === 0 ? 'M' : 'L'}${toX(i).toFixed(1)},${toY(v).toFixed(1)}`).join(' ')
+
+  const trend = pts[pts.length - 1] - pts[0]
+  const color = trend >= 0 ? '#22c55e' : '#ef4444'
+  const delta = pts[pts.length - 1] - pts[pts.length - 2]
+
+  return (
+    <div className="flex items-center gap-2">
+      <svg width={W} height={H} className="overflow-visible">
+        <path d={d} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        <circle cx={toX(pts.length - 1)} cy={toY(pts[pts.length - 1])} r="3" fill={color} />
+      </svg>
+      {delta !== 0 && (
+        <span className={`text-xs font-semibold ${delta > 0 ? 'text-green-500' : 'text-red-500'}`}>
+          {delta > 0 ? '↑' : '↓'}{Math.abs(delta)}
+        </span>
+      )}
+    </div>
+  )
+}
+
 export default function MonitorPage() {
   const [monitored, setMonitored]       = useState<any[]>([])
   const [ownReports, setOwnReports]     = useState<any[]>([])
@@ -153,6 +187,9 @@ export default function MonitorPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
+                    {(m.history?.length > 1 || (m.history?.length === 1 && m.last_score !== m.history[0])) && (
+                      <ScoreSparkline history={m.history || []} current={m.last_score || 0} />
+                    )}
                     <div className={`text-center px-3 py-1.5 rounded-xl border ${sc.bg} ${sc.border}`}>
                       <p className="text-[10px] text-neutral-400">Score</p>
                       <p className={`text-base font-bold ${sc.text}`}>{m.last_score ?? '—'}</p>

@@ -260,9 +260,9 @@ function FaqSection() {
 }
 
 const HERO_HEADLINES = [
-  { stat: '99.9% of shoppers read reviews before buying.', action: 'Most sellers never find out what those reviews are actually saying.' },
-  { stat: 'A 1-star improvement lifts conversion by 4–5%.', action: 'Your reviews are telling you exactly how to get there.' },
-  { stat: 'Only 5% of sellers respond to their reviews.', action: 'Even fewer actually fix the problems inside them.' },
+  { stat: 'Your buyers already told you what to fix.', action: 'The answers are buried in your reviews. Now you can read them.' },
+  { stat: 'Every complaint is a return you didn\'t have to get.', action: 'Find them before your next buyer does.' },
+  { stat: 'Your listing is leaking sales right now.', action: 'Your customers already wrote down exactly why — you just haven\'t seen it yet.' },
 ]
 
 function HeroHeadline() {
@@ -683,10 +683,10 @@ export default function LandingPage() {
                 TURN REVIEWS INTO REVENUE
               </div>
               <p className="text-sm text-neutral-500 mb-3 max-w-lg mx-auto">
-                You're getting reviews. You don't know what they're actually costing you.
+                You're getting reviews. Most sellers never read what they're actually saying.
               </p>
               <HeroHeadline />
-              <p className="text-sm text-neutral-500 mb-4 max-w-lg mx-auto">Analyze · Spy competitors · Fix · Sell more</p>
+              <p className="text-sm text-neutral-500 mb-4 max-w-lg mx-auto">Paste your Amazon URL. Get a health score, a ranked fix list, and the exact words to use — in under 2 minutes.</p>
 
               <div className="max-w-lg mx-auto">
                 <div className={`flex flex-col sm:flex-row gap-2 p-2 bg-white rounded-2xl border shadow-sm transition-colors ${heroUrlError ? 'border-red-300' : 'border-neutral-200'}`}>
@@ -1240,36 +1240,38 @@ export default function LandingPage() {
         <div className="max-w-3xl mx-auto scroll-fade">
           <div className="text-center mb-10">
             <p className="text-xs font-semibold text-orange-600 uppercase tracking-widest mb-2">Why Voxrate</p>
-            <h2 className="text-3xl font-bold mb-3">Not all Amazon tools are equal</h2>
-            <p className="text-sm text-neutral-500">Other tools tell you what buyers search for. We tell you what buyers actually say — and what to do about it.</p>
+            <h2 className="text-3xl font-bold mb-3">Most Amazon tools score your title.<br/>We score what your customers say.</h2>
+            <p className="text-sm text-neutral-500 max-w-xl mx-auto">Keyword and listing tools tell you what buyers search for <em>before</em> they click. Voxrate tells you what they say <em>after</em> they buy — and exactly how to fix it.</p>
           </div>
 
-          <div className="bg-white rounded-2xl border border-neutral-200 overflow-hidden">
+          <div className="bg-white rounded-2xl border border-neutral-200 overflow-hidden mb-4">
             <div className="grid grid-cols-3 bg-neutral-50 border-b border-neutral-200">
-              <div className="p-4 text-xs font-semibold text-neutral-500 uppercase tracking-wide">Feature</div>
+              <div className="p-4 text-xs font-semibold text-neutral-500 uppercase tracking-wide">Capability</div>
               <div className="p-4 text-center">
                 <span className="text-sm font-bold text-black">Voxrate</span>
               </div>
               <div className="p-4 text-center">
-                <span className="text-sm font-semibold text-neutral-400">Others</span>
+                <span className="text-sm font-semibold text-neutral-400">Typical Amazon tools</span>
               </div>
             </div>
             {[
-              { feature: 'Review sentiment analysis',      us: true,  them: false },
-              { feature: 'Complaint patterns with fixes',  us: true,  them: false },
-              { feature: 'SEO keywords from real buyers',  us: true,  them: 'partial' },
-              { feature: 'Competitor review spy',          us: true,  them: false },
-              { feature: 'AI description rewriter',        us: true,  them: 'partial' },
-              { feature: 'Review reply generator',         us: true,  them: false },
-              { feature: 'Shop health score',              us: true,  them: false },
-              { feature: 'Listing grader (A–F)',           us: true,  them: 'partial' },
-              { feature: 'Pay as you go (no subscription required)', us: true, them: false },
-              { feature: 'Credits never expire',           us: true,  them: false },
+              { feature: 'Single health score per listing — watch it rise as you fix',  us: true,  them: false },
+              { feature: 'Ranked complaint themes — by severity and revenue impact',     us: true,  them: false },
+              { feature: 'Step-by-step fix for each complaint — not just "you should improve"', us: true, them: false },
+              { feature: 'Competitor review weakness spy — see their gaps before they fix', us: true, them: false },
+              { feature: 'Score drop alerts — email when health falls 5+ points',        us: true,  them: false },
+              { feature: 'SEO keywords pulled from real buyer language in your reviews', us: true,  them: 'partial' },
+              { feature: 'AI listing rewriter using your own review keywords',           us: true,  them: 'partial' },
+              { feature: 'Review reply generator (3 tones)',                             us: true,  them: false },
+              { feature: 'Listing keyword score + title/bullets structure audit',       us: 'partial', them: true },
+              { feature: 'Pay as you go — no subscription required',                    us: true,  them: false },
             ].map((row, i) => (
               <div key={i} className={`grid grid-cols-3 border-b border-neutral-100 ${i % 2 === 0 ? '' : 'bg-neutral-50/50'}`}>
                 <div className="p-3.5 text-xs text-neutral-700">{row.feature}</div>
                 <div className="p-3.5 text-center">
-                  <span className="text-green-500 font-bold text-sm">✓</span>
+                  {row.us === true
+                    ? <span className="text-green-500 font-bold text-sm">✓</span>
+                    : <span className="text-xs text-orange-400 font-medium">Partial</span>}
                 </div>
                 <div className="p-3.5 text-center">
                   {row.them === true
@@ -1282,7 +1284,7 @@ export default function LandingPage() {
               </div>
             ))}
           </div>
-          <p className="text-xs text-neutral-400 text-center mt-3">"Others" refers to general Amazon SEO tools. Comparison based on publicly available features.</p>
+          <p className="text-xs text-neutral-400 text-center mt-3">"Typical Amazon tools" refers to general keyword/SEO research tools. Comparison based on publicly available features as of 2026.</p>
         </div>
       </section>
 

@@ -15,7 +15,30 @@ export async function GET() {
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
 
-  return NextResponse.json({ listings: data || [] })
+  const items = data || []
+
+  // Fetch score history per listing
+  let historyMap: Record<string, number[]> = {}
+  try {
+    const { data: history } = await supabase
+      .from('monitor_history')
+      .select('listing_id, score, checked_at')
+      .in('listing_id', items.map((i: any) => i.id))
+      .order('checked_at', { ascending: true })
+    if (history) {
+      for (const h of history) {
+        if (!historyMap[h.listing_id]) historyMap[h.listing_id] = []
+        historyMap[h.listing_id].push(h.score)
+      }
+    }
+  } catch {}
+
+  const itemsWithHistory = items.map((item: any) => ({
+    ...item,
+    history: historyMap[item.id] || [],
+  }))
+
+  return NextResponse.json({ listings: itemsWithHistory })
 }
 
 // POST — add a listing to monitor
