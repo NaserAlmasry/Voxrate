@@ -83,13 +83,17 @@ export async function GET(request: NextRequest) {
           currentScore:  l.last_score   || 0,
           previousScore,
           topComplaint,
-          reportId:      l.report_id,
+          reportId:      l.report_id as string | null,
         }
       })
     )
 
+    // Skip listings with no report yet — their email link would be broken
+    const validItems = digestItems.filter(item => typeof item.reportId === 'string')
+    if (validItems.length === 0) continue
+
     try {
-      await sendWeeklyDigest({ to: user.email, listings: digestItems })
+      await sendWeeklyDigest({ to: user.email, listings: validItems as any })
       sent++
     } catch (err: any) {
       console.error(`[Digest] Failed to send to ${user.email}:`, err.message)
