@@ -1213,11 +1213,11 @@ export default function LandingPage() {
             </h2>
             <p className="text-sm text-neutral-500 mb-6 max-w-xl mx-auto">
               {pricingTab === 'subscription'
-                ? 'Subscribe and get credits every month. Unused credits reset each cycle.'
+                ? 'Subscribe and get credits every month. Unused credits reset each month.'
                 : 'Buy credits when you need them — they never expire. No subscription required.'}
             </p>
             <div className="inline-flex items-center gap-1 p-1 bg-neutral-100 rounded-full">
-              {[{ id: 'packs', label: 'Credit packs' }, { id: 'subscription', label: 'Subscription' }].map(t => (
+              {[{ id: 'subscription', label: 'Subscription' }, { id: 'packs', label: 'Credit packs' }].map(t => (
                 <button key={t.id} onClick={() => setPricingTab(t.id as any)}
                   className={`px-4 py-1.5 text-sm rounded-full transition-all ${pricingTab === t.id ? 'bg-white shadow-sm font-medium' : 'text-neutral-500'}`}>
                   {t.label}
@@ -1225,23 +1225,6 @@ export default function LandingPage() {
                 </button>
               ))}
             </div>
-          </div>
-
-          {/* ── HOW CREDITS WORK ── */}
-          <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-5 mb-8 scroll-fade">
-            <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-3">How credits work</p>
-            <div className="grid md:grid-cols-4 gap-3">
-              {creditItems.map(item => (
-                <div key={item.action} className={`p-3 rounded-xl border text-center ${item.free ? 'bg-green-50 border-green-100' : 'bg-white border-neutral-200'}`}>
-                  <div className="w-8 h-8 rounded-lg bg-white shadow-sm flex items-center justify-center mx-auto mb-2">
-                    {item.icon}
-                  </div>
-                  <p className="text-xs text-neutral-600 mb-1">{item.action}</p>
-                  <p className={`text-sm font-bold ${item.free ? 'text-green-600' : 'text-neutral-900'}`}>{item.cost}</p>
-                </div>
-              ))}
-            </div>
-            <p className="text-xs text-neutral-400 text-center mt-3">Credits never expire · 1 analysis = 20 credits · Competitor analysis = 35 credits</p>
           </div>
 
           {pricingTab === 'subscription' && (
@@ -1330,7 +1313,7 @@ export default function LandingPage() {
                   badge: 'Most popular',
                   features: [
                     '800 credits every month',
-                    'Competitor analysis unlocked — up to 3 per cycle',
+                    'Competitor analysis unlocked — up to 3 per product/month',
                     'Side-by-side battle card vs any competitor',
                     'Full reports + SEO keyword gaps',
                     'Review monitoring & alerts',
@@ -1346,7 +1329,7 @@ export default function LandingPage() {
                   badge: 'Best value',
                   features: [
                     '2,000 credits every month',
-                    'Up to 10 competitor analyses per cycle',
+                    'Up to 10 competitor analyses per product/month',
                     'Unlimited products tracked',
                     'CSV/PDF export for every report',
                     'Re-analyze free — no credits deducted',
@@ -1394,6 +1377,23 @@ export default function LandingPage() {
               })}
             </div>
           )}
+
+          {/* How credits work */}
+          <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-5 mb-8 scroll-fade">
+            <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-3">How credits work</p>
+            <div className="grid md:grid-cols-4 gap-3">
+              {creditItems.map(item => (
+                <div key={item.action} className={`p-3 rounded-xl border text-center ${item.free ? 'bg-green-50 border-green-100' : 'bg-white border-neutral-200'}`}>
+                  <div className="w-8 h-8 rounded-lg bg-white shadow-sm flex items-center justify-center mx-auto mb-2">
+                    {item.icon}
+                  </div>
+                  <p className="text-xs text-neutral-600 mb-1">{item.action}</p>
+                  <p className={`text-sm font-bold ${item.free ? 'text-green-600' : 'text-neutral-900'}`}>{item.cost}</p>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-neutral-400 text-center mt-3">1 own-listing analysis = 20 credits · 1 competitor analysis = 35 credits · All other tools are free</p>
+          </div>
 
           {/* Free tier note */}
           <div className="text-center mb-10">
