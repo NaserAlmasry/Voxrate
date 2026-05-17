@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/app/lib/supabase/client'
 
-type Plan = 'free' | 'starter' | 'pro'
+type Plan = 'free' | 'starter' | 'growth' | 'pro'
 type Pack = 'starter_pack' | 'growth_pack' | 'pro_pack'
 type Selection = { type: 'plan'; plan: Plan } | { type: 'pack'; pack: Pack }
 
@@ -15,8 +15,8 @@ const PLANS = [
     sub: '',
     badge: 'No credit card',
     badgeCls: 'bg-neutral-100 text-neutral-600',
-    desc: '1 full analysis included',
-    features: ['24 credits (1 analysis)', 'Listing grader', 'AI rewriter', 'Reply generator'],
+    desc: '3 full analyses included · expires in 7 days',
+    features: ['60 credits (3 analyses)', 'Listing grader', 'AI rewriter', 'Reply generator'],
     highlight: false,
   },
   {
@@ -26,27 +26,38 @@ const PLANS = [
     sub: '/mo',
     badge: 'Monthly',
     badgeCls: 'bg-neutral-200 text-neutral-700',
-    desc: '720 credits · ≈30 analyses/mo',
-    features: ['720 credits/month', 'All features', 'Competitor watchlist', 'Credits roll over'],
+    desc: '300 credits/month · ≈15 analyses',
+    features: ['300 credits/month', '1 competitor analysis/month', 'Full own-listing reports', 'All free tools'],
     highlight: false,
+  },
+  {
+    id: 'growth' as Plan,
+    name: 'Growth',
+    price: '$24.99',
+    sub: '/mo',
+    badge: 'Most popular',
+    badgeCls: 'bg-orange-500 text-white',
+    desc: '800 credits/month · ≈40 analyses',
+    features: ['800 credits/month', '3 competitor analyses per product/mo', 'Side-by-side battle card', 'All free tools'],
+    highlight: true,
   },
   {
     id: 'pro' as Plan,
     name: 'Pro',
-    price: '$19.99',
+    price: '$49.99',
     sub: '/mo',
     badge: 'Best value',
-    badgeCls: 'bg-orange-500 text-white',
-    desc: '2,400 credits · ≈100 analyses/mo',
-    features: ['2,400 credits/month', 'All features', 'Competitor watchlist + alerts', 'Priority support'],
-    highlight: true,
+    badgeCls: 'bg-neutral-200 text-neutral-700',
+    desc: '2,000 credits/month · ≈100 analyses',
+    features: ['2,000 credits/month', '10 competitor analyses per product/mo', 'Priority support', 'All free tools'],
+    highlight: false,
   },
 ]
 
 const PACKS = [
-  { id: 'starter_pack' as Pack, name: 'Starter Pack', price: '$5.99', credits: '120 credits', analyses: '≈5 analyses' },
-  { id: 'growth_pack' as Pack, name: 'Standard Pack', price: '$14.99', credits: '360 credits', analyses: '≈15 analyses', popular: true },
-  { id: 'pro_pack' as Pack, name: 'Pro Pack', price: '$29.99', credits: '840 credits', analyses: '≈35 analyses' },
+  { id: 'starter_pack' as Pack, name: 'Starter Pack', price: '$4.99', credits: '100 credits', analyses: '≈5 analyses' },
+  { id: 'growth_pack' as Pack, name: 'Growth Pack', price: '$12.99', credits: '300 credits', analyses: '≈15 analyses', popular: true },
+  { id: 'pro_pack' as Pack, name: 'Pro Pack', price: '$24.99', credits: '700 credits', analyses: '≈35 analyses' },
 ]
 
 function GoogleIcon() {

@@ -22,7 +22,7 @@ export default function TermsPage() {
 
           <section>
             <h2 className="text-base font-semibold text-neutral-900 mb-3">2. Description of Service</h2>
-            <p>Voxrate is an AI-powered review analysis platform for Etsy sellers. It analyzes listings and reviews to provide health scores, complaint summaries, SEO recommendations, and AI-generated content. The Service is provided as-is and features may change at any time.</p>
+            <p>Voxrate is an AI-powered review analysis platform for Amazon sellers. It analyzes Amazon listings and reviews to provide health scores, complaint summaries, SEO recommendations, and AI-generated content. The Service is provided as-is and features may change at any time.</p>
           </section>
 
           <section>

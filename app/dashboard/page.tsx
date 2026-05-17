@@ -755,7 +755,7 @@ function DashboardHomeInner() {
         <div className="flex items-center gap-5">
           <a href="/terms" target="_blank" rel="noopener noreferrer" className="hover:text-black transition-colors">Terms</a>
           <a href="/privacy" target="_blank" rel="noopener noreferrer" className="hover:text-black transition-colors">Privacy</a>
-          <a href="mailto:hello@voxrate.app" className="hover:text-black transition-colors">Contact</a>
+          <a href="mailto:info@voxrate.app" className="hover:text-black transition-colors">Contact</a>
         </div>
       </div>
 

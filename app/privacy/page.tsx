@@ -17,14 +17,14 @@ export default function PrivacyPage() {
 
           <section>
             <h2 className="text-base font-semibold text-neutral-900 mb-3">1. Who We Are</h2>
-            <p>Voxrate ("we", "us", "our") is an AI-powered review analysis platform for Etsy sellers. For privacy inquiries, contact us at <a href="mailto:info@voxrate.app" className="underline text-black">info@voxrate.app</a>.</p>
+            <p>Voxrate ("we", "us", "our") is an AI-powered review analysis platform for Amazon sellers. For privacy inquiries, contact us at <a href="mailto:info@voxrate.app" className="underline text-black">info@voxrate.app</a>.</p>
           </section>
 
           <section>
             <h2 className="text-base font-semibold text-neutral-900 mb-3">2. What Data We Collect</h2>
             <ul className="list-disc pl-5 space-y-2">
               <li><span className="font-medium text-neutral-800">Account data:</span> Email address, name, and authentication provider (Google or email/password) when you create an account.</li>
-              <li><span className="font-medium text-neutral-800">Usage data:</span> Etsy listing URLs you analyze, analysis results, credit balance, and subscription status.</li>
+              <li><span className="font-medium text-neutral-800">Usage data:</span> Amazon listing URLs and ASINs you analyze, analysis results, credit balance, and subscription status.</li>
               <li><span className="font-medium text-neutral-800">Payment data:</span> Payment processing is handled entirely by Stripe. We never see or store your card details.</li>
               <li><span className="font-medium text-neutral-800">Technical data:</span> IP address (for rate limiting), browser type, and pages visited (via Vercel Analytics).</li>
               <li><span className="font-medium text-neutral-800">Error data:</span> Crash reports and error logs via Sentry, which may include browser and OS information.</li>
