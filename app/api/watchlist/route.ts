@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
     .select('id')
     .eq('user_id', user.id)
     .eq('product_url', report.product_url)
-    .single()
+    .maybeSingle()
 
   if (existing) {
     await supabase

@@ -109,7 +109,7 @@ export default function AuthModal({ onClose, initialStep = 'plan', initialAuthMo
 
   const handleEmailAuth = async () => {
     if (!email.trim() || !password) return
-    if (authMode === 'signup' && !selection) { setLoading(false); return }
+    if (authMode === 'signup' && !selection) { setError('Please select a plan first.'); return }
     setError('')
     setLoading(true)
     if (authMode === 'signup' && selection) {
