@@ -918,7 +918,7 @@ Return ONLY this JSON — start with { immediately:
     "issues": ["<phrase in reviews but absent from listing>", "<another gap>"],
     "suggestions": [
       "<exact phrase to add to title — from 5★ language only>",
-      "<exact Etsy tag + why>",
+      "<exact backend keyword phrase + why>",
       "<exact sentence to add to description>"
     ]
   },
@@ -1105,7 +1105,7 @@ Return ONLY this JSON — start with { immediately:
     p.summary = `Health score ${ctx.healthScore}/100 — the biggest revenue threat is ${topComplaintTitle.toLowerCase()}. The biggest growth opportunity is amplifying ${topStrengthTitle.toLowerCase()}.`
   }
   if (!p.improvements || p.improvements.length === 0) {
-    p.improvements = [{ title: 'Amplify top strength in listing copy', description: `Your ${topStrengthTitle.toLowerCase()} is already resonating with buyers — move it to the first line of your listing description and create an Etsy tag that matches how buyers describe it in 5-star reviews.`, impact: 'Improved alignment between search intent and listing headline.' }]
+    p.improvements = [{ title: 'Amplify top strength in listing copy', description: `Your ${topStrengthTitle.toLowerCase()} is already resonating with buyers — move it to the first line of your listing description and add a backend keyword that matches how buyers describe it in 5-star reviews.`, impact: 'Improved alignment between search intent and listing headline.' }]
   }
   if (p.seo && seoTopPhrases.length >= 3) {
     const currentKeywords: string[] = p.seo.magicKeywords || []

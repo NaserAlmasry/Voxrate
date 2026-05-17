@@ -99,7 +99,7 @@ export default function PublicReportPage() {
         {/* Header */}
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
-            <h1 className="text-lg font-semibold leading-tight">{safeStr(report.product_name, 'Etsy Product')}</h1>
+            <h1 className="text-lg font-semibold leading-tight">{safeStr(report.product_name, 'Amazon Product')}</h1>
             <p className="text-xs text-neutral-400 mt-0.5">
               {report.total_reviews_analyzed} reviews analyzed · {new Date(report.created_at).toLocaleDateString()}
             </p>

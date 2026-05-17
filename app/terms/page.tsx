@@ -58,7 +58,7 @@ export default function TermsPage() {
 
           <section>
             <h2 className="text-base font-semibold text-neutral-900 mb-3">9. Disclaimers</h2>
-            <p>Voxrate is not affiliated with or endorsed by Etsy Inc. The Service is provided without warranties of any kind. We do not guarantee uninterrupted or error-free operation.</p>
+            <p>Voxrate is not affiliated with or endorsed by Amazon.com, Inc. The Service is provided without warranties of any kind. We do not guarantee uninterrupted or error-free operation.</p>
           </section>
 
           <section>

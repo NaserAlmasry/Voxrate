@@ -150,7 +150,7 @@ export async function sendReportComplete({
     </div>
     <div style="padding:16px 24px;border-top:1px solid #f3f4f6;text-align:center;">
       <p style="font-size:11px;color:#9ca3af;margin:0;">
-        <a href="${SITE_URL}" style="color:#f97316;text-decoration:none;">Voxrate</a> — Etsy review intelligence
+        <a href="${SITE_URL}" style="color:#f97316;text-decoration:none;">Voxrate</a> — Amazon review intelligence
       </p>
     </div>
   </div>

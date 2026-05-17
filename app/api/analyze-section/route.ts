@@ -257,7 +257,7 @@ Return ONLY this JSON — start with { immediately:
           const topStrength = updatedReport.strengths?.[0]?.title || 'product quality'
           updatedReport.improvements = [{
             title: 'Amplify top strength in listing copy',
-            description: `Your ${topStrength.toLowerCase()} is resonating with buyers — move it to the first line of your listing description and create an Etsy tag matching how buyers describe it in 5-star reviews.`,
+            description: `Your ${topStrength.toLowerCase()} is resonating with buyers — move it to the first line of your listing description and add a backend keyword matching how buyers describe it in 5-star reviews.`,
             impact: 'Better alignment between search intent and listing headline.',
           }]
         }
@@ -304,7 +304,7 @@ Return ONLY this JSON — start with { immediately:
     "issues": ["<exact phrase reviewers used that is missing from the listing>", "<another exact reviewer phrase>"],
     "suggestions": [
       "<exact phrase from 5★ reviews to insert into listing title — e.g. 'stays sharp after months of daily chopping'>",
-      "<exact Etsy tag from reviewer language + which reviews it comes from>",
+      "<exact backend keyword phrase from reviewer language + which reviews it comes from>",
       "<exact sentence from 5★ reviews to paste into the listing description>"
     ]
   },

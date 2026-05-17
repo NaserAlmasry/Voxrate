@@ -35,7 +35,7 @@ export async function GET() {
             AI Review Analyzer
           </span>
           <span style={{ color: '#f97316', fontSize: '64px', fontWeight: '800', lineHeight: '1.1', letterSpacing: '-2px' }}>
-            for Etsy Sellers
+            for Amazon Sellers
           </span>
         </div>
 
