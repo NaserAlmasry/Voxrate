@@ -282,14 +282,14 @@ function HeroHeadline() {
 
   const h = HERO_HEADLINES[idx]
   return (
-    <div className="min-h-[160px] flex flex-col items-center lg:items-start justify-center mb-6">
+    <div className="min-h-[140px] flex flex-col items-center md:items-start justify-center mb-5">
       <h1
         key={idx}
-        className={`text-4xl md:text-5xl font-bold tracking-normal leading-[1.2] text-center lg:text-left ${phase === 'in' ? 'hero-rotate-in' : 'hero-rotate-out'}`}
+        className={`text-3xl md:text-4xl lg:text-5xl font-bold tracking-normal leading-[1.15] text-center md:text-left ${phase === 'in' ? 'hero-rotate-in' : 'hero-rotate-out'}`}
       >
         {h.stat}<br />{h.action}
       </h1>
-      <div className="flex gap-1.5 mt-5 justify-center lg:justify-start">
+      <div className="flex gap-1.5 mt-4 justify-center md:justify-start">
         {HERO_HEADLINES.map((_, i) => (
           <button key={i} onClick={() => { setPhase('out'); setTimeout(() => { setIdx(i); setPhase('in') }, 420) }}
             className={`h-1 rounded-full transition-all duration-300 ${i === idx ? 'w-6 bg-orange-500' : 'w-2 bg-neutral-300'}`}
@@ -302,7 +302,7 @@ function HeroHeadline() {
 
 function HeroDashboardMockup() {
   return (
-    <div className="relative w-full max-w-sm mx-auto lg:mx-0 select-none" aria-hidden="true">
+    <div className="relative w-full max-w-xs mx-auto md:mx-0 select-none" aria-hidden="true">
       {/* Glow behind card */}
       <div className="absolute -inset-4 bg-orange-500/10 rounded-3xl blur-2xl" />
       <div className="relative bg-white rounded-2xl border border-neutral-200 shadow-2xl overflow-hidden text-left">
@@ -673,36 +673,36 @@ export default function LandingPage() {
       </nav>
 
       {/* ── HERO ── */}
-      <section className="pt-32 pb-20 px-6">
-        <div className="max-w-6xl mx-auto">
-          <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-16">
+      <section className="pt-28 pb-16 px-6">
+        <div className="max-w-5xl mx-auto">
+          <div className="flex flex-col md:flex-row items-center gap-10 md:gap-12">
             {/* Left: text + input */}
-            <div className="flex-1 text-center lg:text-left">
-              <div className="bdg inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-50 border border-orange-200 text-xs text-orange-700 mb-4 cursor-default select-none">
+            <div className="flex-1 text-center md:text-left">
+              <div className="bdg inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-50 border border-orange-200 text-xs text-orange-700 mb-3 cursor-default select-none">
                 <span className="bdot w-1.5 h-1.5 rounded-full bg-orange-500" />
                 TURN REVIEWS INTO REVENUE
               </div>
-              <p className="text-base text-neutral-500 mb-4 max-w-lg lg:mx-0 mx-auto">
+              <p className="text-sm text-neutral-500 mb-3 max-w-lg mx-auto md:mx-0">
                 You're getting reviews. You don't know what they're actually costing you.
               </p>
               <HeroHeadline />
-              <p className="text-sm text-neutral-500 mb-8 max-w-xl lg:mx-0 mx-auto">The Amazon review analyzer that turns customer feedback into specific, actionable improvements</p>
+              <p className="text-sm text-neutral-500 mb-6 max-w-lg mx-auto md:mx-0">The Amazon review analyzer that turns customer feedback into specific, actionable improvements</p>
 
-              <div className="max-w-xl">
+              <div className="max-w-lg">
                 <div className={`flex flex-col sm:flex-row gap-2 p-2 bg-white rounded-2xl border shadow-sm transition-colors ${heroUrlError ? 'border-red-300' : 'border-neutral-200'}`}>
                   <label htmlFor="hero-url" className="sr-only">Amazon product URL or ASIN</label>
                   <input id="hero-url" type="url" value={heroUrl} onChange={e => { setHeroUrl(e.target.value); setHeroUrlError('') }}
                     onKeyDown={e => e.key === 'Enter' && analyzeHero()}
-                    placeholder="Paste your Amazon product URL or ASIN..."
-                    className="flex-1 px-4 py-3 text-base bg-transparent outline-none placeholder:text-neutral-400" />
-                  <button onClick={analyzeHero} className="glow px-6 py-3 bg-black text-white font-medium rounded-xl whitespace-nowrap">
+                    placeholder="Paste your Amazon URL or ASIN..."
+                    className="flex-1 px-4 py-3 text-sm bg-transparent outline-none placeholder:text-neutral-400" />
+                  <button onClick={analyzeHero} className="glow px-5 py-3 bg-black text-white font-medium rounded-xl whitespace-nowrap text-sm">
                     <span className="block leading-tight">Analyze →</span>
                     <span className="block text-[10px] text-neutral-400 font-normal leading-tight mt-0.5">First analysis free</span>
                   </button>
                 </div>
                 {heroUrlError && <p className="text-xs text-red-500 mt-2 text-left px-1">{heroUrlError}</p>}
 
-                <div className="mt-5 flex flex-wrap justify-center lg:justify-start gap-x-6 gap-y-2 text-sm text-neutral-500">
+                <div className="mt-4 flex flex-wrap justify-center md:justify-start gap-x-5 gap-y-2 text-xs text-neutral-500">
                   {['First analysis free', 'No credit card required', 'Specific fixes, not guesses'].map(t => (
                     <span key={t} className="flex items-center gap-1.5">
                       <span className="w-1 h-1 rounded-full bg-green-500" />{t}
@@ -714,7 +714,7 @@ export default function LandingPage() {
             </div>
 
             {/* Right: dashboard mockup */}
-            <div className="w-full lg:w-auto lg:flex-shrink-0 lg:w-[340px]">
+            <div className="w-full md:w-auto md:flex-shrink-0 md:w-[300px] lg:w-[340px]">
               <HeroDashboardMockup />
             </div>
           </div>
