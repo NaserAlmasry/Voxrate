@@ -705,6 +705,8 @@ export default function ReportPage() {
     setShowComparePicker(true)
     if (ownReports.length > 0) return
     setOwnReportsLoading(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setOwnReportsLoading(false); return }
     const { data } = await supabase
       .from('reports')
       .select('id, product_name, health_score, created_at')
