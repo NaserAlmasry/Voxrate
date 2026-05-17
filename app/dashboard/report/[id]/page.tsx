@@ -671,6 +671,7 @@ export default function ReportPage() {
 
   const toggleShare = async () => {
     if (!reportId) return
+    if (!isPublic && !window.confirm('Make this report publicly visible? Anyone with the link will be able to view it.')) return
     setShareLoading(true)
     const next = !isPublic
     const res  = await fetch(`/api/report/${reportId}/share`, {
@@ -930,12 +931,12 @@ export default function ReportPage() {
               onClick={handleReanalyze}
               disabled={reanalyzing}
               className="px-3 py-2 text-xs font-medium border border-neutral-200 rounded-xl hover:bg-neutral-50 transition-colors flex items-center gap-1.5 disabled:opacity-50"
-              title="Re-analyze this listing to get fresh data"
+              title="Re-analyze this listing to get fresh data (costs 20 credits)"
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                 <path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
               </svg>
-              {reanalyzing ? 'Starting…' : 'Re-analyze'}
+              {reanalyzing ? 'Starting…' : 'Re-analyze · 20cr'}
             </button>
           )}
 

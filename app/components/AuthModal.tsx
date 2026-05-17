@@ -109,7 +109,7 @@ export default function AuthModal({ onClose, initialStep = 'plan', initialAuthMo
 
   const handleEmailAuth = async () => {
     if (!email.trim() || !password) return
-    if (authMode === 'signup' && !selection) return
+    if (authMode === 'signup' && !selection) { setLoading(false); return }
     setError('')
     setLoading(true)
     if (authMode === 'signup' && selection) {
@@ -275,9 +275,28 @@ export default function AuthModal({ onClose, initialStep = 'plan', initialAuthMo
                 </button>
               </div>
 
+              {/* Forgot password — email login mode */}
+              {authMode === 'login' && (
+                <p className="text-center text-xs text-neutral-400 mt-2">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!email.trim()) { setError('Enter your email address above first.'); return }
+                      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+                        redirectTo: `${window.location.origin}/auth/callback`,
+                      })
+                      setError(error ? error.message : 'Password reset email sent — check your inbox.')
+                    }}
+                    className="text-neutral-400 hover:text-black hover:underline transition-colors"
+                  >
+                    Forgot password?
+                  </button>
+                </p>
+              )}
+
               {/* Login-only: link to plans */}
               {authMode === 'login' && !selection && (
-                <p className="text-center text-xs text-neutral-400 mt-4">
+                <p className="text-center text-xs text-neutral-400 mt-3">
                   Don&apos;t have an account?{' '}
                   <button
                     type="button"

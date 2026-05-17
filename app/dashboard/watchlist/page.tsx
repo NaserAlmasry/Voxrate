@@ -134,7 +134,7 @@ export default function WatchlistPage() {
     await load()
   }
 
-  const isPaid = plan === 'starter' || plan === 'pro'
+  const isPaid = plan === 'starter' || plan === 'growth' || plan === 'pro'
 
   if (loading) return (
     <div className="max-w-2xl mx-auto space-y-3">

@@ -52,7 +52,8 @@ function CompetitorPage() {
 
   const handleAnalyze = async () => {
     if (!url.trim()) return
-    if (!url.includes('amazon.com') && !/^[A-Z0-9]{10}$/i.test(url.trim())) {
+    const isValidAmazon = /amazon\.(com|co\.uk|de|co\.jp|ca|com\.au|fr|it|es|com\.mx|nl|se|pl)(\/|$)/.test(url) || /^[A-Z0-9]{10}$/i.test(url.trim())
+    if (!isValidAmazon) {
       setError('Please paste a valid Amazon URL or ASIN')
       return
     }
@@ -84,7 +85,7 @@ function CompetitorPage() {
     }
   }
 
-  const isPaid = plan === 'starter' || plan === 'pro'
+  const isPaid = plan === 'starter' || plan === 'growth' || plan === 'pro'
 
   return (
     <div className="max-w-2xl mx-auto space-y-5">
@@ -101,7 +102,7 @@ function CompetitorPage() {
               <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>
             </svg>
           </div>
-          <h2 className="text-base font-semibold mb-2">Starter & Pro feature</h2>
+          <h2 className="text-base font-semibold mb-2">Starter, Growth & Pro feature</h2>
           <p className="text-sm text-neutral-500 mb-1">See exactly what your competitors' customers complain about.</p>
           <p className="text-xs text-neutral-400 mb-6">Identify gaps they haven't fixed — and make them your selling points.</p>
           <a
