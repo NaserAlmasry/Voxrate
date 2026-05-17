@@ -408,14 +408,14 @@ function HeroHeadline() {
 
   const h = HERO_HEADLINES[idx]
   return (
-    <div className="min-h-[180px] md:min-h-[220px] flex flex-col items-center justify-center mb-6">
+    <div className="min-h-[160px] flex flex-col items-center lg:items-start justify-center mb-6">
       <h1
         key={idx}
-        className={`text-4xl md:text-6xl font-bold tracking-normal leading-[1.2] text-center ${phase === 'in' ? 'hero-rotate-in' : 'hero-rotate-out'}`}
+        className={`text-4xl md:text-5xl font-bold tracking-normal leading-[1.2] text-center lg:text-left ${phase === 'in' ? 'hero-rotate-in' : 'hero-rotate-out'}`}
       >
         {h.stat}<br />{h.action}
       </h1>
-      <div className="flex gap-1.5 mt-6">
+      <div className="flex gap-1.5 mt-5 justify-center lg:justify-start">
         {HERO_HEADLINES.map((_, i) => (
           <button key={i} onClick={() => { setPhase('out'); setTimeout(() => { setIdx(i); setPhase('in') }, 420) }}
             className={`h-1 rounded-full transition-all duration-300 ${i === idx ? 'w-6 bg-orange-500' : 'w-2 bg-neutral-300'}`}
@@ -423,6 +423,156 @@ function HeroHeadline() {
         ))}
       </div>
     </div>
+  )
+}
+
+function HeroDashboardMockup() {
+  return (
+    <div className="relative w-full max-w-sm mx-auto lg:mx-0 select-none" aria-hidden="true">
+      {/* Glow behind card */}
+      <div className="absolute -inset-4 bg-orange-500/10 rounded-3xl blur-2xl" />
+      <div className="relative bg-white rounded-2xl border border-neutral-200 shadow-2xl overflow-hidden text-left">
+        {/* Header bar */}
+        <div className="bg-neutral-900 px-4 py-3 flex items-center gap-2">
+          <div className="flex gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-red-400"/><span className="w-2.5 h-2.5 rounded-full bg-yellow-400"/><span className="w-2.5 h-2.5 rounded-full bg-green-400"/></div>
+          <span className="text-[10px] text-neutral-400 ml-2 font-mono truncate">voxrate.app/dashboard/report</span>
+        </div>
+        {/* Product row */}
+        <div className="px-4 pt-4 pb-3 border-b border-neutral-100 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[10px] text-neutral-400 mb-0.5">Amazon · B08N5WRWNW</p>
+            <p className="text-sm font-semibold leading-tight">Premium Stainless<br/>Water Bottle 32oz</p>
+            <div className="flex items-center gap-1 mt-1">
+              <span className="text-yellow-400 text-xs">★★★</span>
+              <span className="text-[10px] text-neutral-500">3.1 · 2,847 reviews</span>
+            </div>
+          </div>
+          <div className="text-center bg-red-50 border border-red-100 rounded-xl px-3 py-2 flex-shrink-0">
+            <p className="text-[10px] text-neutral-500">Health</p>
+            <p className="text-2xl font-black text-red-500">34</p>
+            <p className="text-[10px] text-neutral-400">/100</p>
+          </div>
+        </div>
+        {/* Quick win */}
+        <div className="mx-4 mt-3 bg-gradient-to-r from-orange-500 to-amber-500 rounded-xl p-3">
+          <p className="text-[9px] font-semibold text-orange-100 uppercase tracking-wider mb-1">⚡ Quick Win</p>
+          <p className="text-xs font-semibold text-white leading-snug">Add "leak-proof lid" to your title — fixes 43% of 1-star reviews</p>
+        </div>
+        {/* Complaints */}
+        <div className="px-4 pt-3 pb-4 space-y-2">
+          <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wide">Top complaints</p>
+          {[
+            { label: 'Lid leaks under pressure', pct: 43, color: 'bg-red-500' },
+            { label: 'Coating peels after 2 months', pct: 28, color: 'bg-orange-400' },
+            { label: 'Arrived dented', pct: 19, color: 'bg-yellow-400' },
+          ].map(c => (
+            <div key={c.label}>
+              <div className="flex justify-between text-[10px] mb-0.5">
+                <span className="text-neutral-600 truncate pr-2">{c.label}</span>
+                <span className="text-neutral-400 flex-shrink-0">{c.pct}%</span>
+              </div>
+              <div className="h-1 bg-neutral-100 rounded-full overflow-hidden">
+                <div className={`h-full ${c.color} rounded-full`} style={{ width: `${c.pct}%` }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      {/* Floating badge */}
+      <div className="absolute -bottom-3 -right-3 bg-black text-white text-[10px] font-semibold px-3 py-1.5 rounded-full shadow-lg">
+        AI fix generated ✓
+      </div>
+    </div>
+  )
+}
+
+function SocialProofSection() {
+  return (
+    <section className="py-20 px-6 bg-neutral-950">
+      <div className="max-w-4xl mx-auto">
+        <div className="text-center mb-12">
+          <p className="text-xs font-semibold text-orange-400 uppercase tracking-widest mb-2">The research is clear</p>
+          <h2 className="text-3xl md:text-4xl font-bold text-white mb-3">Amazon reviews are your biggest lever.<br/>Almost no one pulls it.</h2>
+          <p className="text-sm text-neutral-400 max-w-xl mx-auto">These numbers come from independent research — not our marketing team.</p>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-4 mb-10">
+          {[
+            {
+              stat: '84%',
+              claim: 'of Amazon sellers say reviews are "extremely or very important" to their business',
+              source: 'eComEngine — Impact of Amazon Reviews, 200+ sellers surveyed',
+              year: '2024',
+              color: 'border-orange-500/30 bg-orange-500/5',
+              statColor: 'text-orange-400',
+            },
+            {
+              stat: '20×',
+              claim: 'It takes 20+ five-star reviews to undo the damage of just one negative review',
+              source: 'Seller Labs — Negative Review Recovery Study',
+              year: '2024',
+              color: 'border-red-500/30 bg-red-500/5',
+              statColor: 'text-red-400',
+            },
+            {
+              stat: '4–5%',
+              claim: 'conversion rate lift for every 1-star improvement in your Amazon rating',
+              source: 'Pattern Research — Amazon Star Rating Conversion Analysis',
+              year: '2024',
+              color: 'border-green-500/30 bg-green-500/5',
+              statColor: 'text-green-400',
+            },
+            {
+              stat: '69%',
+              claim: 'of Amazon sellers are stagnant or losing money — only 23% are genuinely thriving',
+              source: 'Marketplace Pulse — Seller Index 2026',
+              year: '2026',
+              color: 'border-blue-500/30 bg-blue-500/5',
+              statColor: 'text-blue-400',
+            },
+          ].map(s => (
+            <div key={s.stat} className={`rounded-2xl border p-6 ${s.color}`}>
+              <p className={`text-5xl font-black mb-3 ${s.statColor}`}>{s.stat}</p>
+              <p className="text-sm text-white font-medium leading-snug mb-3">{s.claim}</p>
+              <p className="text-[10px] text-neutral-500 leading-relaxed">{s.source} · {s.year}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="bg-neutral-900 rounded-2xl border border-neutral-800 p-6">
+          <p className="text-xs font-semibold text-neutral-400 uppercase tracking-widest mb-5 text-center">What sellers say about the problem Voxrate solves</p>
+          <div className="grid md:grid-cols-3 gap-4">
+            {[
+              {
+                quote: 'Managing negative reviews is the #2 challenge for Amazon sellers — right behind getting more reviews in the first place.',
+                attribution: 'eComEngine Seller Survey, 2024',
+                icon: '📊',
+              },
+              {
+                quote: 'A batch of negative feedback killed my business in 2 days. I had no idea what was causing it until it was too late.',
+                attribution: 'Amazon Seller Central Forums (public post)',
+                icon: '💬',
+              },
+              {
+                quote: '29% of active Amazon sellers name negative review management as their most pressing operational challenge.',
+                attribution: 'eComEngine — 200+ Sellers Surveyed, 2024',
+                icon: '📋',
+              },
+            ].map((q, i) => (
+              <div key={i} className="bg-neutral-800/50 rounded-xl p-4 border border-neutral-700/50">
+                <p className="text-xl mb-3">{q.icon}</p>
+                <p className="text-sm text-neutral-200 leading-relaxed mb-3 italic">"{q.quote}"</p>
+                <p className="text-[10px] text-neutral-500">{q.attribution}</p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-6 pt-5 border-t border-neutral-800 text-center">
+            <p className="text-sm text-neutral-300 mb-1">Voxrate is built to solve exactly this — automatically, in under 2 minutes.</p>
+            <p className="text-xs text-neutral-500">Paste your Amazon URL and get a full breakdown of what's hurting your score and how to fix it.</p>
+          </div>
+        </div>
+      </div>
+    </section>
   )
 }
 
@@ -653,43 +803,50 @@ export default function LandingPage() {
       </nav>
 
       {/* ── HERO ── */}
-      <section className="pt-40 pb-24 px-6">
-        <div className="max-w-4xl mx-auto text-center">
-          <div className="bdg inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-50 border border-orange-200 text-xs text-orange-700 mb-4 cursor-default select-none">
-            <span className="bdot w-1.5 h-1.5 rounded-full bg-orange-500" />
-            TURN REVIEWS INTO REVENUE
-          </div>
-          <p className="text-base text-neutral-500 mb-4 max-w-lg mx-auto">
-            You're getting reviews. You don't know what they're actually costing you.
-          </p>
-          <HeroHeadline />
-          <p className="text-sm text-neutral-500 mb-8 max-w-xl mx-auto">The Amazon review analyzer that turns customer feedback into specific, actionable improvements</p>
+      <section className="pt-32 pb-20 px-6">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-16">
+            {/* Left: text + input */}
+            <div className="flex-1 text-center lg:text-left">
+              <div className="bdg inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-50 border border-orange-200 text-xs text-orange-700 mb-4 cursor-default select-none">
+                <span className="bdot w-1.5 h-1.5 rounded-full bg-orange-500" />
+                TURN REVIEWS INTO REVENUE
+              </div>
+              <p className="text-base text-neutral-500 mb-4 max-w-lg lg:mx-0 mx-auto">
+                You're getting reviews. You don't know what they're actually costing you.
+              </p>
+              <HeroHeadline />
+              <p className="text-sm text-neutral-500 mb-8 max-w-xl lg:mx-0 mx-auto">The Amazon review analyzer that turns customer feedback into specific, actionable improvements</p>
 
-          <div className="max-w-2xl mx-auto">
-            <div className={`flex flex-col sm:flex-row gap-2 p-2 bg-white rounded-2xl border shadow-sm transition-colors ${heroUrlError ? 'border-red-300' : 'border-neutral-200'}`}>
-              <label htmlFor="hero-url" className="sr-only">Amazon product URL or ASIN</label>
-              <input id="hero-url" type="url" value={heroUrl} onChange={e => { setHeroUrl(e.target.value); setHeroUrlError('') }}
-                onKeyDown={e => e.key === 'Enter' && analyzeHero()}
-                placeholder="Paste your Amazon product URL or ASIN..."
-                className="flex-1 px-4 py-3 text-base bg-transparent outline-none placeholder:text-neutral-400" />
-              <button onClick={analyzeHero} className="glow px-6 py-3 bg-black text-white font-medium rounded-xl whitespace-nowrap">
-                <span className="block leading-tight">Analyze →</span>
-                <span className="block text-[10px] text-neutral-400 font-normal leading-tight mt-0.5">First analysis free</span>
-              </button>
+              <div className="max-w-xl">
+                <div className={`flex flex-col sm:flex-row gap-2 p-2 bg-white rounded-2xl border shadow-sm transition-colors ${heroUrlError ? 'border-red-300' : 'border-neutral-200'}`}>
+                  <label htmlFor="hero-url" className="sr-only">Amazon product URL or ASIN</label>
+                  <input id="hero-url" type="url" value={heroUrl} onChange={e => { setHeroUrl(e.target.value); setHeroUrlError('') }}
+                    onKeyDown={e => e.key === 'Enter' && analyzeHero()}
+                    placeholder="Paste your Amazon product URL or ASIN..."
+                    className="flex-1 px-4 py-3 text-base bg-transparent outline-none placeholder:text-neutral-400" />
+                  <button onClick={analyzeHero} className="glow px-6 py-3 bg-black text-white font-medium rounded-xl whitespace-nowrap">
+                    <span className="block leading-tight">Analyze →</span>
+                    <span className="block text-[10px] text-neutral-400 font-normal leading-tight mt-0.5">First analysis free</span>
+                  </button>
+                </div>
+                {heroUrlError && <p className="text-xs text-red-500 mt-2 text-left px-1">{heroUrlError}</p>}
+
+                <div className="mt-5 flex flex-wrap justify-center lg:justify-start gap-x-6 gap-y-2 text-sm text-neutral-500">
+                  {['First analysis free', 'No credit card required', 'Specific fixes, not guesses'].map(t => (
+                    <span key={t} className="flex items-center gap-1.5">
+                      <span className="w-1 h-1 rounded-full bg-green-500" />{t}
+                    </span>
+                  ))}
+                </div>
+                <InlineStats />
+              </div>
             </div>
-            {heroUrlError && <p className="text-xs text-red-500 mt-2 text-left px-1">{heroUrlError}</p>}
 
-
-            <div className="mt-6 flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-neutral-500">
-              {['First analysis free', 'No credit card required', 'Specific fixes, not guesses'].map(t => (
-                <span key={t} className="flex items-center gap-1.5">
-                  <span className="w-1 h-1 rounded-full bg-green-500" />{t}
-                </span>
-              ))}
+            {/* Right: dashboard mockup */}
+            <div className="w-full lg:w-auto lg:flex-shrink-0 lg:w-[340px]">
+              <HeroDashboardMockup />
             </div>
-
-            {/* ── Inline stats strip ── */}
-            <InlineStats />
           </div>
         </div>
       </section>
@@ -744,8 +901,8 @@ export default function LandingPage() {
                 <div className="p-6 border-b border-neutral-200">
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <p className="text-xs text-neutral-500 mb-0.5">Demo product</p>
-                      <h3 className="font-semibold text-lg">Handmade Ceramic Mug</h3>
+                      <p className="text-xs text-neutral-500 mb-0.5">Demo · B09XK7TRM5</p>
+                      <h3 className="font-semibold text-lg">Premium Stainless Water Bottle 32oz</h3>
                       <div className="flex items-center gap-1.5 mt-1">
                         <span className="text-yellow-400 text-sm">★★½☆☆</span>
                         <span className="text-xs text-neutral-700 font-medium">2.7 avg · 1,000 reviews analyzed</span>
@@ -1096,6 +1253,8 @@ export default function LandingPage() {
         </div>
       </section>
 
+      <SocialProofSection />
+
       {/* ── FEATURES ── */}
       <section id="features" className="py-24 px-6">
         <div className="max-w-5xl mx-auto">
@@ -1316,7 +1475,7 @@ export default function LandingPage() {
                   popular: false,
                 },
               ].map(pack => (
-                <div key={pack.name} className={`pcard p-6 rounded-2xl border relative ${pack.popular ? 'bg-black text-white border-black' : 'bg-white border-neutral-200'}`}>
+                <div key={pack.name} className={`pcard p-6 rounded-2xl border relative ${pack.popular ? 'bg-black text-white border-black ring-2 ring-orange-500 ring-offset-2 scale-[1.04] z-10' : 'bg-white border-neutral-200'}`}>
                   {pack.badge && <div className="absolute top-4 right-4 px-2 py-0.5 text-xs bg-orange-500 rounded-full text-white">{pack.badge}</div>}
                   <h3 className={`font-semibold mb-1 ${pack.popular ? 'text-white' : ''}`}>{pack.name}</h3>
                   <p className={`text-xs mb-4 ${pack.popular ? 'text-neutral-400' : 'text-neutral-500'}`}>{pack.desc}</p>
@@ -1393,7 +1552,7 @@ export default function LandingPage() {
               ].map(sub => {
                 const price = billingCycle === 'annual' ? sub.annualPrice : sub.monthlyPrice
                 return (
-                <div key={sub.name} className={`pcard p-6 rounded-2xl border relative ${sub.popular ? 'bg-black text-white border-black' : 'bg-white border-neutral-200'}`}>
+                <div key={sub.name} className={`pcard p-6 rounded-2xl border relative ${sub.popular ? 'bg-black text-white border-black ring-2 ring-orange-500 ring-offset-2 scale-[1.04] z-10' : 'bg-white border-neutral-200'}`}>
                   {sub.badge && <div className="absolute top-4 right-4 px-2 py-0.5 text-xs bg-orange-500 rounded-full text-white">{sub.badge}</div>}
                   <h3 className={`font-semibold mb-1 ${sub.popular ? 'text-white' : ''}`}>{sub.name}</h3>
                   <div className="mb-1 mt-3">
@@ -1713,6 +1872,25 @@ export default function LandingPage() {
           <p className="mt-5 text-xs text-neutral-500">First analysis is free · No credit card · Cancel anytime</p>
         </div>
       </section>
+
+      {/* ── FOOTER TRUST BAR ── */}
+      <div className="bg-neutral-950 py-5 px-6">
+        <div className="max-w-4xl mx-auto flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-center">
+          {[
+            { n: '84%', label: 'of sellers say reviews are critical', src: 'eComEngine, 2024' },
+            { n: '4–5%', label: 'conversion lift per star improvement', src: 'Pattern Research, 2024' },
+            { n: '20×', label: 'reviews needed to undo one bad one', src: 'Seller Labs, 2024' },
+          ].map(s => (
+            <div key={s.n} className="flex items-center gap-3">
+              <span className="text-xl font-black text-orange-400">{s.n}</span>
+              <div className="text-left">
+                <p className="text-xs text-neutral-300">{s.label}</p>
+                <p className="text-[10px] text-neutral-600">{s.src}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* ── FOOTER ── */}
       <footer className="py-12 px-6 border-t border-neutral-200 bg-white">
