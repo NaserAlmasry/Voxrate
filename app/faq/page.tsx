@@ -4,32 +4,32 @@ import { useState } from 'react'
 
 const FAQ_ITEMS = [
   {
-    q: 'Does this work for any Etsy product?',
-    a: 'Yes — Voxrate works for any product category on Etsy, from jewelry and ceramics to digital downloads and clothing. The AI adapts its analysis to the product type. Best results come from listings with 30+ reviews.',
+    q: 'Does this work for any Amazon product?',
+    a: 'Yes — Voxrate works for any product category on Amazon, from electronics and kitchen goods to clothing and supplements. The AI adapts its analysis to the product type. Best results come from listings with 30+ reviews.',
   },
   {
     q: 'What if my listing has very few reviews?',
-    a: 'The analysis will still run with fewer reviews, but insights will be limited. We automatically notify you if your listing has fewer than 30 reviews so you know what to expect. For the most reliable patterns, 50+ reviews is ideal.',
+    a: 'The analysis will still run with fewer reviews, but insights may be limited. We recommend waiting until you have at least 20–30 reviews for reliable patterns. With fewer than 15 reviews, the health score and complaint categories may not be accurate enough to act on.',
   },
   {
     q: 'Does it work with languages other than English?',
-    a: 'Voxrate is optimized for English and other Latin-script languages (French, Spanish, Italian, Portuguese, German, Dutch, etc.). It will still process reviews in non-Latin scripts (Arabic, Chinese, Japanese, etc.) but accuracy and depth will be reduced. For best results, your reviews should be primarily in a Latin-script language.',
+    a: 'Voxrate is optimized for English and other Latin-script languages (French, Spanish, Italian, Portuguese, German, Dutch, etc.). It will still analyze non-Latin reviews (e.g. Japanese, Arabic, Chinese) but accuracy and depth of insights will be lower. For best results, your reviews should be primarily in a Latin-script language.',
   },
   {
-    q: 'How is Voxrate different from other Etsy tools?',
-    a: "Most Etsy tools tell you what buyers search for before they buy — keyword volume, competition, tag suggestions. Voxrate tells you what buyers say after they buy — complaints, praise, and specific fixes. They solve different problems: use keyword tools to get found, use Voxrate to improve what happens after they find you.",
+    q: 'How is Voxrate different from other Amazon tools?',
+    a: "Most Amazon tools tell you what buyers search for before they buy — keyword volume, competition, ranking. Voxrate tells you what buyers say after they buy — complaints, praise, and specific fixes. They solve different problems: use keyword tools to get found, use Voxrate to improve what happens after they find you.",
   },
   {
     q: "Can I analyze a competitor's listing?",
-    a: "Yes. You can paste any public Etsy listing URL — including competitors'. Voxrate will analyze their reviews, show you their top weaknesses, what they do well, and give you a side-by-side comparison. Competitor analysis costs 48 credits and is available on Starter and Pro plans, or with any credit pack.",
+    a: "Yes. Paste any Amazon product URL or ASIN — including a competitor's. Voxrate analyzes their reviews, shows you their top weaknesses, what they do well, and gives you a side-by-side comparison with exact positioning language to use. Competitor analysis costs 35 credits (vs 20 for own listings). Starter gets 1 per month. Growth unlocks up to 3 per product per month. Pro unlocks up to 10 per product per month. Resets on the 1st of each month.",
   },
   {
     q: 'What are credits and do they expire?',
-    a: 'Credits are the currency used for analyses. Each own-listing analysis costs 24 credits. Each competitor analysis costs 48 credits. All other tools (rewriter, listing grader, reply generator, listing builder) are completely free — no credits needed. Credits purchased in one-time packs never expire. Subscription credits refresh monthly.',
+    a: 'Credits are the currency used for analyses. Each own-listing analysis costs 20 credits. Each competitor analysis costs 35 credits. All other tools (description rewriter, listing grader, review reply generator, listing builder) are completely free — no credits needed. Credits purchased in one-time packs never expire. Subscription credits refresh monthly.',
   },
   {
     q: "Is my data and my customers' data private?",
-    a: "Voxrate only analyzes publicly available review text from Etsy — the same text anyone can read on the listing page. We don't access your Etsy account, private messages, or order data. Your generated reports are private to your account and are never shared.",
+    a: "Voxrate only analyzes publicly available review text from Amazon — the same text anyone can read on the listing page. We don't access your Amazon Seller Central account, private messages, or order data. Your generated reports are private to your account and are never shared.",
   },
   {
     q: "What if I'm not happy with the results?",
@@ -53,7 +53,7 @@ export default function FaqPage() {
         <div className="mb-12">
           <p className="text-xs font-semibold text-orange-600 uppercase tracking-widest mb-2">FAQ</p>
           <h1 className="text-3xl font-bold mb-3">Common questions</h1>
-          <p className="text-sm text-neutral-500">Everything sellers ask before signing up. Can't find your answer? Email <a href="mailto:info@voxrate.app" className="text-orange-500 hover:underline">info@voxrate.app</a></p>
+          <p className="text-sm text-neutral-500">Everything Amazon sellers ask before signing up. Can't find your answer? Email <a href="mailto:info@voxrate.app" className="text-orange-500 hover:underline">info@voxrate.app</a></p>
         </div>
 
         <div className="space-y-2">
