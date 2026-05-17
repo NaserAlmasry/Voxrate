@@ -18,6 +18,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Groq from 'groq-sdk'
 import { createClient } from '@/app/lib/supabase/server'
+import { createClient as createAdminClient } from '@supabase/supabase-js'
 import {
   calculateHealthScore,
   formatHealthScoreForPrompt,
@@ -717,8 +718,16 @@ export function applyPlanLimits(
 // ── Main handler ──────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
-  const csrfError = checkCsrf(request)
-  if (csrfError) return csrfError
+  // Cron bypass: internal re-analyze requests authenticate via X-Cron-Secret header
+  // instead of a user session cookie. Must supply _cronUserId in the body.
+  const cronSecret    = process.env.CRON_SECRET
+  const cronHeader    = request.headers.get('x-cron-secret')
+  const isCronRequest = cronSecret && cronHeader === cronSecret
+
+  if (!isCronRequest) {
+    const csrfError = checkCsrf(request)
+    if (csrfError) return csrfError
+  }
 
   const ip =
     request.headers.get('x-real-ip') ||
@@ -761,10 +770,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Please provide a valid Amazon product URL or ASIN (e.g. B073JYC4XM)' }, { status: 400 })
     }
 
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      return NextResponse.json({ error: 'Please log in first' }, { status: 401 })
+    // Resolve user — either from session (normal) or from cron bypass (internal)
+    let user: any = null
+    let supabase: any
+    if (isCronRequest) {
+      const cronUserId = typeof body?._cronUserId === 'string' ? body._cronUserId : null
+      if (!cronUserId) return NextResponse.json({ error: 'Missing _cronUserId' }, { status: 400 })
+      const adminClient = createAdminClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      )
+      const { data: u } = await adminClient.auth.admin.getUserById(cronUserId)
+      if (!u?.user) return NextResponse.json({ error: 'User not found' }, { status: 404 })
+      user     = u.user
+      supabase = adminClient
+    } else {
+      supabase = await createClient()
+      const { data: { user: sessionUser } } = await supabase.auth.getUser()
+      if (!sessionUser) return NextResponse.json({ error: 'Please log in first' }, { status: 401 })
+      user = sessionUser
     }
 
     const { data: userData } = await supabase

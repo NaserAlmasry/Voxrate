@@ -53,18 +53,17 @@ export async function GET(request: NextRequest) {
 
   for (const listing of due) {
     try {
-      // Trigger re-analysis via the analyze API
+      // Trigger re-analysis via the analyze API using cron bypass auth
       const res = await fetch(`${SITE_URL}/api/analyze`, {
         method:  'POST',
         headers: {
-          'Content-Type':    'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-          'X-Cron-Secret':    process.env.CRON_SECRET || '',
+          'Content-Type':  'application/json',
+          'X-Cron-Secret': process.env.CRON_SECRET || '',
         },
         body: JSON.stringify({
-          productUrl:   listing.product_url,
-          reAnalyze:    true,
-          _cronUserId:  listing.user_id,
+          productUrl:  listing.product_url,
+          reAnalyze:   true,
+          _cronUserId: listing.user_id,
         }),
       })
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/app/lib/supabase/server'
 import { checkCsrf } from '@/app/lib/csrf'
+import { checkRateLimit } from '@/app/lib/rate-limit'
 
 export async function GET() {
   const supabase = await createClient()
@@ -46,6 +47,9 @@ export async function POST(request: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const limit = await checkRateLimit(user.id, 'user')
+  if (!limit.allowed) return NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 })
 
   const { data: userData } = await supabase
     .from('users')
@@ -133,6 +137,9 @@ export async function PATCH(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const limit = await checkRateLimit(user.id, 'user')
+  if (!limit.allowed) return NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 })
+
   const body = await request.json()
   const id       = typeof body?.id       === 'string' ? body.id       : null
   const note     = typeof body?.note     === 'string' ? body.note.trim().slice(0, 300) : undefined
@@ -171,6 +178,9 @@ export async function DELETE(request: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const limit = await checkRateLimit(user.id, 'user')
+  if (!limit.allowed) return NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 })
 
   const { id } = await request.json()
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i

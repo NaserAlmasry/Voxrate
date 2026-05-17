@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/app/lib/supabase/server'
 import { checkCsrf } from '@/app/lib/csrf'
+import { checkRateLimit } from '@/app/lib/rate-limit'
 
 // GET — list user's monitored listings
 export async function GET() {
@@ -25,6 +26,9 @@ export async function POST(request: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const limit = await checkRateLimit(user.id, 'user')
+  if (!limit.allowed) return NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 })
 
   const { data: userData } = await supabase
     .from('users')
@@ -102,6 +106,9 @@ export async function DELETE(request: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const limit = await checkRateLimit(user.id, 'user')
+  if (!limit.allowed) return NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 })
 
   const { id } = await request.json()
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })

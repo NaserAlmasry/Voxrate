@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { createClient } from '@/app/lib/supabase/server'
 import { checkCsrf } from '@/app/lib/csrf'
+import { checkRateLimit } from '@/app/lib/rate-limit'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2024-06-20' as any,
@@ -29,6 +30,11 @@ export async function POST(request: NextRequest) {
       .select('stripe_customer_id')
       .eq('id', user.id)
       .single()
+
+    const limit = await checkRateLimit(user.id, 'user')
+    if (!limit.allowed) {
+      return NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 })
+    }
 
     if (!userData?.stripe_customer_id) {
       return NextResponse.json({ error: 'No billing account found. Please subscribe first.' }, { status: 400 })

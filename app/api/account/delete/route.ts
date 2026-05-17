@@ -3,6 +3,7 @@ import Stripe from 'stripe'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { createClient } from '@/app/lib/supabase/server'
 import { checkCsrf } from '@/app/lib/csrf'
+import { checkRateLimit } from '@/app/lib/rate-limit'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2024-06-20' as any,
@@ -16,6 +17,11 @@ export async function POST(request: NextRequest) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+
+    const limit = await checkRateLimit(user.id, 'user')
+    if (!limit.allowed) {
+      return NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 })
+    }
 
     const { data: userData } = await supabase
       .from('users')
