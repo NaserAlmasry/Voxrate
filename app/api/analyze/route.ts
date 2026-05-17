@@ -747,6 +747,7 @@ export async function POST(request: NextRequest) {
     const rawUrl             = body?.productUrl
     const isReAnalyze        = body?.reAnalyze === true
     const reportType         = body?.reportType === 'competitor' ? 'competitor' : 'own'
+    const ownReportId        = typeof body?.ownReportId === 'string' ? body.ownReportId : null
     const productDescription = typeof body?.productDescription === 'string'
       ? body.productDescription.trim().slice(0, 500).replace(/[<>]/g, '')
       : undefined
@@ -793,54 +794,53 @@ export async function POST(request: NextRequest) {
 
     // ── Competitor analysis gates ─────────────────────────────
     if (!isAdminUser && reportType === 'competitor') {
-      // Starter: 1 lifetime free competitor analysis, no paid competitor access
+      // Free plan: blocked entirely
+      if (plan === 'free') {
+        return NextResponse.json(
+          { error: 'Competitor analysis is not available on the free plan. Upgrade to Growth to unlock it.', upgradeRequired: true, upgradePrompt: 'growth' },
+          { status: 403 },
+        )
+      }
+
+      const now        = new Date()
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+
       if (plan === 'starter') {
-        if (freeCompetitorUsed) {
+        // Starter: 1 per month total
+        const { count } = await supabase
+          .from('competitor_usage')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .gte('created_at', monthStart)
+        if ((count ?? 0) >= 1) {
           return NextResponse.json(
-            {
-              error: 'You\'ve used your free competitor analysis. Upgrade to Growth to unlock unlimited competitor analyses.',
-              upgradeRequired: true,
-              upgradePrompt: 'growth',
-            },
+            { error: 'You\'ve used your 1 competitor analysis this month. Resets on the 1st. Upgrade to Growth for 3 per product per month.', upgradeRequired: true, upgradePrompt: 'growth' },
             { status: 403 },
           )
         }
-        // Allow but mark as free — credits will not be deducted for this one
       }
 
-      // Free plan: no competitor analysis at all
-      if (plan === 'free') {
-        return NextResponse.json(
-          {
-            error: 'Competitor analysis is not available on the free plan. Upgrade to Growth to unlock it.',
-            upgradeRequired: true,
-            upgradePrompt: 'growth',
-          },
-          { status: 403 },
-        )
-      }
-
-      // Growth: max 3 competitor analyses per billing cycle
-      if (plan === 'growth' && competitorAnalysesUsed >= 3) {
-        return NextResponse.json(
-          {
-            error: 'You\'ve reached your 3 competitor analyses for this billing cycle. Upgrade to Pro for up to 10 per cycle.',
-            upgradeRequired: true,
-            upgradePrompt: 'pro',
-          },
-          { status: 403 },
-        )
-      }
-
-      // Pro: max 10 competitor analyses per billing cycle
-      if (plan === 'pro' && competitorAnalysesUsed >= 10) {
-        return NextResponse.json(
-          {
-            error: 'You\'ve reached your 10 competitor analyses for this billing cycle. Your limit resets on your next renewal date.',
-            upgradeRequired: false,
-          },
-          { status: 403 },
-        )
+      if (plan === 'growth' || plan === 'pro') {
+        const limit = plan === 'pro' ? 10 : 3
+        if (ownReportId) {
+          // Check per-product monthly usage
+          const { count } = await supabase
+            .from('competitor_usage')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_id', user.id)
+            .eq('own_report_id', ownReportId)
+            .gte('created_at', monthStart)
+          if ((count ?? 0) >= limit) {
+            return NextResponse.json(
+              {
+                error: `You've used all ${limit} competitor analyses for this product this month. Resets on the 1st.${plan === 'growth' ? ' Upgrade to Pro for 10 per product.' : ''}`,
+                upgradeRequired: plan === 'growth',
+                upgradePrompt: 'pro',
+              },
+              { status: 403 },
+            )
+          }
+        }
       }
     }
 
@@ -881,12 +881,6 @@ export async function POST(request: NextRequest) {
         await supabase.from('users').update({ free_competitor_used: true }).eq('id', user.id)
       }
 
-      // Increment competitor analysis counter (Growth / Pro)
-      if (reportType === 'competitor' && (plan === 'growth' || plan === 'pro')) {
-        await supabase.from('users')
-          .update({ competitor_analyses_used: competitorAnalysesUsed + 1 })
-          .eq('id', user.id)
-      }
     }
 
     if (isReAnalyze) {
@@ -1006,6 +1000,14 @@ export async function POST(request: NextRequest) {
       await supabase
         .from('usage_logs')
         .insert({ user_id: user.id, report_id: reportId, tokens_used: 0 })
+
+      if (reportType === 'competitor') {
+        await supabase.from('competitor_usage').insert({
+          user_id:              user.id,
+          own_report_id:        ownReportId ?? null,
+          competitor_report_id: reportId,
+        })
+      }
 
       if (!isReAnalyze && user.email) {
         sendReportComplete({

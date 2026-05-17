@@ -333,7 +333,7 @@ const FAQ_ITEMS = [
   },
   {
     q: 'Can I analyze a competitor\'s listing?',
-    a: "Yes. Competitor analysis runs both products through the AI simultaneously and produces a battle card — why buyers choose them over you, your exact keyword gaps, and a ranked fix list. It costs 35 credits (vs 20 for own listings). Starter gets 1 free lifetime competitor analysis. Growth unlocks up to 3 per billing cycle. Pro unlocks up to 10.",
+    a: "Yes. Competitor analysis runs both products through the AI simultaneously and produces a battle card — why buyers choose them over you, your exact keyword gaps, and a ranked fix list. It costs 35 credits (vs 20 for own listings). Starter gets 1 competitor analysis per month. Growth unlocks up to 3 per product per month. Pro unlocks up to 10 per product per month. Resets on the 1st of each month.",
   },
   {
     q: 'What are credits and do they expire?',

@@ -104,6 +104,13 @@ function DashboardHomeInner() {
   const [simulatingUser, setSimulatingUser] = useState(false)
   const [userPlan, setUserPlan] = useState('free')
   const [isAdminUser, setIsAdminUser] = useState(false)
+  const [showSpyPanel, setShowSpyPanel] = useState(false)
+  const [spyUrl, setSpyUrl] = useState('')
+  const [spyOwnReportId, setSpyOwnReportId] = useState('')
+  const [spyLoading, setSpyLoading] = useState(false)
+  const [spyError, setSpyError] = useState('')
+  const [ownReports, setOwnReports] = useState<{ id: string; product_name: string }[]>([])
+  const [competitorCounts, setCompetitorCounts] = useState<Record<string, number>>({})
   const inputRef = useRef<HTMLInputElement>(null)
   const supabase = createClient()
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -131,17 +138,19 @@ function DashboardHomeInner() {
   }
 
   const checkCache = async (inputUrl: string) => {
-    if (!inputUrl.includes('amazon.com') && !/^[A-Z0-9]{10}$/i.test(inputUrl.trim())) return
+    const trimmed = inputUrl.trim()
+    const asinFromPath = trimmed.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})/i)
+    const asinBare     = /^[A-Z0-9]{10}$/i.test(trimmed) ? trimmed : null
+    const asin         = (asinFromPath?.[1] || asinBare)?.toUpperCase()
+    if (!asin) return
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    const match = inputUrl.match(/listing\/(\d+)/)
-    if (!match) return
     const { data } = await supabase
       .from('reports')
       .select('id, product_name')
       .eq('user_id', user.id)
       .eq('status', 'completed')
-      .ilike('product_url', `%/listing/${match[1]}/%`)
+      .ilike('product_url', `%${asin}%`)
       .order('created_at', { ascending: false })
       .limit(1)
     setCachedReport(data && data.length > 0
@@ -263,6 +272,34 @@ function DashboardHomeInner() {
           .limit(1)
 
         if (reportData && reportData.length > 0) setLatestReport(reportData[0])
+
+        // Load all own completed reports for spy dropdown
+        const { data: ownReportData } = await supabase
+          .from('reports')
+          .select('id, product_name')
+          .eq('user_id', user.id)
+          .eq('status', 'completed')
+          .eq('report_type', 'own')
+          .order('created_at', { ascending: false })
+          .limit(20)
+        if (ownReportData) setOwnReports(ownReportData)
+
+        // Load competitor usage counts for this month per product
+        const now        = new Date()
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+        const { data: usageData } = await supabase
+          .from('competitor_usage')
+          .select('own_report_id')
+          .eq('user_id', user.id)
+          .gte('created_at', monthStart)
+        if (usageData) {
+          const counts: Record<string, number> = {}
+          for (const row of usageData) {
+            const key = row.own_report_id ?? '__total__'
+            counts[key] = (counts[key] ?? 0) + 1
+          }
+          setCompetitorCounts(counts)
+        }
       } catch (err) {
         console.error('[Dashboard] Load error:', err)
       } finally {
@@ -284,6 +321,26 @@ function DashboardHomeInner() {
   }, [loading])
 
   // ── Event Handlers ───────────────────────────────────────
+
+  const handleSpyAnalyze = async () => {
+    if (!spyUrl.trim()) { setSpyError('Paste a competitor Amazon URL or ASIN'); return }
+    if (!spyOwnReportId) { setSpyError('Select which of your products this competes with'); return }
+    setSpyError('')
+    setSpyLoading(true)
+    try {
+      const res = await fetch('/api/analyze', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        body:    JSON.stringify({ productUrl: spyUrl.trim(), reportType: 'competitor', ownReportId: spyOwnReportId }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setSpyError(data.error || 'Analysis failed.'); setSpyLoading(false); return }
+      window.location.href = `/dashboard/report/${data.reportId}`
+    } catch {
+      setSpyError('Something went wrong. Please try again.')
+      setSpyLoading(false)
+    }
+  }
 
   const handleAnalyze = async () => {
     if (!url.trim()) return
@@ -509,12 +566,125 @@ function DashboardHomeInner() {
         </div>
       </div>
 
+      {/* ── Spy Competitors ── */}
+      <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden">
+        <button
+          onClick={() => setShowSpyPanel(p => !p)}
+          className="w-full px-5 py-4 flex items-center justify-between text-left"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-purple-50 flex items-center justify-center">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                <line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/>
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-neutral-800">Spy Competitors</p>
+              <p className="text-[11px] text-neutral-400">See exactly why a competitor outsells you</p>
+            </div>
+          </div>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+            className={`text-neutral-400 transition-transform ${showSpyPanel ? 'rotate-180' : ''}`}>
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
+
+        {showSpyPanel && (
+          <div className="px-5 pb-5 pt-1 border-t border-neutral-100 space-y-3">
+            {spyError && (
+              <div className="flex items-center gap-2 p-3 bg-red-50 text-red-600 text-xs rounded-xl border border-red-100">
+                <IconWarning size={13} />{spyError}
+              </div>
+            )}
+
+            {userPlan === 'free' ? (
+              <div className="p-4 bg-purple-50 border border-purple-100 rounded-xl text-xs text-purple-800">
+                Competitor analysis is available on Growth and Pro plans.{' '}
+                <a href="/#pricing" className="font-semibold underline">Upgrade →</a>
+              </div>
+            ) : (
+              <>
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-500 mb-1.5">Competitor URL or ASIN</label>
+                  <input
+                    type="url"
+                    value={spyUrl}
+                    onChange={e => { setSpyUrl(e.target.value); setSpyError('') }}
+                    placeholder="Paste competitor Amazon URL or ASIN"
+                    disabled={spyLoading}
+                    className="w-full px-4 py-3 text-sm border border-neutral-200 rounded-xl outline-none focus:border-purple-400 transition-colors bg-neutral-50 disabled:opacity-50"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-500 mb-1.5">Which of your products does this compete with?</label>
+                  {ownReports.length === 0 ? (
+                    <p className="text-xs text-neutral-400 italic">Analyze one of your own products first.</p>
+                  ) : (
+                    <select
+                      value={spyOwnReportId}
+                      onChange={e => { setSpyOwnReportId(e.target.value); setSpyError('') }}
+                      disabled={spyLoading}
+                      className="w-full px-4 py-3 text-sm border border-neutral-200 rounded-xl outline-none focus:border-purple-400 transition-colors bg-white disabled:opacity-50"
+                    >
+                      <option value="">Select your product…</option>
+                      {ownReports.map(r => {
+                        const used  = competitorCounts[r.id] ?? 0
+                        const limit = userPlan === 'pro' ? 10 : userPlan === 'growth' ? 3 : 1
+                        return (
+                          <option key={r.id} value={r.id}>
+                            {r.product_name} — {used}/{limit} this month
+                          </option>
+                        )
+                      })}
+                    </select>
+                  )}
+                </div>
+
+                {ownReports.length > 0 && (
+                  <button
+                    onClick={handleSpyAnalyze}
+                    disabled={spyLoading || !spyUrl.trim() || !spyOwnReportId}
+                    className="w-full py-3 bg-purple-600 text-white text-sm font-semibold rounded-xl hover:bg-purple-700 transition-colors disabled:opacity-40"
+                  >
+                    {spyLoading ? 'Analyzing competitor…' : 'Analyze competitor →'}
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* ── Insights + Health Score ── */}
       <div className="grid md:grid-cols-5 gap-4">
         <div className="md:col-span-3 bg-white rounded-2xl border border-neutral-200 shadow-sm p-5">
-          <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest mb-4">
-            {latestReport ? `Latest: ${latestReport.product_name}` : 'What to expect'}
-          </p>
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest">
+              {latestReport ? `Latest: ${latestReport.product_name}` : 'What to expect'}
+            </p>
+            {latestReport && userPlan !== 'free' && (() => {
+              const limit = userPlan === 'pro' ? 10 : userPlan === 'growth' ? 3 : 1
+              const used  = userPlan === 'starter'
+                ? Object.values(competitorCounts).reduce((a, b) => a + b, 0)
+                : (competitorCounts[latestReport.id] ?? 0)
+              const remaining = Math.max(0, limit - used)
+              const isExhausted = remaining === 0
+              return (
+                <div className="relative group">
+                  <span className={`text-[10px] font-semibold px-2 py-1 rounded-full cursor-default select-none ${isExhausted ? 'bg-red-50 text-red-500' : 'bg-purple-50 text-purple-600'}`}>
+                    {remaining}/{limit} spy slots
+                  </span>
+                  {isExhausted && (
+                    <div className="absolute right-0 top-6 z-10 hidden group-hover:block w-44 p-2 bg-neutral-800 text-white text-[10px] rounded-lg leading-snug">
+                      Wait for next month to reset
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
+          </div>
           <div className="space-y-2">
             {insightsToShow.map((item, i) => (
               <div
