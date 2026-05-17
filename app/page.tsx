@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/app/lib/supabase/client'
 import CheckoutButton from '@/app/components/CheckoutButton'
 import AuthModal from '@/app/components/AuthModal'
-import { Coffee, Search, Crosshair, Zap, PenLine, MessageCircle, Layers, BarChart2, Bell, Puzzle, RefreshCw, Gift, HelpCircle } from 'lucide-react'
+import { Coffee, Search, Crosshair, Zap, PenLine, MessageCircle, Layers, BarChart2, Bell, Puzzle, RefreshCw, Gift, HelpCircle, AlertCircle, ThumbsUp, Wrench, TrendingUp, Megaphone, Star } from 'lucide-react'
 
 // ── helpers ────────────────────────────────────────────────────
 function scoreColor(n: number) {
@@ -353,8 +353,8 @@ function HeroDashboardMockup() {
         </div>
       </div>
       {/* Floating badge */}
-      <div className="absolute -bottom-3 -right-3 bg-black text-white text-[10px] font-semibold px-3 py-1.5 rounded-full shadow-lg">
-        AI fix generated ✓
+      <div className="absolute -bottom-2 -right-2 bg-black text-white text-[9px] font-semibold px-2 py-1 rounded-full shadow-lg">
+        Claude fix ✓
       </div>
     </div>
   )
@@ -798,13 +798,16 @@ export default function LandingPage() {
 
                 <div className="flex gap-2 px-6 pt-4 overflow-x-auto pb-1">
                   {[
-                    { id: 'complaints', label: 'Problems' }, { id: 'strengths', label: 'Strengths' },
-                    { id: 'improvements', label: 'Improvements' }, { id: 'seo', label: 'SEO' },
-                    { id: 'marketing', label: 'Marketing copy' }, { id: 'breakdown', label: 'Star breakdown' },
+                    { id: 'complaints',   label: 'Problems',       icon: <AlertCircle size={12} /> },
+                    { id: 'strengths',    label: 'Strengths',      icon: <ThumbsUp size={12} /> },
+                    { id: 'improvements', label: 'Improvements',   icon: <Wrench size={12} /> },
+                    { id: 'seo',          label: 'SEO',            icon: <TrendingUp size={12} /> },
+                    { id: 'marketing',    label: 'Marketing copy', icon: <Megaphone size={12} /> },
+                    { id: 'breakdown',    label: 'Star breakdown', icon: <Star size={12} /> },
                   ].map(tab => (
                     <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                      className={`px-3 py-1.5 text-xs font-medium rounded-full whitespace-nowrap transition-colors flex-shrink-0 ${activeTab === tab.id ? 'bg-black text-white' : 'bg-white border border-neutral-200 text-neutral-600 hover:border-neutral-300'}`}>
-                      {tab.label}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full whitespace-nowrap transition-colors flex-shrink-0 ${activeTab === tab.id ? 'bg-black text-white' : 'bg-white border border-neutral-200 text-neutral-600 hover:border-neutral-300'}`}>
+                      {tab.icon}{tab.label}
                     </button>
                   ))}
                 </div>
