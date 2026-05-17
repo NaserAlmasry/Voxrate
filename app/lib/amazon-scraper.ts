@@ -1,9 +1,11 @@
 import { AmazonScrapeResult, AmazonProduct, AmazonReview, AmazonQA } from './amazon-types'
 
 const SCRAPINGDOG_API_KEY = process.env.SCRAPINGDOG_API_KEY!
-const CANOPY_API_KEY = process.env.CANOPY_API_KEY!
-const SCRAPINGDOG_BASE = 'https://api.scrapingdog.com/amazon/product'
-const CANOPY_BASE = 'https://rest.canopyapi.co/api/amazon/product/reviews'
+const CANOPY_API_KEY      = process.env.CANOPY_API_KEY!
+const SCRAPERAPI_KEY      = process.env.SCRAPERAPI_KEY!
+const SCRAPINGDOG_BASE    = 'https://api.scrapingdog.com/amazon/product'
+const CANOPY_BASE         = 'https://rest.canopyapi.co/api/amazon/product/reviews'
+const SCRAPERAPI_BASE     = 'https://api.scraperapi.com/structured/amazon/product'
 
 // Max pages to fetch per star (each page ~10 reviews, so 2 pages = ~20 per star = 100 total)
 const MAX_PAGES_PER_STAR = 2
@@ -169,21 +171,24 @@ function toScrapingdogParams(marketplace: string): { country: string; domain: st
 }
 
 async function fetchProduct(asin: string, marketplace: string): Promise<{ product: AmazonProduct }> {
+  try {
+    return await fetchProductScrapingDog(asin, marketplace)
+  } catch (err: any) {
+    console.warn(`[Scraper] ScrapingDog failed (${err.message}) — falling back to ScraperAPI`)
+    return await fetchProductScraperAPI(asin, marketplace)
+  }
+}
+
+async function fetchProductScrapingDog(asin: string, marketplace: string): Promise<{ product: AmazonProduct }> {
   const { country, domain } = toScrapingdogParams(marketplace)
-  const params = new URLSearchParams({
-    api_key: SCRAPINGDOG_API_KEY,
-    asin,
-    country,
-    domain,
-  })
+  const params = new URLSearchParams({ api_key: SCRAPINGDOG_API_KEY, asin, country, domain })
 
   const res = await fetch(`${SCRAPINGDOG_BASE}?${params}`)
-  if (!res.ok) throw new Error(`Scrapingdog product fetch failed: ${res.status}`)
+  if (!res.ok) throw new Error(`ScrapingDog ${res.status}`)
 
   const p = await res.json()
-  console.log(`[Scraper] Product: "${String(p?.title ?? '').slice(0, 60)}" | Total reviews: ${p?.product_information?.['Customer Reviews']?.ratings_count}`)
+  console.log(`[Scraper][ScrapingDog] "${String(p?.title ?? '').slice(0, 60)}"`)
 
-  // ratings_distribution gives percentages — convert to counts
   const totalReviews = parseInt(String(p?.total_reviews ?? '0').replace(/\D/g, '')) || 0
   const dist: Array<{ rating: number; distribution: string }> = p?.ratings_distribution ?? []
   const pct = (star: number) => {
@@ -192,43 +197,105 @@ async function fetchProduct(asin: string, marketplace: string): Promise<{ produc
   }
   const ratingBreakdown = { five: pct(5), four: pct(4), three: pct(3), two: pct(2), one: pct(1) }
 
-  // Parse BSR: "#391 in Electronics (See Top 100...) #1 in Portable..."
   const bsrRaw: string = p?.product_information?.['Best Sellers Rank'] ?? ''
   const bsrMatch = bsrRaw.match(/#([\d,]+)\s+in\s+([^(#\n]+)/)
   const bsr = bsrMatch ? parseInt(bsrMatch[1].replace(/,/g, '')) : null
   const bsrCategory = bsrMatch ? bsrMatch[2].trim() : null
 
-  // Parse price: "$29.99 with 88 percent savings" → 29.99
   const priceMatch = String(p?.price ?? '').match(/\$([\d.]+)/)
   const price = priceMatch ? parseFloat(priceMatch[1]) : null
 
-  const product: AmazonProduct = {
-    asin,
-    marketplace,
-    title: p?.title ?? '',
-    brand: p?.product_information?.['Brand Name'] ?? '',
-    mainImage: p?.main_image ?? '',
-    images: p?.images ?? [],
-    imageCount: (p?.images ?? []).length,
-    videoCount: p?.number_of_videos ?? 0,
-    hasAplus: p?.aplus ?? false,
-    bulletPoints: p?.feature_bullets ?? [],
-    description: '',
-    bsr,
-    bsrCategory,
-    price,
-    currency: 'USD',
-    category: p?.product_category ?? '',
-    categoriesFlat: p?.product_category ?? '',
-    averageRating: parseFloat(p?.average_rating ?? '0') || 0,
-    totalReviews,
-    ratingBreakdown,
-    specifications: [],
-    recentSales: p?.number_of_people_bought ?? null,
-    isFBA: String(p?.ships_from ?? '').toLowerCase().includes('amazon'),
+  return {
+    product: {
+      asin,
+      marketplace,
+      title:          p?.title ?? '',
+      brand:          p?.product_information?.['Brand Name'] ?? '',
+      mainImage:      p?.main_image ?? '',
+      images:         p?.images ?? [],
+      imageCount:     (p?.images ?? []).length,
+      videoCount:     p?.number_of_videos ?? 0,
+      hasAplus:       p?.aplus ?? false,
+      bulletPoints:   p?.feature_bullets ?? [],
+      description:    '',
+      bsr,
+      bsrCategory,
+      price,
+      currency:       'USD',
+      category:       p?.product_category ?? '',
+      categoriesFlat: p?.product_category ?? '',
+      averageRating:  parseFloat(p?.average_rating ?? '0') || 0,
+      totalReviews,
+      ratingBreakdown,
+      specifications: [],
+      recentSales:    p?.number_of_people_bought ?? null,
+      isFBA:          String(p?.ships_from ?? '').toLowerCase().includes('amazon'),
+    },
+  }
+}
+
+async function fetchProductScraperAPI(asin: string, marketplace: string): Promise<{ product: AmazonProduct }> {
+  // ScraperAPI only supports amazon.com — fallback only works for US marketplace
+  const country = marketplace === 'amazon.com' ? 'us' : 'us'
+  const params  = new URLSearchParams({ api_key: SCRAPERAPI_KEY, asin, country })
+
+  const res = await fetch(`${SCRAPERAPI_BASE}?${params}`)
+  if (!res.ok) throw new Error(`ScraperAPI ${res.status}`)
+
+  const p = await res.json()
+  console.log(`[Scraper][ScraperAPI] "${String(p?.name ?? '').slice(0, 60)}"`)
+
+  const totalReviews = parseInt(String(p?.total_reviews ?? p?.total_ratings ?? '0').replace(/\D/g, '')) || 0
+
+  // ScraperAPI gives star percentages directly (e.g. 43 for 43%)
+  const starPct = (key: string) => Math.round(totalReviews * ((p?.[key] ?? 0) / 100))
+  const ratingBreakdown = {
+    five:  starPct('5_star_percentage'),
+    four:  starPct('4_star_percentage'),
+    three: starPct('3_star_percentage'),
+    two:   starPct('2_star_percentage'),
+    one:   starPct('1_star_percentage'),
   }
 
-  return { product }
+  // BSR: array of strings like ["#39,833 in Health & Household", "#57 in Digital Bathroom Scales"]
+  const bsrArr: string[] = p?.product_information?.best_sellers_rank ?? []
+  const bsrFirst = bsrArr[0] ?? ''
+  const bsrMatch = bsrFirst.match(/#([\d,]+)\s+in\s+(.+)/)
+  const bsr         = bsrMatch ? parseInt(bsrMatch[1].replace(/,/g, '')) : null
+  const bsrCategory = bsrMatch ? bsrMatch[2].trim() : null
+
+  const priceMatch = String(p?.pricing ?? '').match(/\$([\d.]+)/)
+  const price = priceMatch ? parseFloat(priceMatch[1]) : null
+
+  const images = p?.high_res_images ?? p?.images ?? []
+
+  return {
+    product: {
+      asin,
+      marketplace,
+      title:          p?.name ?? '',
+      brand:          p?.product_information?.brand_name ?? '',
+      mainImage:      images[0] ?? '',
+      images,
+      imageCount:     images.length,
+      videoCount:     0,
+      hasAplus:       p?.aplus_present ?? false,
+      bulletPoints:   p?.feature_bullets ?? [],
+      description:    p?.full_description ?? '',
+      bsr,
+      bsrCategory,
+      price,
+      currency:       'USD',
+      category:       p?.product_category ?? '',
+      categoriesFlat: p?.product_category ?? '',
+      averageRating:  parseFloat(p?.average_rating ?? '0') || 0,
+      totalReviews,
+      ratingBreakdown,
+      specifications: [],
+      recentSales:    null,
+      isFBA:          String(p?.sold_by ?? '').toLowerCase().includes('amazon'),
+    },
+  }
 }
 
 // Q&A not available via Scrapingdog — return empty
