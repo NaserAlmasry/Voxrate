@@ -441,12 +441,14 @@ export default function ReportPage() {
   const [shareCopied, setShareCopied]               = useState(false)
   const [shareLoading, setShareLoading]             = useState(false)
   const [scoreHistory, setScoreHistory]             = useState<{ date: string; score: number }[]>([])
+  const [currentUserId, setCurrentUserId]           = useState<string | null>(null)
   const [showComparePicker, setShowComparePicker]   = useState(false)
   const [ownReports, setOwnReports]                 = useState<any[]>([])
   const [reanalyzing, setReanalyzing]               = useState(false)
   const [ownReportsLoading, setOwnReportsLoading]   = useState(false)
   const loadStartRef                                = useRef<number>(Date.now())
   const ratingTimerRef                              = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const hasIncrementedRef                           = useRef(false)
   const isMountedRef                               = useRef(true)
   // Progressive section loading
   const [sectionsReady, setSectionsReady]           = useState<string[]>([])
@@ -519,7 +521,7 @@ export default function ReportPage() {
       }
       console.log('[Report] status:', data.status)
       if (data.status === 'pending') {
-        if (retries >= 80) { setError('Analysis is taking too long. Please try again.'); setLoading(false); return }
+        if (retries >= 100) { setError('Analysis is taking too long. Please try again.'); setLoading(false); return }
         setPollCount(retries + 1)
         setTimeout(() => loadReport(retries + 1), 3000)
         return
@@ -557,7 +559,9 @@ export default function ReportPage() {
           const analysesSinceDismiss = totalAnalyses - lastDismissAnalysis
           const shouldShow = dismissCount === 0 || analysesSinceDismiss >= 10
           // Only increment counter when we actually intend to (possibly) show the prompt
-          if (shouldShow) {
+          // Guard against incrementing multiple times in the same session (e.g. re-renders)
+          if (shouldShow && !hasIncrementedRef.current) {
+            hasIncrementedRef.current = true
             localStorage.setItem('voxrate_analysis_count', String(totalAnalyses + 1))
             ratingTimerRef.current = setTimeout(() => {
               if (isMountedRef.current) setShowRating(true)
@@ -586,6 +590,7 @@ export default function ReportPage() {
     const init = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
+      setCurrentUserId(user.id)
 
       const { data } = await supabase
         .from('users')
@@ -641,6 +646,7 @@ export default function ReportPage() {
         .select('health_score, created_at')
         .eq('product_url', report.product_url)
         .eq('status', 'completed')
+        .eq('user_id', currentUserId!)
         .order('created_at', { ascending: true })
       if (data && data.length > 1) {
         setScoreHistory(data.map((r: any) => ({
@@ -649,8 +655,9 @@ export default function ReportPage() {
         })))
       }
     }
+    if (!currentUserId) return
     loadHistory()
-  }, [report?.product_url])
+  }, [report?.product_url, currentUserId])
 
   useEffect(() => {
     console.log('[Report] reportId effect fired — reportId:', reportId)
@@ -675,6 +682,8 @@ export default function ReportPage() {
     if (res.ok) {
       setIsPublic(next)
       setShareUrl(next ? data.shareUrl : null)
+    } else {
+      toast('Failed to update share settings. Please try again.', 'error')
     }
     setShareLoading(false)
   }
@@ -728,7 +737,7 @@ export default function ReportPage() {
 
   const saveNotes = async () => {
     setNotesSaving(true)
-    const { error } = await supabase.from('reports').update({ notes }).eq('id', reportId)
+    const { error } = await supabase.from('reports').update({ notes }).eq('id', reportId).eq('user_id', currentUserId!)
     setNotesSaving(false)
     if (error) {
       toast('Failed to save notes. Please try again.', 'error')
@@ -793,7 +802,7 @@ export default function ReportPage() {
 </html>`)
     printWindow.document.close()
     printWindow.focus()
-    setTimeout(() => { printWindow.print(); printWindow.close() }, 1400)
+    printWindow.onload = () => { printWindow.print(); printWindow.close() }
   }, [report, fr])
 
   const toggleCard = (i: number) => {

@@ -52,9 +52,10 @@ function DashboardHomeInner() {
   const [spyError, setSpyError] = useState('')
   const [ownReports, setOwnReports] = useState<{ id: string; product_name: string }[]>([])
   const [competitorCounts, setCompetitorCounts] = useState<Record<string, number>>({})
-  const inputRef = useRef<HTMLInputElement>(null)
-  const supabase = createClient()
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const inputRef    = useRef<HTMLInputElement>(null)
+  const supabaseRef = useRef(createClient())
+  const supabase    = supabaseRef.current
+  const timerRef    = useRef<ReturnType<typeof setInterval> | null>(null)
   const controllerRef = useRef<AbortController | null>(null)
 
   // Abort any in-flight request on unmount
@@ -119,7 +120,8 @@ function DashboardHomeInner() {
       setUrl(pendingUrl)
       // Small delay so state settles before triggering
       const pendingTimer = setTimeout(() => {
-        if (!pendingUrl.includes('amazon.com') && !/^[A-Z0-9]{10}$/i.test(pendingUrl.trim())) return
+        const isAmazonUrl = /amazon\.(com|co\.uk|de|co\.jp|ca|com\.au|fr|it|es|com\.mx|nl|se|pl)(\/|$)/.test(pendingUrl)
+        if (!isAmazonUrl && !/^[A-Z0-9]{10}$/i.test(pendingUrl.trim())) return
         cancelledRef.current = false
         setLoading(true); setError('')
         const controller = new AbortController()
@@ -285,7 +287,8 @@ function DashboardHomeInner() {
 
   const handleAnalyze = async () => {
     if (!url.trim()) return
-    if (!url.includes('amazon.com') && !/^[A-Z0-9]{10}$/i.test(url.trim())) { setError('Please paste a valid Amazon URL or ASIN (e.g. B073JYC4XM)'); return }
+    const isValidAmazon = /amazon\.(com|co\.uk|de|co\.jp|ca|com\.au|fr|it|es|com\.mx|nl|se|pl)(\/|$)/.test(url) || /^[A-Z0-9]{10}$/i.test(url.trim())
+    if (!isValidAmazon) { setError('Please paste a valid Amazon URL or ASIN (e.g. B073JYC4XM)'); return }
     cancelledRef.current = false
     await checkCache(url)
     setLoading(true); setError(''); setShowCancelWarning(false)
@@ -397,7 +400,7 @@ function DashboardHomeInner() {
       </div>
 
       {/* ── Free trial warning ── */}
-      {userPlan === 'free' && !simulatingUser && credits !== null && credits < 20 && (
+      {userPlan === 'free' && !simulatingUser && credits !== null && credits < 1 && (
         <div className="flex items-center justify-between gap-3 p-4 bg-orange-50 border border-orange-200 rounded-2xl">
           <div className="flex items-center gap-2.5">
             <AlertTriangle size={15} className="text-orange-500 flex-shrink-0" />
