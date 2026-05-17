@@ -7,9 +7,22 @@ export async function GET(request: Request) {
   const origin   = process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : SITE_URL
 
   const code           = searchParams.get('code')
+  const tokenHash      = searchParams.get('token_hash')
+  const type           = searchParams.get('type')
   const pendingPlan    = searchParams.get('pendingPlan')
   const pendingBilling = searchParams.get('pendingBilling')
   const pendingPack    = searchParams.get('pendingPack')
+
+  // Password reset flow — verify the token then send to reset page
+  if (tokenHash && type === 'recovery') {
+    const supabase = await createClient()
+    const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'recovery' })
+    if (error) {
+      console.error('[Auth Callback] Password reset token invalid:', error.message)
+      return NextResponse.redirect(`${origin}/?error=reset_failed`)
+    }
+    return NextResponse.redirect(`${origin}/auth/reset-password`)
+  }
 
   if (code) {
     const supabase = await createClient()
@@ -28,7 +41,7 @@ export async function GET(request: Request) {
     pendingPlan &&
     pendingBilling &&
     ['starter', 'growth', 'pro'].includes(pendingPlan) &&
-    ['monthly'].includes(pendingBilling)
+    ['monthly', 'annual'].includes(pendingBilling)
   ) {
     return NextResponse.redirect(`${origin}/dashboard?checkout=${pendingPlan}&billing=${pendingBilling}`)
   }
