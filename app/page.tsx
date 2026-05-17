@@ -385,6 +385,47 @@ function FaqSection() {
   )
 }
 
+const HERO_HEADLINES = [
+  { stat: '99.9% of shoppers read reviews before buying.', action: 'Most sellers never find out what those reviews are actually saying.' },
+  { stat: 'A 1-star improvement lifts conversion by 4–5%.', action: 'Your reviews are telling you exactly how to get there.' },
+  { stat: 'Only 5% of sellers respond to their reviews.', action: 'Even fewer actually fix the problems inside them.' },
+]
+
+function HeroHeadline() {
+  const [idx, setIdx]       = useState(0)
+  const [phase, setPhase]   = useState<'in' | 'out'>('in')
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setPhase('out')
+      setTimeout(() => {
+        setIdx(i => (i + 1) % HERO_HEADLINES.length)
+        setPhase('in')
+      }, 420)
+    }, 5000)
+    return () => clearInterval(timer)
+  }, [])
+
+  const h = HERO_HEADLINES[idx]
+  return (
+    <div className="min-h-[180px] md:min-h-[220px] flex flex-col items-center justify-center mb-6">
+      <h1
+        key={idx}
+        className={`text-4xl md:text-6xl font-bold tracking-normal leading-[1.2] text-center ${phase === 'in' ? 'hero-rotate-in' : 'hero-rotate-out'}`}
+      >
+        {h.stat}<br />{h.action}
+      </h1>
+      <div className="flex gap-1.5 mt-6">
+        {HERO_HEADLINES.map((_, i) => (
+          <button key={i} onClick={() => { setPhase('out'); setTimeout(() => { setIdx(i); setPhase('in') }, 420) }}
+            className={`h-1 rounded-full transition-all duration-300 ${i === idx ? 'w-6 bg-orange-500' : 'w-2 bg-neutral-300'}`}
+            aria-label={`Headline ${i + 1}`} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function LandingPage() {
   const [heroUrl, setHeroUrl]         = useState('')
   const [heroUrlError, setHeroUrlError] = useState('')
@@ -555,6 +596,10 @@ export default function LandingPage() {
         @keyframes ndwn { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:translateY(0)} }
         .hero-fade { animation: herofade 0.8s ease forwards; }
         @keyframes herofade { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+        .hero-rotate-in  { animation: heroIn  0.6s ease forwards; }
+        .hero-rotate-out { animation: heroOut 0.4s ease forwards; }
+        @keyframes heroIn  { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes heroOut { from{opacity:1;transform:translateY(0)} to{opacity:0;transform:translateY(-14px)} }
         .scroll-fade { opacity:0; transform:translateY(24px); transition: opacity 0.6s ease, transform 0.6s ease; }
         .scroll-fade.visible { opacity:1; transform:translateY(0); }
         .feat-card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
@@ -617,11 +662,7 @@ export default function LandingPage() {
           <p className="text-base text-neutral-500 mb-4 max-w-lg mx-auto">
             You're getting reviews. You don't know what they're actually costing you.
           </p>
-          <div className="min-h-[180px] md:min-h-[220px] flex flex-col items-center justify-center mb-6 hero-fade">
-            <h1 className="text-4xl md:text-6xl font-bold tracking-normal leading-[1.2]">
-              Your reviews tell you exactly what to fix.<br />Most sellers never read them properly.
-            </h1>
-          </div>
+          <HeroHeadline />
           <p className="text-sm text-neutral-500 mb-8 max-w-xl mx-auto">The Amazon review analyzer that turns customer feedback into specific, actionable improvements</p>
 
           <div className="max-w-2xl mx-auto">
