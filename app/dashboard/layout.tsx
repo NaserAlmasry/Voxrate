@@ -7,6 +7,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/app/lib/supabase/client'
+import { PenLine, LayoutTemplate, Activity, MessageSquare, Crosshair, Eye, Bell, Home, LayoutGrid, Clock, Settings, Shield, Users, LogOut, ChevronLeft, ChevronRight, Menu, X } from 'lucide-react'
 import CheckoutRedirectHandler from '@/app/components/CheckoutRedirectHandler'
 import OnboardingModal from '@/app/components/OnboardingModal'
 import ErrorBoundary from '@/app/components/ErrorBoundary'
@@ -21,39 +22,22 @@ const NAV_GROUPS: NavGroup[] = [
       {
         label: 'Rewrite Listing',
         href: '/dashboard/rewrite',
-        icon: (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-          </svg>
-        ),
+        icon: <PenLine size={18} />,
       },
       {
         label: 'Build Listing',
         href: '/dashboard/listing-builder',
-        icon: (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/>
-          </svg>
-        ),
+        icon: <LayoutTemplate size={18} />,
       },
       {
         label: 'Grade Listing',
         href: '/dashboard/grade',
-        icon: (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
-          </svg>
-        ),
+        icon: <Activity size={18} />,
       },
       {
         label: 'Reply to Reviews',
         href: '/dashboard/reply',
-        icon: (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-          </svg>
-        ),
+        icon: <MessageSquare size={18} />,
       },
     ],
   },
@@ -63,31 +47,17 @@ const NAV_GROUPS: NavGroup[] = [
       {
         label: 'Competitor',
         href: '/dashboard/competitor',
-        icon: (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>
-          </svg>
-        ),
+        icon: <Crosshair size={18} />,
       },
       {
         label: 'Watchlist',
         href: '/dashboard/watchlist',
-        icon: (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-            <circle cx="12" cy="12" r="3"/>
-          </svg>
-        ),
+        icon: <Eye size={18} />,
       },
       {
         label: 'Monitor',
         href: '/dashboard/monitor',
-        icon: (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-          </svg>
-        ),
+        icon: <Bell size={18} />,
       },
     ],
   },
@@ -97,32 +67,17 @@ const NAV_GROUPS: NavGroup[] = [
       {
         label: 'Shop Health',
         href: '/dashboard/shop-health',
-        icon: (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-            <polyline points="9 22 9 12 15 12 15 22"/>
-          </svg>
-        ),
+        icon: <Home size={18} />,
       },
       {
         label: 'Library',
         href: '/dashboard/library',
-        icon: (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-            <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
-          </svg>
-        ),
+        icon: <LayoutGrid size={18} />,
       },
       {
         label: 'History',
         href: '/dashboard/history',
-        icon: (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="10"/>
-            <polyline points="12 6 12 12 16 14"/>
-          </svg>
-        ),
+        icon: <Clock size={18} />,
       },
     ],
   },
@@ -131,13 +86,7 @@ const NAV_GROUPS: NavGroup[] = [
       {
         label: 'Settings',
         href: '/dashboard/settings',
-        icon: (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="3"/>
-            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/>
-            <path d="M12 2v2m0 16v2M2 12h2m16 0h2"/>
-          </svg>
-        ),
+        icon: <Settings size={18} />,
       },
     ],
   },
@@ -285,9 +234,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         aria-label={mobileOpen ? 'Close navigation menu' : 'Open navigation menu'}
         aria-expanded={mobileOpen}
       >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-          {mobileOpen ? <><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></> : <><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></>}
-        </svg>
+        {mobileOpen ? <X size={20} /> : <Menu size={20} />}
       </button>
 
       {/* ── SIDEBAR ── */}
@@ -304,9 +251,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             className="p-1.5 rounded-lg hover:bg-neutral-100 text-neutral-500 hover:text-black transition-colors ml-auto"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              {collapsed ? <path d="M9 18l6-6-6-6"/> : <path d="M15 18l-6-6 6-6"/>}
-            </svg>
+            {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
           </button>
         </div>
 
@@ -358,9 +303,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               }`}
             >
               <span className="flex-shrink-0">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                </svg>
+                <Shield size={18} />
               </span>
               {!collapsed && <span className="nav-label">Admin</span>}
             </a>
@@ -382,7 +325,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </span>
                 {credits !== null && (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700">
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg>
+                    <span className="w-2 h-2 rounded-full bg-current" />
                     {credits} cr
                   </span>
                 )}
@@ -395,12 +338,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             title="Switch Google account"
             className="flex items-center gap-2 w-full px-3 py-2 text-sm text-neutral-500 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-colors mb-1"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-              <circle cx="9" cy="7" r="4"/>
-              <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-              <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-            </svg>
+            <Users size={16} />
             {!collapsed && <span>Switch account</span>}
           </button>
 
@@ -409,11 +347,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             aria-label="Sign out"
             className="flex items-center gap-2 w-full px-3 py-2 text-sm text-neutral-500 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-              <polyline points="16 17 21 12 16 7"/>
-              <line x1="21" y1="12" x2="9" y2="12"/>
-            </svg>
+            <LogOut size={16} />
             {!collapsed && <span>Sign out</span>}
           </button>
         </div>

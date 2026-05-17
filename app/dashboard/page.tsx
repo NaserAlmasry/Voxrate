@@ -7,68 +7,9 @@
 import { useState, useEffect, useRef, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/app/lib/supabase/client'
+import { AlertTriangle, Lightbulb, TrendingUp, Crosshair, Dumbbell, BarChart2, Heart, Upload } from 'lucide-react'
 
 export const SIMULATE_USER_KEY = 'voxrate_simulate_user'
-
-// ── SVG Icon Components ──────────────────────────────────────
-function IconWarning({ size = 16 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-      <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-    </svg>
-  )
-}
-function IconBulb({ size = 16 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="9" y1="18" x2="15" y2="18"/><line x1="10" y1="22" x2="14" y2="22"/>
-      <path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/>
-    </svg>
-  )
-}
-function IconTrending({ size = 16 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>
-    </svg>
-  )
-}
-function IconTarget({ size = 16 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>
-    </svg>
-  )
-}
-function IconStrength({ size = 16 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M14.5 10c-.83 0-1.5-.67-1.5-1.5v-5c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5v5c0 .83-.67 1.5-1.5 1.5z"/>
-      <path d="M20.5 10H19V8.5c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>
-      <path d="M9.5 14c.83 0 1.5.67 1.5 1.5v5c0 .83-.67 1.5-1.5 1.5S8 21.33 8 20.5v-5c0-.83.67-1.5 1.5-1.5z"/>
-      <path d="M3.5 14H5v1.5c0 .83-.67 1.5-1.5 1.5S2 16.33 2 15.5 2.67 14 3.5 14z"/>
-      <path d="M14 14.5c0-.83.67-1.5 1.5-1.5h5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5h-5c-.83 0-1.5-.67-1.5-1.5z"/>
-      <path d="M15.5 19H14v1.5c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5-.67-1.5-1.5-1.5z"/>
-      <path d="M10 9.5C10 8.67 9.33 8 8.5 8h-5C2.67 8 2 8.67 2 9.5S2.67 11 3.5 11h5c.83 0 1.5-.67 1.5-1.5z"/>
-      <path d="M8.5 5H10V3.5C10 2.67 9.33 2 8.5 2S7 2.67 7 3.5 7.67 5 8.5 5z"/>
-    </svg>
-  )
-}
-function IconChart({ size = 16 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
-    </svg>
-  )
-}
-function IconHeart({ size = 16 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-    </svg>
-  )
-}
 
 const PRODUCT_CATEGORIES = [
   { value: '', label: 'Select a category...' },
@@ -421,15 +362,15 @@ function DashboardHomeInner() {
   }
 
   const insightsToShow = latestReport ? [
-    { icon: <IconTrending size={14} />, color: 'text-green-600 bg-green-50', text: `Health score: ${latestReport.health_score}/100` },
-    { icon: <IconWarning size={14} />, color: 'text-red-500 bg-red-50', text: latestReport.top_complaint || 'No major complaints found' },
-    { icon: <IconHeart size={14} />, color: 'text-orange-500 bg-orange-50', text: latestReport.top_strength || 'No strengths found' },
-    { icon: <IconChart size={14} />, color: 'text-blue-500 bg-blue-50', text: `${latestReport.total_reviews_analyzed} reviews analyzed` },
+    { icon: <TrendingUp size={14} />, color: 'text-green-600 bg-green-50', text: `Health score: ${latestReport.health_score}/100` },
+    { icon: <AlertTriangle size={14} />, color: 'text-red-500 bg-red-50', text: latestReport.top_complaint || 'No major complaints found' },
+    { icon: <Heart size={14} />, color: 'text-orange-500 bg-orange-50', text: latestReport.top_strength || 'No strengths found' },
+    { icon: <BarChart2 size={14} />, color: 'text-blue-500 bg-blue-50', text: `${latestReport.total_reviews_analyzed} reviews analyzed` },
   ] : [
-    { icon: <IconWarning size={14} />, color: 'text-red-500 bg-red-50', text: 'Most products have 2–4 fixable complaints' },
-    { icon: <IconBulb size={14} />, color: 'text-amber-500 bg-amber-50', text: 'Sellers who fix top complaints see faster growth' },
-    { icon: <IconTrending size={14} />, color: 'text-green-600 bg-green-50', text: 'Better listing copy can double click-through rate' },
-    { icon: <IconTarget size={14} />, color: 'text-blue-500 bg-blue-50', text: 'Paste your URL above to see real insights' },
+    { icon: <AlertTriangle size={14} />, color: 'text-red-500 bg-red-50', text: 'Most products have 2–4 fixable complaints' },
+    { icon: <Lightbulb size={14} />, color: 'text-amber-500 bg-amber-50', text: 'Sellers who fix top complaints see faster growth' },
+    { icon: <TrendingUp size={14} />, color: 'text-green-600 bg-green-50', text: 'Better listing copy can double click-through rate' },
+    { icon: <Crosshair size={14} />, color: 'text-blue-500 bg-blue-50', text: 'Paste your URL above to see real insights' },
   ]
 
   const showBlur = userPlan === 'free' && analysesCount === 0 && !simulatingUser
@@ -459,7 +400,7 @@ function DashboardHomeInner() {
       {userPlan === 'free' && !simulatingUser && credits !== null && credits < 20 && (
         <div className="flex items-center justify-between gap-3 p-4 bg-orange-50 border border-orange-200 rounded-2xl">
           <div className="flex items-center gap-2.5">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f97316" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <AlertTriangle size={15} className="text-orange-500 flex-shrink-0" />
             <p className="text-xs text-orange-800">
               <span className="font-semibold">You're out of free credits.</span> Get more to keep analyzing.
             </p>
@@ -477,7 +418,7 @@ function DashboardHomeInner() {
 
           {error && (
             <div className="mb-4 flex items-center gap-2 p-3 bg-red-50 text-red-600 text-xs rounded-xl border border-red-100">
-              <IconWarning size={13} />
+              <AlertTriangle size={13} />
               {error}
             </div>
           )}
@@ -550,11 +491,7 @@ function DashboardHomeInner() {
         >
           <div className="flex flex-col items-center gap-2">
             <div className="w-9 h-9 rounded-xl bg-neutral-100 flex items-center justify-center text-neutral-400">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="17 8 12 3 7 8"/>
-                <line x1="12" y1="3" x2="12" y2="15"/>
-              </svg>
+              <Upload size={18} />
             </div>
             <div>
               <p className="text-sm font-medium text-neutral-600">Drop CSV or <span className="text-orange-500">Browse</span></p>
@@ -574,27 +511,21 @@ function DashboardHomeInner() {
         >
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-xl bg-purple-50 flex items-center justify-center">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                <line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/>
-              </svg>
+              <Crosshair size={15} className="text-purple-700" />
             </div>
             <div>
               <p className="text-sm font-semibold text-neutral-800">Spy Competitors</p>
               <p className="text-[11px] text-neutral-400">See exactly why a competitor outsells you</p>
             </div>
           </div>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-            className={`text-neutral-400 transition-transform ${showSpyPanel ? 'rotate-180' : ''}`}>
-            <polyline points="6 9 12 15 18 9"/>
-          </svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`text-neutral-400 transition-transform ${showSpyPanel ? 'rotate-180' : ''}`}><polyline points="6 9 12 15 18 9"/></svg>
         </button>
 
         {showSpyPanel && (
           <div className="px-5 pb-5 pt-1 border-t border-neutral-100 space-y-3">
             {spyError && (
               <div className="flex items-center gap-2 p-3 bg-red-50 text-red-600 text-xs rounded-xl border border-red-100">
-                <IconWarning size={13} />{spyError}
+                <AlertTriangle size={13} />{spyError}
               </div>
             )}
 
@@ -726,7 +657,7 @@ function DashboardHomeInner() {
           ) : (
             <>
               <div className="w-28 h-28 rounded-full border-4 border-dashed border-neutral-200 flex items-center justify-center">
-                <IconTarget size={28} />
+                <Crosshair size={28} />
               </div>
               <p className="text-xs text-neutral-400 mt-3">Run an analysis to see your score</p>
             </>

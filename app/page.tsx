@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/app/lib/supabase/client'
 import CheckoutButton from '@/app/components/CheckoutButton'
 import AuthModal from '@/app/components/AuthModal'
+import { Coffee, Search, Crosshair, Zap, PenLine, MessageCircle, Layers, BarChart2, Bell, Puzzle, RefreshCw, Gift, HelpCircle } from 'lucide-react'
 
 // ── helpers ────────────────────────────────────────────────────
 function scoreColor(n: number) {
@@ -42,133 +43,6 @@ function CsvGuide({ show, onToggle, onClose }: { show: boolean; onToggle: () => 
         </div>
       )}
     </div>
-  )
-}
-
-// ── SVG icon components ────────────────────────────────────────
-function IconCoffee({ className = '' }: { className?: string }) {
-  return (
-    <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M18 8h1a4 4 0 0 1 0 8h-1"/>
-      <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/>
-      <line x1="6" y1="1" x2="6" y2="4"/>
-      <line x1="10" y1="1" x2="10" y2="4"/>
-      <line x1="14" y1="1" x2="14" y2="4"/>
-    </svg>
-  )
-}
-
-function IconSearch({ className = '' }: { className?: string }) {
-  return (
-    <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="11" cy="11" r="8"/>
-      <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-    </svg>
-  )
-}
-
-function IconTarget({ className = '' }: { className?: string }) {
-  return (
-    <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10"/>
-      <circle cx="12" cy="12" r="6"/>
-      <circle cx="12" cy="12" r="2"/>
-    </svg>
-  )
-}
-
-function IconZap({ className = '' }: { className?: string }) {
-  return (
-    <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-    </svg>
-  )
-}
-
-function IconEdit({ className = '' }: { className?: string }) {
-  return (
-    <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-    </svg>
-  )
-}
-
-function IconMessageCircle({ className = '' }: { className?: string }) {
-  return (
-    <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-    </svg>
-  )
-}
-
-function IconLayers({ className = '' }: { className?: string }) {
-  return (
-    <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <polygon points="12 2 2 7 12 12 22 7 12 2"/>
-      <polyline points="2 17 12 22 22 17"/>
-      <polyline points="2 12 12 17 22 12"/>
-    </svg>
-  )
-}
-
-function IconBarChart({ className = '' }: { className?: string }) {
-  return (
-    <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="18" y1="20" x2="18" y2="10"/>
-      <line x1="12" y1="20" x2="12" y2="4"/>
-      <line x1="6" y1="20" x2="6" y2="14"/>
-    </svg>
-  )
-}
-
-function IconBell({ className = '' }: { className?: string }) {
-  return (
-    <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-      <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-    </svg>
-  )
-}
-
-function IconPuzzle({ className = '' }: { className?: string }) {
-  return (
-    <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
-      <line x1="7" y1="7" x2="7.01" y2="7"/>
-    </svg>
-  )
-}
-
-function IconRefresh({ className = '' }: { className?: string }) {
-  return (
-    <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="23 4 23 10 17 10"/>
-      <polyline points="1 20 1 14 7 14"/>
-      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-    </svg>
-  )
-}
-
-function IconGift({ className = '' }: { className?: string }) {
-  return (
-    <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="20 12 20 22 4 22 4 12"/>
-      <rect x="2" y="7" width="20" height="5"/>
-      <line x1="12" y1="22" x2="12" y2="7"/>
-      <path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/>
-      <path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/>
-    </svg>
-  )
-}
-
-function IconQuestionMark({ className = '' }: { className?: string }) {
-  return (
-    <svg className={className} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10"/>
-      <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
-      <line x1="12" y1="17" x2="12.01" y2="17"/>
-    </svg>
   )
 }
 
@@ -540,27 +414,23 @@ function SocialProofSection() {
         </div>
 
         <div className="bg-neutral-900 rounded-2xl border border-neutral-800 p-6">
-          <p className="text-xs font-semibold text-neutral-400 uppercase tracking-widest mb-5 text-center">What sellers say about the problem Voxrate solves</p>
+          <p className="text-xs font-semibold text-neutral-400 uppercase tracking-widest mb-5 text-center">What independent research says about the problem</p>
           <div className="grid md:grid-cols-3 gap-4">
             {[
               {
-                quote: 'Managing negative reviews is the #2 challenge for Amazon sellers — right behind getting more reviews in the first place.',
-                attribution: 'eComEngine Seller Survey, 2024',
-                icon: '📊',
+                quote: 'Getting more reviews and managing negative reviews are the two biggest challenges Amazon sellers face — cited by over 200 active sellers surveyed.',
+                attribution: 'eComEngine — Impact of Amazon Reviews Survey, 2024',
               },
               {
-                quote: 'A batch of negative feedback killed my business in 2 days. I had no idea what was causing it until it was too late.',
-                attribution: 'Amazon Seller Central Forums (public post)',
-                icon: '💬',
+                quote: 'Only 1–2% of Amazon buyers leave a review. That means a single unhappy buyer who does write one carries disproportionate weight on your listing score.',
+                attribution: 'Multiple sources including Jungle Scout Seller Report, 2024',
               },
               {
-                quote: '29% of active Amazon sellers name negative review management as their most pressing operational challenge.',
+                quote: '45% of sellers receive fewer than 30 new reviews per month — yet each negative review in that small pool can meaningfully drop the overall rating.',
                 attribution: 'eComEngine — 200+ Sellers Surveyed, 2024',
-                icon: '📋',
               },
             ].map((q, i) => (
               <div key={i} className="bg-neutral-800/50 rounded-xl p-4 border border-neutral-700/50">
-                <p className="text-xl mb-3">{q.icon}</p>
                 <p className="text-sm text-neutral-200 leading-relaxed mb-3 italic">"{q.quote}"</p>
                 <p className="text-[10px] text-neutral-500">{q.attribution}</p>
               </div>
@@ -706,22 +576,22 @@ export default function LandingPage() {
     : { name: 'Pro', price: 49.99, credits: 2000 }
 
   const featureItems: { icon: React.ReactNode; title: string; desc: string; badge: string; soon?: boolean }[] = [
-    { icon: <IconSearch className="text-orange-500" />, title: 'Review Analysis', desc: 'Deep AI analysis of every review — complaints ranked by severity, strengths by frequency, with exact step-by-step fixes.', badge: 'Core feature' },
-    { icon: <IconTarget className="text-orange-500" />, title: 'Competitor Spy', desc: "Analyze any competitor's listing. See their weaknesses before they fix them. Turn their problems into your positioning.", badge: 'Growth & Pro' },
-    { icon: <IconZap className="text-orange-500" />, title: 'Listing Grader', desc: 'Get an A–F grade on your title, tags, description and pricing separately — with specific fixes for each.', badge: 'Free tool' },
-    { icon: <IconEdit className="text-orange-500" />, title: 'AI Description Rewriter', desc: 'Rewrite your listing description using your own review keywords and insights. SEO-optimized in one click.', badge: 'Free tool' },
-    { icon: <IconMessageCircle className="text-orange-500" />, title: 'Review Reply Generator', desc: '3 ready-to-paste reply options for any review — empathetic, professional, or personal tone.', badge: 'Free tool' },
-    { icon: <IconLayers className="text-orange-500" />, title: 'AI Listing Builder', desc: 'Generate a complete listing from scratch — title options, 13 SEO tags, and full description from a short prompt.', badge: 'Free tool' },
-    { icon: <IconBarChart className="text-orange-500" />, title: 'Shop Health Score', desc: "See your entire shop's health at a glance — aggregated score, top recurring complaints, and 3 priority actions.", badge: 'Free' },
-    { icon: <IconBell className="text-orange-500" />, title: 'Review Monitoring', desc: 'Automatic weekly re-analysis. Get alerts the moment your score drops or new complaints appear.', badge: 'Coming soon', soon: true },
-    { icon: <IconPuzzle className="text-orange-500" />, title: 'Chrome Extension', desc: 'Analyze any Amazon listing instantly while browsing — without leaving the page. One-click access to full reports.', badge: 'Coming soon', soon: true },
+    { icon: <Search className="text-orange-500" size={18} />, title: 'Review Analysis', desc: 'Deep AI analysis of every review — complaints ranked by severity, strengths by frequency, with exact step-by-step fixes.', badge: 'Core feature' },
+    { icon: <Crosshair className="text-orange-500" size={18} />, title: 'Competitor Spy', desc: "Analyze any competitor's listing. See their weaknesses before they fix them. Turn their problems into your positioning.", badge: 'Growth & Pro' },
+    { icon: <Zap className="text-orange-500" size={18} />, title: 'Listing Grader', desc: 'Get an A–F grade on your title, tags, description and pricing separately — with specific fixes for each.', badge: 'Free tool' },
+    { icon: <PenLine className="text-orange-500" size={18} />, title: 'AI Description Rewriter', desc: 'Rewrite your listing description using your own review keywords and insights. SEO-optimized in one click.', badge: 'Free tool' },
+    { icon: <MessageCircle className="text-orange-500" size={18} />, title: 'Review Reply Generator', desc: '3 ready-to-paste reply options for any review — empathetic, professional, or personal tone.', badge: 'Free tool' },
+    { icon: <Layers className="text-orange-500" size={18} />, title: 'AI Listing Builder', desc: 'Generate a complete listing from scratch — title options, 13 SEO tags, and full description from a short prompt.', badge: 'Free tool' },
+    { icon: <BarChart2 className="text-orange-500" size={18} />, title: 'Shop Health Score', desc: "See your entire shop's health at a glance — aggregated score, top recurring complaints, and 3 priority actions.", badge: 'Free' },
+    { icon: <Bell className="text-orange-500" size={18} />, title: 'Review Monitoring', desc: 'Automatic weekly re-analysis. Get alerts the moment your score drops or new complaints appear.', badge: 'Coming soon', soon: true },
+    { icon: <Puzzle className="text-orange-500" size={18} />, title: 'Chrome Extension', desc: 'Analyze any Amazon listing instantly while browsing — without leaving the page. One-click access to full reports.', badge: 'Coming soon', soon: true },
   ]
 
   const creditItems: { action: string; cost: string; icon: React.ReactNode; free?: boolean }[] = [
-    { action: 'Own product analysis',    cost: '20 credits', icon: <IconSearch className="text-orange-500" /> },
-    { action: 'Competitor analysis',     cost: '35 credits', icon: <IconTarget className="text-orange-500" /> },
-    { action: 'Re-analyze listing',      cost: '20 credits', icon: <IconRefresh className="text-orange-500" /> },
-    { action: 'All tools (rewrite, reply, grade, builder)', cost: 'FREE', icon: <IconGift className="text-green-500" />, free: true },
+    { action: 'Own product analysis',    cost: '20 credits', icon: <Search className="text-orange-500" size={18} /> },
+    { action: 'Competitor analysis',     cost: '35 credits', icon: <Crosshair className="text-orange-500" size={18} /> },
+    { action: 'Re-analyze listing',      cost: '20 credits', icon: <RefreshCw className="text-orange-500" size={18} /> },
+    { action: 'All tools (rewrite, reply, grade, builder)', cost: 'FREE', icon: <Gift className="text-green-500" size={18} />, free: true },
   ]
 
   return (
@@ -879,7 +749,7 @@ export default function LandingPage() {
                   : 'bg-white text-neutral-600 border-neutral-200 hover:border-neutral-300'
               }`}
             >
-              <IconCoffee className={activeTab !== 'competitor' ? 'text-white' : 'text-neutral-500'} />
+              <Coffee className={activeTab !== 'competitor' ? 'text-white' : 'text-neutral-500'} size={18} />
               Your product
             </button>
             <button
@@ -890,7 +760,7 @@ export default function LandingPage() {
                   : 'bg-white text-neutral-600 border-neutral-200 hover:border-neutral-300'
               }`}
             >
-              <IconTarget className={activeTab === 'competitor' ? 'text-white' : 'text-neutral-500'} />
+              <Crosshair className={activeTab === 'competitor' ? 'text-white' : 'text-neutral-500'} size={18} />
               Competitor analysis
             </button>
           </div>
@@ -1121,7 +991,7 @@ export default function LandingPage() {
               /* ── COMPETITOR TAB ── */
               <div className="p-6">
                 <div className="flex items-center gap-3 mb-6 p-4 bg-orange-50 border border-orange-100 rounded-xl">
-                  <IconTarget className="text-orange-500 flex-shrink-0" />
+                  <Crosshair className="text-orange-500 flex-shrink-0" size={18} />
                   <p className="text-sm text-orange-800 font-medium">Competitor analysis — see their weaknesses before they fix them</p>
                 </div>
 
@@ -1635,7 +1505,7 @@ export default function LandingPage() {
                 <div className="flex items-center gap-2 mb-2">
                   <label className="text-xs font-semibold text-neutral-700">How often do you re-analyze?</label>
                   <div className="relative group">
-                    <IconQuestionMark className="text-neutral-400 cursor-help" />
+                    <HelpCircle className="text-neutral-400 cursor-help" size={14} />
                     <div className="absolute left-1/2 -translate-x-1/2 bottom-6 w-64 bg-neutral-900 text-white text-xs rounded-xl p-3 shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-20">
                       <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-neutral-900 rotate-45" />
                       <p className="font-semibold mb-1.5">Monthly vs Quarterly</p>
