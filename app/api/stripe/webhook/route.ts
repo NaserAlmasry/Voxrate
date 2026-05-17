@@ -151,12 +151,14 @@ export async function POST(request: NextRequest) {
           await supabase.from('processed_webhook_events').delete().eq('stripe_event_id', event.id)
           return NextResponse.json({ error: 'Plan update failed' }, { status: 500 })
         }
-        // On renewal, reset competitor_analyses_used for the new billing cycle
-        await supabase.from('users').update({ competitor_analyses_used: 0 }).eq('id', userId)
+        // On renewal: reset credits to plan amount (no rollover) + reset competitor counter
         if (credits > 0 && credits <= 2000) {
-          const { error: rpcError } = await supabase.rpc('add_credits', { p_user_id: userId, p_amount: credits })
-          if (rpcError) {
-            console.error(`[Webhook] add_credits RPC failed on renewal:`, rpcError.message)
+          const { error: resetError } = await supabase
+            .from('users')
+            .update({ credits, competitor_analyses_used: 0 })
+            .eq('id', userId)
+          if (resetError) {
+            console.error(`[Webhook] Credit reset failed on renewal:`, resetError.message)
             await supabase.from('processed_webhook_events').delete().eq('stripe_event_id', event.id)
             return NextResponse.json({ error: 'Credit update failed' }, { status: 500 })
           }

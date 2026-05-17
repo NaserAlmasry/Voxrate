@@ -390,7 +390,8 @@ export default function LandingPage() {
   const [heroUrlError, setHeroUrlError] = useState('')
   const [ctaUrl, setCtaUrl]           = useState('')
   const [ctaUrlError, setCtaUrlError] = useState('')
-  const [pricingTab, setPricingTab]   = useState<'packs' | 'subscription'>('packs')
+  const [pricingTab, setPricingTab]   = useState<'packs' | 'subscription'>('subscription')
+  const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly')
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [authModalMode, setAuthModalMode] = useState<{ step?: 'plan' | 'auth'; authMode?: 'signup' | 'login' }>({})
   const [showNewsletter, setShowNewsletter] = useState(false)
@@ -1207,14 +1208,20 @@ export default function LandingPage() {
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-10">
             <p className="text-xs font-semibold text-orange-600 uppercase tracking-widest mb-2">Pricing</p>
-            <h2 className="text-3xl md:text-4xl font-bold mb-3">Pay for what you use</h2>
-            <p className="text-sm text-neutral-500 mb-6 max-w-xl mx-auto">No monthly lock-in. Buy credits when you need them — they never expire. Or subscribe and save.</p>
+            <h2 className="text-3xl md:text-4xl font-bold mb-3">
+              {pricingTab === 'subscription' ? 'Your listing always improving' : 'Buy once, use forever'}
+            </h2>
+            <p className="text-sm text-neutral-500 mb-6 max-w-xl mx-auto">
+              {pricingTab === 'subscription'
+                ? 'Subscribe and get credits every month. Unused credits reset each cycle.'
+                : 'Buy credits when you need them — they never expire. No subscription required.'}
+            </p>
             <div className="inline-flex items-center gap-1 p-1 bg-neutral-100 rounded-full">
-              {[{ id: 'packs', label: 'Credit packs' }, { id: 'subscription', label: 'Monthly subscription' }].map(t => (
+              {[{ id: 'packs', label: 'Credit packs' }, { id: 'subscription', label: 'Subscription' }].map(t => (
                 <button key={t.id} onClick={() => setPricingTab(t.id as any)}
                   className={`px-4 py-1.5 text-sm rounded-full transition-all ${pricingTab === t.id ? 'bg-white shadow-sm font-medium' : 'text-neutral-500'}`}>
                   {t.label}
-                  {t.id === 'subscription' && <span className="text-orange-500 text-xs ml-1">Save 30%+</span>}
+                  {t.id === 'subscription' && <span className="text-orange-500 text-xs ml-1">Save 2 months</span>}
                 </button>
               ))}
             </div>
@@ -1236,6 +1243,22 @@ export default function LandingPage() {
             </div>
             <p className="text-xs text-neutral-400 text-center mt-3">Credits never expire · 1 analysis = 20 credits · Competitor analysis = 35 credits</p>
           </div>
+
+          {pricingTab === 'subscription' && (
+            <div className="flex items-center justify-center gap-3 mb-8">
+              <button
+                onClick={() => setBillingCycle('monthly')}
+                className={`px-4 py-1.5 text-sm rounded-full border transition-all ${billingCycle === 'monthly' ? 'bg-black text-white border-black' : 'text-neutral-500 border-neutral-200'}`}
+              >Monthly</button>
+              <button
+                onClick={() => setBillingCycle('annual')}
+                className={`px-4 py-1.5 text-sm rounded-full border transition-all flex items-center gap-2 ${billingCycle === 'annual' ? 'bg-black text-white border-black' : 'text-neutral-500 border-neutral-200'}`}
+              >
+                Annual
+                <span className="text-xs bg-orange-500 text-white px-1.5 py-0.5 rounded-full">2 months free</span>
+              </button>
+            </div>
+          )}
 
           {pricingTab === 'packs' ? (
             <div className="grid md:grid-cols-3 gap-5 mb-8">
@@ -1286,22 +1309,24 @@ export default function LandingPage() {
             <div className="grid md:grid-cols-3 gap-5 mb-8">
               {[
                 {
-                  name: 'Starter', price: 9.99, credits: 300, analyses: '≈ 15 analyses/mo',
-                  desc: '',
+                  name: 'Starter',
+                  monthlyPrice: 9.99, annualPrice: 7.99,
+                  credits: 300, analyses: '≈ 15 analyses/mo',
                   badge: null,
                   features: [
                     '300 credits every month',
                     '1 competitor analysis included — see exactly why they outsell you',
                     'Full own-listing reports, no limits',
                     'All free tools included',
-                    'Credits roll over monthly',
                   ],
                   upsell: 'Want to track more competitors? Upgrade to Growth →',
+                  btnLabel: 'Get 300 credits/mo →',
                   popular: false, plan: 'starter'
                 },
                 {
-                  name: 'Growth', price: 24.99, credits: 800, analyses: '≈ 40 analyses/mo',
-                  desc: '',
+                  name: 'Growth',
+                  monthlyPrice: 24.99, annualPrice: 19.99,
+                  credits: 800, analyses: '≈ 40 analyses/mo',
                   badge: 'Most popular',
                   features: [
                     '800 credits every month',
@@ -1309,14 +1334,15 @@ export default function LandingPage() {
                     'Side-by-side battle card vs any competitor',
                     'Full reports + SEO keyword gaps',
                     'Review monitoring & alerts',
-                    'Credits roll over monthly',
                   ],
                   upsell: null,
+                  btnLabel: 'Unlock competitor analysis →',
                   popular: true, plan: 'growth'
                 },
                 {
-                  name: 'Pro', price: 49.99, credits: 2000, analyses: '≈ 100 analyses/mo',
-                  desc: '',
+                  name: 'Pro',
+                  monthlyPrice: 49.99, annualPrice: 39.99,
+                  credits: 2000, analyses: '≈ 100 analyses/mo',
                   badge: 'Best value',
                   features: [
                     '2,000 credits every month',
@@ -1327,17 +1353,27 @@ export default function LandingPage() {
                     'Priority email support',
                   ],
                   upsell: null,
+                  btnLabel: 'Get 100 analyses/mo →',
                   popular: false, plan: 'pro'
                 },
-              ].map(sub => (
+              ].map(sub => {
+                const price = billingCycle === 'annual' ? sub.annualPrice : sub.monthlyPrice
+                return (
                 <div key={sub.name} className={`pcard p-6 rounded-2xl border relative ${sub.popular ? 'bg-black text-white border-black' : 'bg-white border-neutral-200'}`}>
                   {sub.badge && <div className="absolute top-4 right-4 px-2 py-0.5 text-xs bg-orange-500 rounded-full text-white">{sub.badge}</div>}
                   <h3 className={`font-semibold mb-1 ${sub.popular ? 'text-white' : ''}`}>{sub.name}</h3>
-                  {sub.desc && <p className={`text-xs mb-2 ${sub.popular ? 'text-neutral-400' : 'text-neutral-500'}`}>{sub.desc}</p>}
-                  <div className="mb-1">
-                    <span className="text-4xl font-black">${sub.price}</span>
+                  <div className="mb-1 mt-3">
+                    <span className="text-4xl font-black">${price}</span>
                     <span className={`text-sm ml-1 ${sub.popular ? 'text-neutral-400' : 'text-neutral-500'}`}>/month</span>
+                    {billingCycle === 'annual' && (
+                      <span className="ml-2 text-xs text-orange-500 font-medium">billed yearly</span>
+                    )}
                   </div>
+                  {billingCycle === 'annual' && (
+                    <p className={`text-xs mb-1 ${sub.popular ? 'text-neutral-400' : 'text-neutral-500'}`}>
+                      ${(sub.annualPrice * 12).toFixed(0)}/year — save ${((sub.monthlyPrice - sub.annualPrice) * 12).toFixed(0)}
+                    </p>
+                  )}
                   <div className={`my-4 p-3 rounded-xl ${sub.popular ? 'bg-white/10' : 'bg-orange-50'}`}>
                     <p className={`text-2xl font-black ${sub.popular ? 'text-orange-400' : 'text-orange-600'}`}>{sub.credits.toLocaleString()}</p>
                     <p className={`text-xs ${sub.popular ? 'text-neutral-400' : 'text-neutral-500'}`}>credits/month · {sub.analyses}</p>
@@ -1350,11 +1386,12 @@ export default function LandingPage() {
                   {sub.upsell && (
                     <p className="text-xs text-orange-500 font-medium mb-4 border border-orange-100 bg-orange-50 rounded-lg px-3 py-2">{sub.upsell}</p>
                   )}
-                  <CheckoutButton plan={sub.plan as any} billing="monthly" label={`Start ${sub.name} →`}
+                  <CheckoutButton plan={sub.plan as any} billing={billingCycle} label={sub.btnLabel}
                     className={`w-full py-2.5 text-sm font-medium rounded-xl transition-colors cursor-pointer ${sub.popular ? 'bg-orange-500 hover:bg-orange-600 text-white' : 'bg-black hover:bg-neutral-800 text-white'}`}
                   />
                 </div>
-              ))}
+                )
+              })}
             </div>
           )}
 

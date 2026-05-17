@@ -17,6 +17,9 @@ const SUBSCRIPTION_PRICE_IDS: Record<string, string> = {
   starter_monthly: process.env.STRIPE_PRICE_STARTER_MONTHLY!,
   growth_monthly:  process.env.STRIPE_PRICE_GROWTH_MONTHLY!,
   pro_monthly:     process.env.STRIPE_PRICE_PRO_MONTHLY!,
+  starter_annual:  process.env.STRIPE_PRICE_STARTER_ANNUAL!,
+  growth_annual:   process.env.STRIPE_PRICE_GROWTH_ANNUAL!,
+  pro_annual:      process.env.STRIPE_PRICE_PRO_ANNUAL!,
 }
 
 const SUBSCRIPTION_CREDITS: Record<string, number> = {
@@ -88,7 +91,7 @@ export async function POST(request: NextRequest) {
 
     // ── Subscription ──────────────────────────────────────────
     const billingMode = billing || 'monthly'
-    if (!['starter', 'growth', 'pro'].includes(plan) || !['monthly'].includes(billingMode)) {
+    if (!['starter', 'growth', 'pro'].includes(plan) || !['monthly', 'annual'].includes(billingMode)) {
       return NextResponse.json({ error: 'Invalid plan selected' }, { status: 400 })
     }
 
