@@ -33,10 +33,10 @@ function CsvGuide({ show, onToggle, onClose }: { show: boolean; onToggle: () => 
           <div className="absolute -top-1.5 right-4 w-3 h-3 bg-black rotate-45" />
           <p className="font-semibold mb-2">Export your reviews from Amazon:</p>
           <ol className="space-y-1.5 text-neutral-300">
-            <li className="flex gap-2"><span className="text-orange-400 font-bold flex-shrink-0">1.</span>Go to your Amazon Seller Central</li>
-            <li className="flex gap-2"><span className="text-orange-400 font-bold flex-shrink-0">2.</span>Click <strong className="text-white">Feedback</strong> in the Reports menu</li>
-            <li className="flex gap-2"><span className="text-orange-400 font-bold flex-shrink-0">3.</span>Click <strong className="text-white">Download CSV</strong> at the top right</li>
-            <li className="flex gap-2"><span className="text-orange-400 font-bold flex-shrink-0">4.</span>Upload the downloaded file here</li>
+            <li className="flex gap-2"><span className="text-orange-400 font-bold flex-shrink-0">1.</span>Use a tool like <strong className="text-white">Helium 10</strong> or <strong className="text-white">Jungle Scout</strong> to export reviews as CSV</li>
+            <li className="flex gap-2"><span className="text-orange-400 font-bold flex-shrink-0">2.</span>Or use Amazon's <strong className="text-white">Request My Data</strong> feature in your account settings</li>
+            <li className="flex gap-2"><span className="text-orange-400 font-bold flex-shrink-0">3.</span>Make sure the CSV has a <strong className="text-white">rating</strong> column and a <strong className="text-white">review text</strong> column</li>
+            <li className="flex gap-2"><span className="text-orange-400 font-bold flex-shrink-0">4.</span>Upload it here — analysis runs in under 60 seconds</li>
           </ol>
           <button onClick={onClose} className="mt-3 text-neutral-400 hover:text-white text-[10px]">Got it ✕</button>
         </div>
@@ -619,7 +619,7 @@ export default function LandingPage() {
           </p>
           <div className="min-h-[180px] md:min-h-[220px] flex flex-col items-center justify-center mb-6 hero-fade">
             <h1 className="text-4xl md:text-6xl font-bold tracking-normal leading-[1.2]">
-              Know exactly what your Amazon customers want — and what&apos;s costing you sales
+              Your reviews tell you exactly what to fix.<br />Most sellers never read them properly.
             </h1>
           </div>
           <p className="text-sm text-neutral-500 mb-8 max-w-xl mx-auto">The Amazon review analyzer that turns customer feedback into specific, actionable improvements</p>
@@ -1080,18 +1080,44 @@ export default function LandingPage() {
             <p className="text-sm text-neutral-500 max-w-xl mx-auto">From diagnosing why buyers leave to generating the copy that makes them stay — all in one dashboard</p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-5">
-            {featureItems.map((f) => (
-              <div key={f.title} className={`feat-card bg-white rounded-2xl border border-neutral-200 p-5 scroll-fade relative overflow-hidden ${f.soon ? 'opacity-80' : ''}`}>
-                {f.soon && (
-                  <div className="absolute top-3 right-3 px-2 py-0.5 bg-orange-100 text-orange-600 text-[10px] font-semibold rounded-full">Coming soon</div>
-                )}
-                <div className="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center mb-3">
+          {/* Core paid features — big cards */}
+          <div className="grid md:grid-cols-2 gap-5 mb-5">
+            {featureItems.slice(0, 2).map((f) => (
+              <div key={f.title} className="feat-card bg-white rounded-2xl border border-neutral-200 p-6 scroll-fade">
+                <div className="w-12 h-12 bg-orange-50 rounded-2xl flex items-center justify-center mb-4">
                   {f.icon}
                 </div>
-                <h3 className="font-semibold text-sm mb-1">{f.title}</h3>
-                <p className="text-xs text-neutral-500 leading-relaxed mb-3">{f.desc}</p>
-                <span className="text-[10px] font-semibold text-neutral-400 bg-neutral-100 px-2 py-0.5 rounded-full">{f.badge}</span>
+                <h3 className="font-semibold text-base mb-1.5">{f.title}</h3>
+                <p className="text-sm text-neutral-500 leading-relaxed mb-3">{f.desc}</p>
+                <span className="text-[10px] font-semibold text-orange-600 bg-orange-50 border border-orange-100 px-2 py-0.5 rounded-full">{f.badge}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Free tools — compact grid */}
+          <div className="bg-white rounded-2xl border border-neutral-200 p-5 scroll-fade mb-5">
+            <p className="text-xs font-semibold text-neutral-400 uppercase tracking-widest mb-4">Also included free on every plan</p>
+            <div className="grid md:grid-cols-2 gap-3">
+              {featureItems.slice(2, 7).map((f) => (
+                <div key={f.title} className="flex items-start gap-3">
+                  <div className="w-8 h-8 bg-neutral-50 rounded-xl flex items-center justify-center flex-shrink-0">
+                    {f.icon}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-neutral-800">{f.title}</p>
+                    <p className="text-xs text-neutral-400 leading-snug">{f.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Coming soon — small teaser */}
+          <div className="flex flex-wrap gap-3 justify-center scroll-fade">
+            {featureItems.slice(7).map((f) => (
+              <div key={f.title} className="inline-flex items-center gap-2 px-4 py-2 bg-neutral-50 border border-neutral-200 rounded-full text-xs text-neutral-500">
+                <span className="w-1.5 h-1.5 rounded-full bg-orange-400" />
+                {f.title} — coming soon
               </div>
             ))}
           </div>
@@ -1737,7 +1763,7 @@ export default function LandingPage() {
                 <select value={productCategory} onChange={e => { setProductCategory(e.target.value); setProductCategoryError('') }}
                   className={`w-full px-3 py-2.5 text-sm border rounded-xl outline-none focus:border-orange-400 transition-colors bg-white ${productCategoryError ? 'border-red-300 bg-red-50' : 'border-neutral-200'}`}>
                   <option value="">Select a category...</option>
-                  {['Jewelry & Accessories','Home & Living','Clothing & Apparel','Art & Collectibles','Craft Supplies & Tools','Weddings','Toys & Games','Paper & Party Supplies','Pet Supplies','Food & Drink','Bags & Purses','Other'].map(c => (
+                  {['Electronics','Kitchen & Home','Health & Personal Care','Beauty','Clothing & Apparel','Sports & Outdoors','Toys & Games','Baby','Pet Supplies','Tools & Home Improvement','Books & Media','Food & Grocery','Automotive','Office Products','Other'].map(c => (
                     <option key={c} value={c}>{c}</option>
                   ))}
                 </select>
