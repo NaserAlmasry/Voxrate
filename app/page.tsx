@@ -638,22 +638,6 @@ export default function LandingPage() {
             </div>
             {heroUrlError && <p className="text-xs text-red-500 mt-2 text-left px-1">{heroUrlError}</p>}
 
-            <div className="mt-4 text-center">
-              <div className="flex items-center justify-center gap-2 flex-wrap">
-                <button onClick={openCsv} className="text-sm text-neutral-500 hover:text-black underline underline-offset-4 transition-colors">or upload a reviews CSV</button>
-                <span className="text-neutral-300">·</span>
-                <CsvGuide show={showCsvGuide} onToggle={() => setShowCsvGuide(v => !v)} onClose={() => setShowCsvGuide(false)} />
-              </div>
-              <input id="csv-in" type="file" accept=".csv" onChange={onCsv} className="hidden" />
-              {csvMsg && (
-                <div className="mt-3 flex items-center justify-center gap-2">
-                  <div className="h-1 w-32 bg-neutral-200 rounded-full overflow-hidden">
-                    <div className="h-full bg-orange-400 rounded-full animate-pulse" style={{ width: '60%' }} />
-                  </div>
-                  <p className="text-xs text-orange-600">{csvMsg}</p>
-                </div>
-              )}
-            </div>
 
             <div className="mt-6 flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-neutral-500">
               {['First analysis free', 'No credit card required', 'Specific fixes, not guesses'].map(t => (
