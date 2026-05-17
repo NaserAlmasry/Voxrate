@@ -4,7 +4,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
-import { createClient } from '@/app/lib/supabase/server'
+import { createClient as createAdminClient } from '@supabase/supabase-js'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2024-06-20' as any,
@@ -31,7 +31,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
   }
 
-  const supabase = await createClient()
+  const supabase = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  )
 
   // ── Idempotency check ────────────────────────────────────────
   try {
@@ -99,10 +102,20 @@ export async function POST(request: NextRequest) {
 
           console.log(`[Webhook] Upgrading user ${userId} to ${plan} + ${credits} credits`)
 
+          // Fetch subscription to get billing period end date
+          let periodEnd: number | null = null
+          try {
+            if (session.subscription) {
+              const sub = await stripe.subscriptions.retrieve(session.subscription as string)
+              periodEnd = (sub as any).current_period_end ?? null
+            }
+          } catch {}
+
           const { error: updateError } = await supabase.from('users').update({
             plan,
-            stripe_customer_id:     session.customer as string,
-            stripe_subscription_id: session.subscription as string,
+            stripe_customer_id:          session.customer as string,
+            stripe_subscription_id:      session.subscription as string,
+            stripe_current_period_end:   periodEnd,
           }).eq('id', userId)
 
           if (updateError) {
@@ -144,8 +157,9 @@ export async function POST(request: NextRequest) {
         if (!userId || !plan) break
         if (!['starter', 'growth', 'pro'].includes(plan)) break
 
+        const periodEnd = (subscription as any).current_period_end ?? null
         console.log(`[Webhook] Monthly renewal for user ${userId} — adding ${credits} credits`)
-        const { error: renewUpdateError } = await supabase.from('users').update({ plan }).eq('id', userId)
+        const { error: renewUpdateError } = await supabase.from('users').update({ plan, stripe_current_period_end: periodEnd }).eq('id', userId)
         if (renewUpdateError) {
           console.error(`[Webhook] Renewal plan update failed:`, renewUpdateError.message)
           await supabase.from('processed_webhook_events').delete().eq('stripe_event_id', event.id)
@@ -168,6 +182,16 @@ export async function POST(request: NextRequest) {
         break
       }
 
+      // ── Subscription updated (plan change, cancellation scheduled) ──
+      case 'customer.subscription.updated': {
+        const sub    = event.data.object as any
+        const userId = sub.metadata?.user_id
+        if (!userId) break
+        const periodEnd = sub.current_period_end ?? null
+        await supabase.from('users').update({ stripe_current_period_end: periodEnd }).eq('id', userId)
+        break
+      }
+
       // ── Subscription cancelled or payment failed ───────────────
       case 'customer.subscription.deleted':
       case 'invoice.payment_failed': {
@@ -180,7 +204,7 @@ export async function POST(request: NextRequest) {
         if (!userId) break
 
         console.log(`[Webhook] Subscription ended for user ${userId} — downgrading to free, zeroing credits`)
-        await supabase.from('users').update({ plan: 'free', credits: 0 }).eq('id', userId)
+        await supabase.from('users').update({ plan: 'free', credits: 0, stripe_current_period_end: null }).eq('id', userId)
         break
       }
 

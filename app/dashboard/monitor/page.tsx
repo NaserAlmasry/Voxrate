@@ -93,7 +93,7 @@ export default function MonitorPage() {
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-xl font-semibold">Review monitoring</h1>
-          <p className="text-xs text-neutral-400 mt-1">Get alerts when your Amazon product&apos;s health score drops or new complaints appear</p>
+          <p className="text-xs text-neutral-400 mt-1">Voxrate re-analyzes your listings automatically and emails you if the score drops or new complaints appear</p>
         </div>
         {isPaid && (
           <button
@@ -114,7 +114,7 @@ export default function MonitorPage() {
               <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
             </svg>
           </div>
-          <h2 className="text-base font-semibold mb-2">Starter & Pro feature</h2>
+          <h2 className="text-base font-semibold mb-2">Starter, Growth & Pro feature</h2>
           <p className="text-sm text-neutral-500 mb-1">Get automatic email alerts when your product health drops.</p>
           <p className="text-xs text-neutral-400 mb-6">Never miss a new complaint pattern — catch problems before they cost you sales.</p>
           <a href="/#pricing" className="inline-block px-6 py-2.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold rounded-xl transition-colors">
@@ -127,7 +127,7 @@ export default function MonitorPage() {
           title="No listings monitored yet"
           description="Add your listings here and get alerted the moment your score drops — before it costs you sales."
           action={{ label: 'Add your first listing', onClick: () => setShowPicker(true) }}
-          tip="Voxrate checks your listings regularly and notifies you of any significant changes."
+          tip="When Voxrate detects a score drop of 5+ points or new complaints, it sends you an email alert with a breakdown of what changed."
         />
       ) : (
         <div className="space-y-3">
@@ -148,6 +148,8 @@ export default function MonitorPage() {
                       <span>Checked {date}</span>
                       <span>·</span>
                       <span className="capitalize">{m.check_frequency}</span>
+                      <span>·</span>
+                      <span className="text-green-600">Email alert on change</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">

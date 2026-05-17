@@ -148,7 +148,7 @@ export default function WatchlistPage() {
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-xl font-semibold">Competitor watchlist</h1>
-          <p className="text-xs text-neutral-400 mt-1">Track competitors over time — see when their score changes</p>
+          <p className="text-xs text-neutral-400 mt-1">Voxrate tracks competitor scores over time and emails you when they drop — so you can move fast when they slip up</p>
         </div>
         {isPaid && (
           <button
@@ -168,7 +168,7 @@ export default function WatchlistPage() {
               <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>
             </svg>
           </div>
-          <h2 className="text-base font-semibold mb-2">Starter & Pro feature</h2>
+          <h2 className="text-base font-semibold mb-2">Starter, Growth & Pro feature</h2>
           <p className="text-sm text-neutral-500 mb-1">Track competitors and get alerted when their scores drop — that's your opportunity.</p>
           <p className="text-xs text-neutral-400 mb-6">Know before anyone else when a competitor loses trust with buyers.</p>
           <a href="/#pricing" className="inline-block px-6 py-2.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold rounded-xl transition-colors">
