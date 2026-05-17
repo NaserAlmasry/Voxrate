@@ -148,16 +148,21 @@ export default function SettingsPage() {
 
         {/* Upgrade CTA for free plan */}
         {!isAdmin && plan === 'free' && (
-          <div className="grid grid-cols-2 gap-2 mb-5">
+          <div className="grid grid-cols-3 gap-2 mb-5">
             <CheckoutButton
               plan="starter" billing="monthly"
-              label="Starter — 720 cr/mo · $9"
+              label="Starter · $9.99"
               className="py-2.5 bg-black text-white text-xs font-semibold rounded-xl hover:bg-neutral-800 transition-colors disabled:opacity-50"
             />
             <CheckoutButton
-              plan="pro" billing="monthly"
-              label="Pro — 2,400 cr/mo · $19"
+              plan="growth" billing="monthly"
+              label="Growth · $24.99"
               className="py-2.5 bg-orange-500 text-white text-xs font-semibold rounded-xl hover:bg-orange-600 transition-colors disabled:opacity-50"
+            />
+            <CheckoutButton
+              plan="pro" billing="monthly"
+              label="Pro · $49.99"
+              className="py-2.5 bg-black text-white text-xs font-semibold rounded-xl hover:bg-neutral-800 transition-colors disabled:opacity-50"
             />
           </div>
         )}
