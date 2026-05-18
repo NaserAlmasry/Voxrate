@@ -135,7 +135,7 @@ function CompetitorPage() {
           <div className="grid grid-cols-3 gap-3">
             {[
               { n: '1', label: 'Paste their Amazon URL or ASIN' },
-              { n: '2', label: 'We read every review they\'ve ever gotten' },
+              { n: '2', label: 'We read up to 120 of their most critical reviews' },
               { n: '3', label: 'You get their complaints, ranked — and your exact counter-pitch' },
             ].map(step => (
               <div key={step.n} className="bg-white rounded-xl border border-neutral-200 p-4 text-center">

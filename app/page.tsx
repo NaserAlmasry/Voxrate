@@ -576,7 +576,7 @@ export default function LandingPage() {
     : { name: 'Pro', price: 49.99, credits: 2000 }
 
   const featureItems: { icon: React.ReactNode; title: string; desc: string; badge: string; soon?: boolean }[] = [
-    { icon: <Search className="text-orange-500" size={18} />, title: 'Review Analysis', desc: 'Deep AI analysis of every review — complaints ranked by severity, strengths by frequency, with exact step-by-step fixes.', badge: 'Core feature' },
+    { icon: <Search className="text-orange-500" size={18} />, title: 'Review Analysis', desc: 'Deep AI analysis of up to 120 reviews — complaints ranked by severity, strengths by frequency, with exact step-by-step fixes.', badge: 'Core feature' },
     { icon: <Crosshair className="text-orange-500" size={18} />, title: 'Competitor Spy', desc: "Analyze any competitor's listing. See their weaknesses before they fix them. Turn their problems into your positioning.", badge: 'Growth & Pro' },
     { icon: <Zap className="text-orange-500" size={18} />, title: 'Listing Grader', desc: 'Get an A–F grade on your title, tags, description and pricing separately — with specific fixes for each.', badge: 'Free tool' },
     { icon: <PenLine className="text-orange-500" size={18} />, title: 'AI Description Rewriter', desc: 'Rewrite your listing description using your own review keywords and insights. SEO-optimized in one click.', badge: 'Free tool' },
@@ -1198,8 +1198,8 @@ export default function LandingPage() {
               {
                 n: 2,
                 icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f05a1e" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>,
-                title: 'AI analyzes every review',
-                body: 'Our AI reads all your reviews, finds complaint patterns, hidden strengths, and buyer keywords specific to your listing.',
+                title: 'AI analyzes your reviews',
+                body: 'Our AI reads up to 120 of your most critical reviews, finds complaint patterns, hidden strengths, and buyer keywords specific to your listing.',
               },
               {
                 n: 3,

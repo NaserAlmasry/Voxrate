@@ -831,7 +831,7 @@ export default function ReportPage() {
     const secs = Math.floor((Date.now() - loadStartRef.current) / 1000)
     const msg  = secs < 20  ? 'Voxrate is analyzing your data...'
                : secs < 60  ? 'Reading your customer reviews...'
-               : secs < 120 ? 'Collecting all your reviews...'
+               : secs < 120 ? 'Collecting your most critical reviews...'
                : secs < 180 ? 'Finding patterns across your reviews...'
                : 'Writing your report...'
     return (
