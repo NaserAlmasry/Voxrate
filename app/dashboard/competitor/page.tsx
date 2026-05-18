@@ -80,7 +80,7 @@ function CompetitorPage() {
       const res = await fetch('/api/analyze', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-        body:    JSON.stringify({ productUrl: url, reportType: 'competitor' }),
+        body:    JSON.stringify({ productUrl: url, reportType: 'competitor', ownReportId: ownReportId || undefined }),
         signal:  controller.signal,
       })
       const data = await res.json()

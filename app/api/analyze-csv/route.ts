@@ -1229,28 +1229,37 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    let csvCreditsDeducted  = false
+    let csvCreditsRefunded  = false
+    const csvCreditCost     = 20
+    const refundCsvCredits  = async () => {
+      if (!csvCreditsDeducted || csvCreditsRefunded) return
+      csvCreditsRefunded = true
+      await supabase.rpc('add_credits', { p_user_id: user.id, p_amount: csvCreditCost }).catch(() => {})
+    }
+
     if (!isAdminUser && (plan === 'growth' || plan === 'pro')) {
-      const creditCost = 20
       const { data: userCreditData } = await supabase
         .from('users')
         .select('credits')
         .eq('id', user.id)
         .single()
       const currentCredits = userCreditData?.credits ?? 0
-      if (currentCredits < creditCost) {
+      if (currentCredits < csvCreditCost) {
         return NextResponse.json(
-          { error: `Not enough credits. This analysis costs ${creditCost} credits and you have ${currentCredits}.`, upgradeRequired: true, creditCost },
+          { error: `Not enough credits. This analysis costs ${csvCreditCost} credits and you have ${currentCredits}.`, upgradeRequired: true, creditCost: csvCreditCost },
           { status: 403 },
         )
       }
       const { error: deductError } = await supabase.rpc('deduct_credits', {
         p_user_id: user.id,
-        p_amount:  creditCost,
+        p_amount:  csvCreditCost,
       })
       if (deductError) {
         console.error('[CSV] Credit deduction failed:', deductError.message)
         return NextResponse.json({ error: 'Could not deduct credits. Please refresh and try again.' }, { status: 503 })
       }
+      csvCreditsDeducted = true
     }
 
     const formData    = await request.formData()
@@ -1322,8 +1331,11 @@ export async function POST(request: NextRequest) {
         last_analyzed_at:       new Date().toISOString(),
       }).eq('id', reportId)
 
-      const { error: countError } = await supabase.rpc('increment_analyses_count', { user_id: user.id })
-      if (countError) console.error('[CSV] increment_analyses_count failed:', countError.message)
+      // Only increment for plans that didn't already increment at the gate (free uses try_increment_analyses_count above)
+      if (!isAdminUser && plan !== 'free') {
+        const { error: countError } = await supabase.rpc('increment_analyses_count', { user_id: user.id })
+        if (countError) console.error('[CSV] increment_analyses_count failed:', countError.message)
+      }
 
       // Fire-and-forget completion email
       if (user.email) {
@@ -1347,6 +1359,7 @@ export async function POST(request: NextRequest) {
     } catch (err: any) {
       console.error('[CSV] Pipeline error:', err.message)
       await supabase.from('reports').update({ status: 'failed' }).eq('id', reportId)
+      await refundCsvCredits()
       throw err
     }
   } catch (error: any) {

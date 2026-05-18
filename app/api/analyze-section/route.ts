@@ -199,6 +199,12 @@ export async function POST(request: NextRequest) {
       topComplaintTitle = 'quality issues',
     } = cache
 
+    // Cache was wiped (summary ran before this section) — cannot produce meaningful output
+    if (!contextBlock) {
+      console.error(`[Section:${section}] Cache missing for report ${reportId} — section requested out of order or after summary completed`)
+      return NextResponse.json({ error: 'Section data unavailable. Please re-run the analysis.' }, { status: 409 })
+    }
+
     let updatedReport = { ...fullReport }
     let newSectionsReady = [...sectionsReady]
 
@@ -266,6 +272,7 @@ Return ONLY this JSON — start with { immediately:
         console.log(`[Section:strengths] Done — ${updatedReport.strengths.length} strengths, ${updatedReport.improvements.length} improvements`)
       } catch (e) {
         console.error('[Section:strengths] Parse failed:', String(e).slice(0, 200))
+        newSectionsReady.push('strengths')
       }
     }
 
@@ -392,6 +399,8 @@ Return ONLY this JSON — start with { immediately:
         console.log(`[Section:seo] Done — seo:${!!updatedReport.seo} marketing:${updatedReport.marketingCopy.length}`)
       } catch (e) {
         console.error('[Section:seo] Parse failed:', String(e).slice(0, 200))
+        // Mark seo ready even on parse failure so the client doesn't spin forever
+        newSectionsReady.push('seo')
       }
     }
 
@@ -494,6 +503,19 @@ Return ONLY this JSON — start with { immediately:
         finalReport._sectionsReady = newSectionsReady
       } catch (e) {
         console.warn('[Section] applyHardOverrides failed:', e)
+      }
+    }
+
+    // Soft schema validation on final report — log issues but don't block
+    if (allDone) {
+      try {
+        const { validateReport } = await import('@/app/lib/report-schema')
+        const validation = validateReport(finalReport)
+        if (!validation.valid) {
+          console.warn(`[Section] Schema issues in final report ${reportId}:`, validation.errorStrings?.slice(0, 5))
+        }
+      } catch (e) {
+        console.warn('[Section] Schema validation threw:', e)
       }
     }
 

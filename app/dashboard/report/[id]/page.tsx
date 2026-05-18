@@ -464,33 +464,36 @@ export default function ReportPage() {
   // ── Progressive section loader ────────────────────────────────
   const loadSections = useCallback(async (rId: string, alreadyReady: string[]) => {
     const SECTIONS: Array<'strengths' | 'seo' | 'summary'> = ['strengths', 'seo', 'summary']
-    for (const section of SECTIONS) {
-      if (alreadyReady.includes(section)) continue
-      setLoadingSection(section)
-      try {
-        console.log(`[Section] Loading: ${section}`)
-        const res  = await fetch('/api/analyze-section', {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-          body:    JSON.stringify({ reportId: rId, section }),
-        })
-        const json = await res.json()
-        if (res.ok && json.data) {
-          const { _cache, _sectionsReady, ...cleanReport } = json.data
-          setReport((prev: any) => prev ? { ...prev, full_report: cleanReport } : prev)
-          setSectionsReady(json.sectionsReady || [])
-          alreadyReady = json.sectionsReady || alreadyReady
-          console.log(`[Section] ${section} done. Ready: ${alreadyReady.join(', ')}`)
-        } else {
-          console.error(`[Section] ${section} failed:`, json.error)
+    try {
+      for (const section of SECTIONS) {
+        if (alreadyReady.includes(section)) continue
+        setLoadingSection(section)
+        try {
+          console.log(`[Section] Loading: ${section}`)
+          const res  = await fetch('/api/analyze-section', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            body:    JSON.stringify({ reportId: rId, section }),
+          })
+          const json = await res.json()
+          if (res.ok && json.data) {
+            const { _cache, _sectionsReady, ...cleanReport } = json.data
+            setReport((prev: any) => prev ? { ...prev, full_report: cleanReport } : prev)
+            setSectionsReady(json.sectionsReady || [])
+            alreadyReady = json.sectionsReady || alreadyReady
+            console.log(`[Section] ${section} done. Ready: ${alreadyReady.join(', ')}`)
+          } else {
+            console.error(`[Section] ${section} failed:`, json.error)
+          }
+        } catch (err) {
+          console.error(`[Section] ${section} threw:`, err)
         }
-      } catch (err) {
-        console.error(`[Section] ${section} threw:`, err)
       }
+    } finally {
+      setLoadingSection(null)
+      sectionLoadingRef.current = false
+      console.log('[Section] All sections loaded')
     }
-    setLoadingSection(null)
-    sectionLoadingRef.current = false
-    console.log('[Section] All sections loaded')
   }, [])
 
   // ── Load report (defined before effects so closure is always valid) ──
