@@ -3,10 +3,14 @@ import { AmazonScrapeResult, AmazonProduct, AmazonReview, AmazonQA } from './ama
 const SCRAPINGDOG_API_KEY  = process.env.SCRAPINGDOG_API_KEY!
 const SCRAPERAPI_KEY       = process.env.SCRAPERAPI_KEY!
 
-// Two Canopy keys — auto-rotates to backup when primary returns 429/quota error
+// Canopy keys — auto-rotates to next key when current hits quota (429/403)
+// Add CANOPY_API_KEY_2, _3, _4... in Vercel for more free-tier capacity
 const CANOPY_KEYS = [
   process.env.CANOPY_API_KEY,
   process.env.CANOPY_API_KEY_2,
+  process.env.CANOPY_API_KEY_3,
+  process.env.CANOPY_API_KEY_4,
+  process.env.CANOPY_API_KEY_5,
 ].filter(Boolean) as string[]
 
 async function canopyFetch(url: string): Promise<Response> {
