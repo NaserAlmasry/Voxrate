@@ -14,7 +14,7 @@
 // ============================================================
 
 const MISTRAL_API_URL = 'https://api.mistral.ai/v1/chat/completions'
-const MISTRAL_MODEL   = 'mistral-large-2411'
+const MISTRAL_MODEL   = 'mistral-large-latest'
 
 export type Message = { role: 'system' | 'user' | 'assistant'; content: string }
 
