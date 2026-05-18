@@ -17,6 +17,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import Groq from 'groq-sdk'
+import { callWithFallback, type Message } from '@/app/lib/mistral-fallback'
 import { createClient } from '@/app/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import {
@@ -134,38 +135,31 @@ function extractJson(content: string): unknown {
 
 // ── Groq callers — one per model tier ────────────────────────
 
-async function callGroq70b(
-  messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
-  maxTokens: number,
-): Promise<string> {
-  const response = await groq.chat.completions.create({
-    model:       MODEL_70B,
-    max_tokens:  maxTokens,
-    temperature: 0.1,
-    messages,
-  })
-  const usage = response.usage
-  if (usage) {
-    console.log(`[Groq-70b] prompt: ${usage.prompt_tokens}, completion: ${usage.completion_tokens}, total: ${usage.total_tokens}`)
+async function callGroq70b(messages: Message[], maxTokens: number): Promise<string> {
+  const groqFn = async () => {
+    const response = await groq.chat.completions.create({
+      model: MODEL_70B, max_tokens: maxTokens, temperature: 0.1, messages,
+    })
+    const usage = response.usage
+    if (usage) console.log(`[Groq-70b] prompt:${usage.prompt_tokens} completion:${usage.completion_tokens} total:${usage.total_tokens}`)
+    return response.choices[0].message.content || ''
   }
-  return response.choices[0].message.content || ''
+  const { result } = await callWithFallback(groqFn, messages, maxTokens)
+  return result
 }
 
-async function callGroq8b(
-  messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
-  maxTokens: number,
-): Promise<string> {
-  const response = await groq.chat.completions.create({
-    model:       MODEL_8B,
-    max_tokens:  maxTokens,
-    temperature: 0.1,
-    messages,
-  })
-  const usage = response.usage
-  if (usage) {
-    console.log(`[Groq-8b] prompt: ${usage.prompt_tokens}, completion: ${usage.completion_tokens}, total: ${usage.total_tokens}`)
+async function callGroq8b(messages: Message[], maxTokens: number): Promise<string> {
+  const groqFn = async () => {
+    const response = await groq.chat.completions.create({
+      model: MODEL_8B, max_tokens: maxTokens, temperature: 0.1, messages,
+    })
+    const usage = response.usage
+    if (usage) console.log(`[Groq-8b] prompt:${usage.prompt_tokens} completion:${usage.completion_tokens} total:${usage.total_tokens}`)
+    return response.choices[0].message.content || ''
   }
-  return response.choices[0].message.content || ''
+  // 8b fallback also goes to Mistral Large — better to get high quality than fail
+  const { result } = await callWithFallback(groqFn, messages, maxTokens)
+  return result
 }
 
 // ── Complaint count guidance ──────────────────────────────────

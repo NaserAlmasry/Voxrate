@@ -13,6 +13,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import Groq from 'groq-sdk'
+import { callWithFallback, type Message } from '@/app/lib/mistral-fallback'
 import { createClient } from '@/app/lib/supabase/server'
 import { applyHardOverrides, validateSemanticConstraints } from '@/app/lib/health-score'
 import { enforceRateLimit, checkRateLimit } from '@/app/lib/rate-limit'
@@ -57,10 +58,10 @@ function extractJson(content: string): unknown {
   return candidates[0].json
 }
 
-async function callGroq(
-  messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
+async function callGroqDirect(
+  messages: Message[],
   maxTokens: number,
-  retries = 3,
+  retries = 2,
 ): Promise<string> {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
@@ -75,16 +76,25 @@ async function callGroq(
       return response.choices[0].message.content || ''
     } catch (err: any) {
       const is429 = err?.status === 429 || err?.message?.includes('429') || err?.message?.includes('rate limit')
-      if (is429 && attempt < retries) {
-        const wait = (attempt + 1) * 20_000
-        console.warn(`[Groq] 429 rate limit — waiting ${wait / 1000}s before retry ${attempt + 1}/${retries}`)
-        await new Promise(r => setTimeout(r, wait))
+      // On 429 retry once with short wait, then let callWithFallback handle quota fallback
+      if (is429 && attempt === 0) {
+        console.warn('[Groq] 429 — waiting 15s before retry')
+        await new Promise(r => setTimeout(r, 15_000))
         continue
       }
       throw err
     }
   }
   throw new Error('Groq rate limit exceeded after retries')
+}
+
+async function callGroq(messages: Message[], maxTokens: number): Promise<string> {
+  const { result } = await callWithFallback(
+    () => callGroqDirect(messages, maxTokens),
+    messages,
+    maxTokens,
+  )
+  return result
 }
 
 const SYSTEM_PROMPT = `You are a review analysis engine. Convert reviewer language into structured JSON. Every word you write must trace back to something a reviewer actually said or described.
