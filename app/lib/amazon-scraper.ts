@@ -48,7 +48,6 @@ function allocatePages(ratingBreakdown: { one: number; two: number; three: numbe
   return pages
 }
 
-// Maps amazon marketplace domain to Canopy domain code
 const DOMAIN_MAP: Record<string, string> = {
   'amazon.com':    'US',
   'amazon.co.uk':  'UK',
@@ -70,6 +69,8 @@ export async function scrapeAmazon(input: string): Promise<AmazonScrapeResult> {
   console.log(`[Scraper] ASIN: ${asin} | Marketplace: ${marketplace}`)
 
   const domain = DOMAIN_MAP[marketplace] ?? 'US'
+
+
 
   // Fetch product first so we know the rating breakdown, then allocate pages smartly
   const [{ product: productData }, qaData] = await Promise.all([
@@ -96,6 +97,59 @@ export async function scrapeAmazon(input: string): Promise<AmazonScrapeResult> {
     qa: qaData,
     scrapedAt: new Date().toISOString(),
     marketplace,
+  }
+}
+
+// Free-plan scrape — 1 Canopy request only (unfiltered page 1)
+export async function scrapeAmazonFree(input: string): Promise<AmazonScrapeResult> {
+  const { asin, marketplace } = parseInput(input)
+  console.log(`[Scraper:free] ASIN: ${asin} | Marketplace: ${marketplace}`)
+
+  const domain = DOMAIN_MAP[marketplace] ?? 'US'
+
+  const { product: productData } = await fetchProduct(asin, marketplace)
+
+  // Single unfiltered Canopy request — page 1, no star filter
+  const reviews = await fetchOnePage(asin, domain)
+
+  console.log(`[Scraper:free] "${productData.title.slice(0, 50)}" | ${reviews.length} reviews (1 page)`)
+
+  return {
+    product:   productData,
+    reviews,
+    qa:        [],
+    scrapedAt: new Date().toISOString(),
+    marketplace,
+  }
+}
+
+async function fetchOnePage(asin: string, domain: string): Promise<AmazonReview[]> {
+  try {
+    const url = `${CANOPY_BASE}?asin=${asin}&domain=${domain}&page=1`
+    const res = await fetch(url, {
+      headers: { 'API-KEY': CANOPY_API_KEY, 'accept': 'application/json' },
+    })
+    if (!res.ok) {
+      console.warn(`[Scraper:free] Canopy page 1 HTTP ${res.status}`)
+      return []
+    }
+    const data     = await res.json()
+    const paginated = data?.data?.amazonProduct?.reviewsPaginated
+    if (!paginated) return []
+    return (paginated.reviews ?? []).map((r: CanopyReview, i: number) => ({
+      id:       r.id ?? `${asin}-free-${i}`,
+      rating:   r.rating ?? 3,
+      title:    r.title ?? '',
+      body:     r.body ?? '',
+      date:     '',
+      verified: r.verifiedPurchase ?? false,
+      vine:     false,
+      helpful:  r.helpfulVotes ?? 0,
+      country:  domain.toLowerCase(),
+    }))
+  } catch (e) {
+    console.warn('[Scraper:free] fetchOnePage exception:', e)
+    return []
   }
 }
 

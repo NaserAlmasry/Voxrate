@@ -35,7 +35,7 @@ import {
 import { extractPatterns, buildSmartSample } from '@/app/lib/pattern-extractor'
 import { calculateSeoScore } from '@/app/lib/seo-scorer'
 import { sendReportComplete } from '@/app/lib/email'
-import { scrapeAmazon } from '@/app/lib/amazon-scraper'
+import { scrapeAmazon, scrapeAmazonFree } from '@/app/lib/amazon-scraper'
 import type { AmazonReview } from '@/app/lib/amazon-types'
 
 export const maxDuration = 300
@@ -985,9 +985,13 @@ export async function POST(request: NextRequest) {
     const reportId = reportRow.id
 
     try {
-      console.log(`[Pipeline] Starting Amazon scrape: ${productUrl}`)
+      console.log(`[Pipeline] Starting Amazon scrape: ${productUrl} (plan: ${plan})`)
 
-      const scrapeResult = await withRetry(() => scrapeAmazon(productUrl), 2)
+      const isFreeUser   = !isAdminUser && plan === 'free'
+      const scrapeResult = await withRetry(
+        () => isFreeUser ? scrapeAmazonFree(productUrl) : scrapeAmazon(productUrl),
+        2,
+      )
       const { product: amazonProduct, reviews: rawReviews, qa } = scrapeResult
 
       const product = {
