@@ -212,6 +212,11 @@ async function analyzeWithGroq(
      .replace(/you\s+are\s+(now|a|an)\s+/gi, '[…]')
      .replace(/system\s*:/gi, '[…]')
      .replace(/assistant\s*:/gi, '[…]')
+     .replace(/disregard\s+(all|previous|prior|above)/gi, '[…]')
+     .replace(/forget\s+(all|previous|prior|above)/gi, '[…]')
+     .replace(/override\s+(your|all|previous)/gi, '[…]')
+     .replace(/\bdo not follow\b/gi, '[…]')
+     .replace(/\bnew instruction/gi, '[…]')
 
   const reviewText = sampledReviews
     .map(r =>
@@ -279,7 +284,7 @@ async function analyzeWithGroq(
     : 0
 
   const descriptionLine = listingDescription
-    ? `\nSELLER'S LISTING DESCRIPTION (bullet points/description):\n${listingDescription.slice(0, 400).trimEnd()}\n`
+    ? `\nSELLER'S LISTING DESCRIPTION (bullet points/description):\n<listing_description>${listingDescription.slice(0, 400).trimEnd()}</listing_description>\n`
     : ''
 
   const listingIntelligence = `LISTING INTELLIGENCE:
@@ -291,7 +296,7 @@ async function analyzeWithGroq(
 - Fake review flag: ${ctx.fakeReviewFlag ? 'WARNING: High ratio of unverified negative reviews detected' : 'Clean'}
 - Unanswered buyer questions: ${ctx.unansweredQACount}`
 
-  const contextBlock = `PRODUCT: ${product.title}
+  const contextBlock = `PRODUCT: <product_title>${product.title}</product_title>
 ASIN: ${product.asin || ''}
 MARKETPLACE: ${product.marketplace || 'amazon.com'}
 PRICE: $${product.price || 'N/A'}
@@ -387,7 +392,9 @@ For Amazon: focus on buyer intent phrases, problem-solution language, and materi
 ${complaintGuide}
 
 NEGATIVE REVIEWS (1★ and 2★ only):
+<reviews>
 ${negReviewText}
+</reviews>
 
 STEP 1 — READ ALL NEGATIVE REVIEWS BELOW AND LIST EVERY DISTINCT SYMPTOM:
 Go through each review. For each 1★ or 2★ review, note: what broke/failed, where on the product, and when. Separate symptoms = separate complaints.
@@ -472,7 +479,9 @@ Return ONLY this JSON — start with { immediately:
 Read these reviews and find every distinct physical problem mentioned. Each different symptom = a separate complaint.
 
 REVIEWS:
+<reviews>
 ${reviewText.slice(0, 3000)}
+</reviews>
 
 RULES:
 - Title = exact symptom + location (e.g. "Handle cracks at pin holes after 3 weeks")
@@ -551,6 +560,11 @@ async function analyzeFreePreview(
   const sanitizeFree = (t: string) =>
     t.replace(/ignore\s+(previous|all|above|prior)\s+(instructions?|prompts?|context)/gi, '[…]')
      .replace(/system\s*:/gi, '[…]').replace(/assistant\s*:/gi, '[…]')
+     .replace(/disregard\s+(all|previous|prior|above)/gi, '[…]')
+     .replace(/forget\s+(all|previous|prior|above)/gi, '[…]')
+     .replace(/override\s+(your|all|previous)/gi, '[…]')
+     .replace(/\bdo not follow\b/gi, '[…]')
+     .replace(/\bnew instruction/gi, '[…]')
   const reviewText = [...negativeReviews, ...positiveReviews]
     .map(r => `[${r.rating}★] ${sanitizeFree(r.text).slice(0, 180).trimEnd()}${r.text.length > 180 ? '…' : ''}`)
     .join('\n')
@@ -577,13 +591,15 @@ Rules:
       },
       {
         role: 'user' as const,
-        content: `PRODUCT: ${product.title}
+        content: `PRODUCT: <product_title>${product.title}</product_title>
 PRICE: $${product.price}
 REVIEWS ANALYZED: ${reviews.length}
 HEALTH SCORE: ${ctx.healthScore}/100
 
 REVIEWS:
+<reviews>
 ${reviewText}
+</reviews>
 
 Return ONLY this JSON:
 {
@@ -706,6 +722,15 @@ export async function POST(request: NextRequest) {
   if (!isCronRequest) {
     const csrfError = checkCsrf(request)
     if (csrfError) return csrfError
+  } else {
+    // Replay-prevention: cron caller must include a fresh x-cron-ts timestamp
+    const cronTs = request.headers.get('x-cron-ts')
+    if (cronTs) {
+      const tsAge = Date.now() - parseInt(cronTs, 10)
+      if (!Number.isFinite(tsAge) || tsAge > 5 * 60 * 1000) {
+        return NextResponse.json({ error: 'Cron token expired' }, { status: 401 })
+      }
+    }
   }
 
   const ip =
@@ -722,13 +747,28 @@ export async function POST(request: NextRequest) {
 
   const refundCredits = async () => {
     if (!creditsDeducted || !creditRefundUserId || creditsRefunded) return
+    creditsRefunded = true // set BEFORE async call to prevent double-trigger races
     try {
       const supabase = await createClient()
-      await supabase.rpc('add_credits', { p_user_id: creditRefundUserId, p_amount: creditRefundAmount })
-      creditsRefunded = true
-      console.log(`[Analyze] Refunded ${creditRefundAmount} credits to user ${creditRefundUserId}`)
-    } catch (e) {
-      console.error('[Analyze] Credit refund failed — manual review needed for user', creditRefundUserId)
+      const { error } = await supabase.rpc('add_credits', {
+        p_user_id: creditRefundUserId,
+        p_amount:  creditRefundAmount,
+      })
+      if (error) {
+        console.error('[Analyze] Credit refund RPC failed — MANUAL REVIEW NEEDED:', {
+          userId: creditRefundUserId,
+          amount: creditRefundAmount,
+          error:  error.message,
+        })
+      } else {
+        console.log(`[Analyze] Refunded ${creditRefundAmount} credits to ${creditRefundUserId}`)
+      }
+    } catch (e: any) {
+      console.error('[Analyze] Credit refund threw — MANUAL REVIEW NEEDED:', {
+        userId: creditRefundUserId,
+        amount: creditRefundAmount,
+        error:  e?.message,
+      })
     }
   }
 
@@ -784,6 +824,27 @@ export async function POST(request: NextRequest) {
     const competitorAnalysesUsed   = userData?.competitor_analyses_used ?? 0
     const freeCompetitorUsed       = userData?.free_competitor_used ?? false
 
+    // Dedup: prevent same user+product within 60 seconds (double-click protection)
+    {
+      const sixtySecondsAgo = new Date(Date.now() - 60_000).toISOString()
+      const { data: recentReport } = await supabase
+        .from('reports')
+        .select('id, status')
+        .eq('user_id', user.id)
+        .eq('product_url', productUrl)
+        .gte('created_at', sixtySecondsAgo)
+        .not('status', 'eq', 'failed')
+        .limit(1)
+        .maybeSingle()
+
+      if (recentReport) {
+        return NextResponse.json(
+          { error: 'Analysis already in progress for this product. Please wait.', reportId: recentReport.id },
+          { status: 409 },
+        )
+      }
+    }
+
     if (!isAdminUser) {
       const limit = await enforceRateLimit(user.id, ip)
       if (!limit.allowed) {
@@ -798,6 +859,8 @@ export async function POST(request: NextRequest) {
     const creditCost = reportType === 'competitor' ? 35 : 20
 
     // ── Competitor analysis gates ─────────────────────────────
+    // Intentionally enforced for ALL competitor requests including re-analyze —
+    // re-analyze must still consume a monthly competitor slot.
     if (!isAdminUser && reportType === 'competitor') {
       // Free plan: blocked entirely
       if (plan === 'free') {
@@ -1052,7 +1115,7 @@ export async function POST(request: NextRequest) {
         { status: 504 },
       )
     }
-    console.error('[Analyze] Unhandled error:', error.message)
+    console.error('[Analyze] Unhandled error:', error instanceof Error ? error.message : String(error))
     await refundCredits()
     return NextResponse.json(
       { error: 'Analysis failed — your credits have been refunded. Please try again.' },

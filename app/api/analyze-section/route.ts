@@ -190,7 +190,9 @@ export async function POST(request: NextRequest) {
 FOCUS: What buyers love (from 4★ and 5★ reviews) + growth opportunities.
 
 POSITIVE REVIEWS (4★ and 5★ only):
+<reviews>
 ${posReviewText}
+</reviews>
 
 HARD CONSTRAINTS:
 1. businessImpact: write "X of Y reviewers mention this" — no invented metrics, no "drives sales", no "encourages repeat business"
@@ -262,7 +264,9 @@ SEO KEYWORDS — COPY VERBATIM INTO magicKeywords (do not modify):
 ${(seoTopPhrases as string[]).map((p: string, i: number) => `${i + 1}. "${p}"`).join('\n')}
 
 5-STAR REVIEWS ONLY (for marketing copy — verbatim only):
+<reviews>
 ${fiveStarText}
+</reviews>
 
 HARD CONSTRAINTS:
 1. magicKeywords — copy the locked phrases above VERBATIM, do not rephrase or shorten
@@ -356,7 +360,7 @@ Return ONLY this JSON — start with { immediately:
             console.warn('[Section:seo] marketingCopy likely paraphrased — running correction...')
             const fixRaw = await callMistral2411([
               { role: 'system', content: SYSTEM_PROMPT },
-              { role: 'user', content: `REVIEWS:\n${reviewText.slice(0, 2000)}\n\nPick 5 verbatim sentences from 5★ reviews above. Return only: { "marketingCopy": ["...", "...", "...", "...", "..."] }` },
+              { role: 'user', content: `REVIEWS:\n<reviews>\n${reviewText.slice(0, 2000)}\n</reviews>\n\nPick 5 verbatim sentences from 5★ reviews above. Return only: { "marketingCopy": ["...", "...", "...", "...", "..."] }` },
             ], 600)
             const fixParsed: any = extractJson(fixRaw)
             if (Array.isArray(fixParsed?.marketingCopy) && fixParsed.marketingCopy.length >= 3) {
@@ -519,7 +523,7 @@ Return ONLY this JSON — start with { immediately:
     })
 
   } catch (error: any) {
-    console.error('[AnalyzeSection] Error:', error.message)
+    console.error('[AnalyzeSection] Error:', error instanceof Error ? error.message : String(error))
     return NextResponse.json({ error: 'Section analysis failed. Please try again.' }, { status: 500 })
   }
 }

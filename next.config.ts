@@ -18,7 +18,7 @@ const securityHeaders = [
     value: [
       "default-src 'self'",
       // Scripts: self + Stripe (payment widget)
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com",
+      "script-src 'self' 'unsafe-inline' https://js.stripe.com",
       // Styles: self + inline (Tailwind uses inline styles)
       "style-src 'self' 'unsafe-inline'",
       // Images: self + Supabase storage + data URIs

@@ -63,7 +63,7 @@ const SLEEP_AFTER_70B = 35_000  // 35s between 70b calls (unchanged)
 const SLEEP_AFTER_8B  =  3_000  // 3s between 8b calls (was 35s — unnecessary)
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
-const MAX_GROQ_RETRY_WAIT_MS = 120_000
+const MAX_GROQ_RETRY_WAIT_MS = 30_000 // hard clamp — never sleep more than 30s
 
 function parseGroqRetrySeconds(message: string): number | null {
   const phrase = message.match(/try again in\s+([^\.\n"]+(?:\.\d+)?s?)/i)?.[1]
@@ -230,8 +230,9 @@ async function callGroq70b(
     } catch (error: any) {
       lastError = error
       const limitInfo = getGroqRateLimitInfo(error)
-      const retryMs   = limitInfo.retryAfterSeconds ? limitInfo.retryAfterSeconds * 1000 : 35_000
-      const canRetry  = limitInfo.isRateLimit && retryMs <= MAX_GROQ_RETRY_WAIT_MS
+      const parsedMs  = limitInfo.retryAfterSeconds ? limitInfo.retryAfterSeconds * 1000 : 35_000
+      const retryMs   = Math.min(parsedMs, MAX_GROQ_RETRY_WAIT_MS)
+      const canRetry  = limitInfo.isRateLimit
       if (!canRetry || attempt === 2) break
       console.warn(`[Groq-70b] Rate limit hit. Retrying in ${retryMs}ms...`)
       await sleep(retryMs + 1000)
@@ -263,8 +264,9 @@ async function callGroq8b(
     } catch (error: any) {
       lastError = error
       const limitInfo = getGroqRateLimitInfo(error)
-      const retryMs   = limitInfo.retryAfterSeconds ? limitInfo.retryAfterSeconds * 1000 : 5_000
-      const canRetry  = limitInfo.isRateLimit && retryMs <= MAX_GROQ_RETRY_WAIT_MS
+      const parsedMs  = limitInfo.retryAfterSeconds ? limitInfo.retryAfterSeconds * 1000 : 5_000
+      const retryMs   = Math.min(parsedMs, MAX_GROQ_RETRY_WAIT_MS)
+      const canRetry  = limitInfo.isRateLimit
       if (!canRetry || attempt === 2) break
       console.warn(`[Groq-8b] Rate limit hit. Retrying in ${retryMs}ms...`)
       await sleep(retryMs + 1000)
@@ -548,13 +550,15 @@ Rules:
     },
     {
       role: 'user' as const,
-      content: `PRODUCT: ${productInfo.name}
+      content: `PRODUCT: <product_title>${productInfo.name}</product_title>
 CATEGORY: ${productInfo.category}
 REVIEWS ANALYZED: ${reviews.length}
 HEALTH SCORE: ${ctx.healthScore}/100
 
 REVIEWS:
+<reviews>
 ${reviewsForPrompt}
+</reviews>
 
 Return ONLY this JSON:
 {
@@ -650,6 +654,11 @@ async function analyzeWithGroq(
      .replace(/you\s+are\s+(now|a|an)\s+/gi, '[…]')
      .replace(/system\s*:/gi, '[…]')
      .replace(/assistant\s*:/gi, '[…]')
+     .replace(/disregard\s+(all|previous|prior|above)/gi, '[…]')
+     .replace(/forget\s+(all|previous|prior|above)/gi, '[…]')
+     .replace(/override\s+(your|all|previous)/gi, '[…]')
+     .replace(/\bdo not follow\b/gi, '[…]')
+     .replace(/\bnew instruction/gi, '[…]')
 
   const reviewText = sampledReviews
     .map(r =>
@@ -694,10 +703,10 @@ async function analyzeWithGroq(
   const negPct   = ctx.totalReviewCount > 0 ? Math.round((negCount / ctx.totalReviewCount) * 100) : 0
 
   const descriptionLine = productInfo.description
-    ? `\nSELLER'S LISTING DESCRIPTION:\n${productInfo.description.slice(0, 400).trimEnd()}\n`
+    ? `\nSELLER'S LISTING DESCRIPTION:\n<listing_description>${productInfo.description.slice(0, 400).trimEnd()}</listing_description>\n`
     : ''
 
-  const contextBlock = `PRODUCT: ${productInfo.name}
+  const contextBlock = `PRODUCT: <product_title>${productInfo.name}</product_title>
 CATEGORY: ${productInfo.category}
 ${productInfo.price ? `PRICE: $${productInfo.price}` : ''}
 REVIEWS ANALYZED: ${reviews.length}${descriptionLine}
@@ -781,7 +790,9 @@ Suggestions: use only phrases from 5★ reviews, never from complaint areas.`
 ${complaintGuide}
 
 NEGATIVE REVIEWS (1★ and 2★ only):
+<reviews>
 ${negReviewText}
+</reviews>
 
 STEP 1 — READ ALL NEGATIVE REVIEWS AND LIST EVERY DISTINCT SYMPTOM:
 Go through each review. For each 1★ or 2★ review, note: what broke/failed, where on the product, and when. Separate symptoms = separate complaints.
@@ -850,7 +861,9 @@ Return ONLY this JSON — start with { immediately:
 FOCUS: What buyers love (from 4★ and 5★ reviews) + growth opportunities.
 
 POSITIVE REVIEWS (4★ and 5★ only):
+<reviews>
 ${posReviewText}
+</reviews>
 
 HARD CONSTRAINTS:
 1. businessImpact must reference specific reviewer counts — "X of Y reviewers mention this"
@@ -903,7 +916,9 @@ SEO KEYWORDS — COPY VERBATIM INTO magicKeywords (do not modify):
 ${seoTopPhrases.map((p, i) => `${i + 1}. "${p}"`).join('\n')}
 
 5-STAR REVIEWS ONLY (for marketing copy — verbatim only):
+<reviews>
 ${fiveStarText}
+</reviews>
 
 HARD CONSTRAINTS:
 1. magicKeywords — copy the locked phrases above VERBATIM
@@ -996,7 +1011,9 @@ Return ONLY this JSON — start with { immediately:
 Read these reviews and find every distinct physical problem mentioned.
 
 REVIEWS:
+<reviews>
 ${reviewText.slice(0, 3000)}
+</reviews>
 
 RULES:
 - Title = exact symptom + location
@@ -1144,7 +1161,7 @@ Return ONLY this JSON — start with { immediately:
           { role: 'system' as const, content: systemPrompt },
           {
             role: 'user' as const,
-            content: `REVIEWS:\n${reviewText.slice(0, 2000)}\n\nThe marketingCopy field contains items NOT verbatim from the reviews.\n\nVIOLATIONS:\n${violations}\n\nFix ONLY marketingCopy — replace each with a verbatim 5★ sentence.\nReturn: { "marketingCopy": ["...", "...", "...", "...", "..."] }`,
+            content: `REVIEWS:\n<reviews>\n${reviewText.slice(0, 2000)}\n</reviews>\n\nThe marketingCopy field contains items NOT verbatim from the reviews.\n\nVIOLATIONS:\n${violations}\n\nFix ONLY marketingCopy — replace each with a verbatim 5★ sentence.\nReturn: { "marketingCopy": ["...", "...", "...", "...", "..."] }`,
           },
         ], 600)
         const semParsed = extractJson(semContent) as any
@@ -1277,7 +1294,24 @@ export async function POST(request: NextRequest) {
     if (!file.name.endsWith('.csv') && !['text/csv', 'application/csv'].includes(file.type)) {
       return NextResponse.json({ error: 'Please upload a .csv file' }, { status: 400 })
     }
-    if (file.size > 5 * 1024 * 1024) return NextResponse.json({ error: 'File too large. Max 5MB.' }, { status: 400 })
+
+    // Size check BEFORE reading into memory
+    const MAX_CSV_SIZE = 5 * 1024 * 1024 // 5MB
+    if (file.size > MAX_CSV_SIZE) {
+      return NextResponse.json({ error: 'File too large. Maximum size is 5MB.' }, { status: 400 })
+    }
+
+    // Magic-byte check — reject binary files masquerading as CSV
+    const firstBytes = await file.slice(0, 4).arrayBuffer()
+    const header     = new Uint8Array(firstBytes)
+    const isBinary   = (
+      (header[0] === 0x25 && header[1] === 0x50) || // %P (PDF)
+      (header[0] === 0x50 && header[1] === 0x4B) || // PK (ZIP/XLSX)
+      (header[0] === 0x4D && header[1] === 0x5A)    // MZ (EXE/DLL)
+    )
+    if (isBinary) {
+      return NextResponse.json({ error: 'Invalid file type. Please upload a CSV text file.' }, { status: 400 })
+    }
 
     const csvText = await file.text()
     let reviews: Array<{ rating: number; text: string; date: string }>
@@ -1357,13 +1391,13 @@ export async function POST(request: NextRequest) {
         isLimited:     plan === 'free' && !isAdminUser,
       })
     } catch (err: any) {
-      console.error('[CSV] Pipeline error:', err.message)
+      console.error('[CSV] Pipeline error:', err instanceof Error ? err.message : String(err))
       await supabase.from('reports').update({ status: 'failed' }).eq('id', reportId)
       await refundCsvCredits()
       throw err
     }
   } catch (error: any) {
-    console.error('[CSV Analyze] Unhandled error:', error.message)
+    console.error('[CSV Analyze] Unhandled error:', error instanceof Error ? error.message : String(error))
     const limitInfo = getGroqRateLimitInfo(error)
     if (limitInfo.isRateLimit) {
       return NextResponse.json({ error: friendlyGroqLimitMessage(limitInfo.retryAfterSeconds), retryAfterSeconds: limitInfo.retryAfterSeconds }, { status: 429 })

@@ -33,21 +33,28 @@ async function callMistral(messages: Message[], maxTokens: number, model: string
   const key = process.env.MISTRAL_API_KEY
   if (!key) throw new Error('MISTRAL_API_KEY not set — cannot use Mistral fallback')
 
-  const res = await fetch(MISTRAL_API_URL, {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-    body: JSON.stringify({ model, max_tokens: maxTokens, temperature: 0.1, messages }),
-  })
+  const controller = new AbortController()
+  const timeoutId  = setTimeout(() => controller.abort(), 30_000)
+  try {
+    const res = await fetch(MISTRAL_API_URL, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+      body:    JSON.stringify({ model, max_tokens: maxTokens, temperature: 0.1, messages }),
+      signal:  controller.signal,
+    })
 
-  if (!res.ok) {
-    const body = await res.text().catch(() => '')
-    throw new Error(`Mistral ${model} error ${res.status}: ${body.slice(0, 200)}`)
+    if (!res.ok) {
+      const body = await res.text().catch(() => '')
+      throw new Error(`Mistral ${model} error ${res.status}: ${body.slice(0, 200)}`)
+    }
+
+    const json = await res.json()
+    const usage = json.usage
+    if (usage) console.log(`[Mistral:${model}] prompt:${usage.prompt_tokens} completion:${usage.completion_tokens} total:${usage.total_tokens}`)
+    return json.choices?.[0]?.message?.content || ''
+  } finally {
+    clearTimeout(timeoutId)
   }
-
-  const json = await res.json()
-  const usage = json.usage
-  if (usage) console.log(`[Mistral:${model}] prompt:${usage.prompt_tokens} completion:${usage.completion_tokens} total:${usage.total_tokens}`)
-  return json.choices?.[0]?.message?.content || ''
 }
 
 // ── Direct Mistral 2411 call (no Groq, uses 200B free pool) ──

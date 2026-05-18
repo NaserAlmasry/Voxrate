@@ -37,19 +37,47 @@ export async function POST(request: NextRequest) {
   )
 
   // ── Idempotency check ────────────────────────────────────────
+  // NOTE: Add `processed boolean default false` column to processed_webhook_events
+  // table for full idempotency. Falls back to insert-only check if absent.
+  let useProcessedFlag = true
   try {
-    const { error: insertError } = await supabase
+    const { data: existingEvent, error: selectError } = await supabase
       .from('processed_webhook_events')
-      .insert({ stripe_event_id: event.id })
+      .select('processed')
+      .eq('stripe_event_id', event.id)
+      .maybeSingle()
 
-    if (insertError) {
-      if (insertError.code === '23505') {
-        console.log(`[Webhook] Duplicate event ${event.id} — skipping`)
-        return NextResponse.json({ received: true })
+    if (selectError && /column .* does not exist/i.test(selectError.message || '')) {
+      useProcessedFlag = false
+    } else if (existingEvent?.processed === true) {
+      console.log(`[Webhook] Event ${event.id} already processed — skipping`)
+      return NextResponse.json({ received: true })
+    }
+
+    if (useProcessedFlag) {
+      const { error: upsertError } = await supabase
+        .from('processed_webhook_events')
+        .upsert({ stripe_event_id: event.id, processed: false }, { onConflict: 'stripe_event_id' })
+      if (upsertError && /column .* does not exist/i.test(upsertError.message || '')) {
+        useProcessedFlag = false
+      } else if (upsertError) {
+        console.error('[Webhook] Idempotency upsert failed:', upsertError.message)
+        return NextResponse.json({ error: 'Internal error' }, { status: 500 })
       }
-      // Any other idempotency failure — abort to prevent duplicate processing
-      console.error('[Webhook] Idempotency check failed:', insertError.message)
-      return NextResponse.json({ error: 'Internal error' }, { status: 500 })
+    }
+
+    if (!useProcessedFlag) {
+      const { error: insertError } = await supabase
+        .from('processed_webhook_events')
+        .insert({ stripe_event_id: event.id })
+      if (insertError) {
+        if (insertError.code === '23505') {
+          console.log(`[Webhook] Duplicate event ${event.id} — skipping`)
+          return NextResponse.json({ received: true })
+        }
+        console.error('[Webhook] Idempotency check failed:', insertError.message)
+        return NextResponse.json({ error: 'Internal error' }, { status: 500 })
+      }
     }
   } catch (idempotencyErr: any) {
     console.error('[Webhook] Idempotency check threw:', idempotencyErr.message)
@@ -68,6 +96,19 @@ export async function POST(request: NextRequest) {
 
         if (!userId) {
           console.error('[Webhook] Missing user_id in metadata')
+          break
+        }
+
+        const KNOWN_TYPES = ['credit_pack', 'subscription', 'upgrade']
+        if (type && !KNOWN_TYPES.includes(type)) {
+          console.error('[Webhook] Unknown type in metadata:', type)
+          break
+        }
+
+        const KNOWN_PLANS = ['free', 'starter', 'growth', 'pro', 'enterprise']
+        const planMeta = session.metadata?.plan
+        if (planMeta && !KNOWN_PLANS.includes(planMeta)) {
+          console.error('[Webhook] Unknown plan in metadata:', planMeta)
           break
         }
 
@@ -212,10 +253,22 @@ export async function POST(request: NextRequest) {
         console.log(`[Webhook] Unhandled event: ${event.type}`)
     }
 
+    // Mark as fully processed for idempotency
+    if (useProcessedFlag) {
+      try {
+        await supabase
+          .from('processed_webhook_events')
+          .update({ processed: true })
+          .eq('stripe_event_id', event.id)
+      } catch (e: any) {
+        console.warn('[Webhook] Could not mark event processed:', e?.message)
+      }
+    }
+
     return NextResponse.json({ received: true })
 
   } catch (error: any) {
-    console.error('[Webhook] Error processing event:', error)
+    console.error('[Webhook] Error processing event:', error instanceof Error ? error.message : String(error))
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }

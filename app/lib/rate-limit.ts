@@ -43,6 +43,8 @@ export interface RateLimitResult {
   resetAt:   number // Unix ms when window resets
 }
 
+const failClosedInProd = !hasUpstash && process.env.NODE_ENV === 'production'
+
 /**
  * Check and increment rate limit for a given identifier.
  * Uses Upstash Redis in production, in-memory map in local dev.
@@ -54,6 +56,12 @@ export async function checkRateLimit(
   const window  = currentWindow()
   const key     = `rl:${type}:${identifier}:${window}`
   const resetAt = (window + 1) * WINDOW_SECONDS * 1000
+
+  // Fail closed in production if Upstash is not configured — refuse all requests
+  if (failClosedInProd) {
+    console.error('[RateLimit] BLOCKED — Upstash not configured in production; refusing request')
+    return { allowed: false, remaining: 0, resetAt: 0 }
+  }
 
   // Upstash path (production)
   if (redis) {

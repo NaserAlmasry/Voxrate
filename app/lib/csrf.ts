@@ -10,7 +10,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export function checkCsrf(request: NextRequest): NextResponse | null {
   const xrw = request.headers.get('x-requested-with')
-  if (xrw !== 'XMLHttpRequest') {
+  if (xrw?.toLowerCase() !== 'xmlhttprequest') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
