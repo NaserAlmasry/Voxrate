@@ -26,9 +26,10 @@ async function canopyFetch(url: string): Promise<Response> {
     headers: { 'API-KEY': CANOPY_KEYS[CANOPY_KEYS.length - 1], 'accept': 'application/json' },
   })
 }
-const SCRAPINGDOG_BASE    = 'https://api.scrapingdog.com/amazon/product'
-const CANOPY_BASE         = 'https://rest.canopyapi.co/api/amazon/product/reviews'
-const SCRAPERAPI_BASE     = 'https://api.scraperapi.com/structured/amazon/product'
+
+const SCRAPINGDOG_BASE = 'https://api.scrapingdog.com/amazon/product'
+const CANOPY_BASE      = 'https://rest.canopyapi.co/api/amazon/product/reviews'
+const SCRAPERAPI_BASE  = 'https://api.scraperapi.com/structured/amazon/product'
 
 const REVIEWS_PER_PAGE = 10
 
@@ -132,7 +133,6 @@ export async function scrapeAmazonFree(input: string): Promise<AmazonScrapeResul
 
   const { product: productData } = await fetchProduct(asin, marketplace)
 
-  // Single unfiltered Canopy request — page 1, no star filter
   const reviews = await fetchOnePage(asin, domain)
 
   console.log(`[Scraper:free] "${productData.title.slice(0, 50)}" | ${reviews.length} reviews (1 page)`)

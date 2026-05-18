@@ -63,6 +63,14 @@ function DashboardHomeInner() {
   const [showCancelWarning, setShowCancelWarning] = useState(false)
   const [isCsv, setIsCsv] = useState(false)
   const cancelledRef = useRef(false)
+  // Returns the ISO date of the Monday of the current week — used as a stable weekly dismissal key
+  const getWeekKey = () => {
+    const d = new Date()
+    const day = d.getDay()
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1)
+    return new Date(d.getFullYear(), d.getMonth(), diff).toISOString().slice(0, 10)
+  }
+
   const [weeklyDigest, setWeeklyDigest] = useState<{ productName: string; score: number; topComplaint: string | null; prevScore: number | null } | null>(null)
   const [digestDismissed, setDigestDismissed] = useState(false)
 

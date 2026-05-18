@@ -610,7 +610,6 @@ export default function LandingPage() {
         />
       )}
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap');
         html { scroll-behavior: smooth; }
         .bdg:hover .bdot { animation: blink 1.1s ease infinite; }
         @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.1} }
