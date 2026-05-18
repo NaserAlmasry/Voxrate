@@ -475,9 +475,9 @@ function DashboardHomeInner() {
       )}
 
       {/* ── Main Input ── */}
-      <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden">
-        <div className="px-5 pt-5 pb-4 border-b border-neutral-100">
-          <p className="text-xs font-semibold text-neutral-400 uppercase tracking-widest mb-3">New analysis</p>
+      <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden ring-1 ring-orange-100">
+        <div className="px-5 pt-5 pb-4 border-b border-neutral-100 bg-gradient-to-r from-orange-50/60 to-white">
+          <p className="text-xs font-semibold text-orange-500 uppercase tracking-widest mb-3">New analysis</p>
 
           {error && (
             <div className="mb-4 flex items-center gap-2 p-3 bg-red-50 text-red-600 text-xs rounded-xl border border-red-100">

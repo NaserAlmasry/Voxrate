@@ -665,8 +665,8 @@ export default function LandingPage() {
             <button onClick={() => { setAuthModalMode({ step: 'auth', authMode: 'login' }); setShowAuthModal(true) }}
               className="text-sm text-neutral-600 hover:text-black hidden sm:block transition-colors bg-transparent border-none cursor-pointer p-0">Login</button>
             <button onClick={() => setShowAuthModal(true)}
-              className="glow px-5 py-2.5 text-sm font-medium rounded-full bg-black text-white hover:bg-neutral-800 transition-colors">
-              Start free
+              className="px-5 py-2.5 text-sm font-semibold rounded-full bg-orange-500 text-white hover:bg-orange-600 transition-colors shadow-sm">
+              Start free →
             </button>
           </div>
         </div>
@@ -688,16 +688,16 @@ export default function LandingPage() {
               <HeroHeadline />
               <p className="text-sm text-neutral-500 mb-4 max-w-lg mx-auto">Paste your Amazon URL. Get a health score, a ranked fix list, and the exact words to use — in under 2 minutes.</p>
 
-              <div className="max-w-lg mx-auto">
+              <div className="max-w-lg mx-auto w-full">
                 <div className={`flex flex-col sm:flex-row gap-2 p-2 bg-white rounded-2xl border shadow-sm transition-colors ${heroUrlError ? 'border-red-300' : 'border-neutral-200'}`}>
                   <label htmlFor="hero-url" className="sr-only">Amazon product URL or ASIN</label>
                   <input id="hero-url" type="url" value={heroUrl} onChange={e => { setHeroUrl(e.target.value); setHeroUrlError('') }}
                     onKeyDown={e => e.key === 'Enter' && analyzeHero()}
                     placeholder="Paste your Amazon URL or ASIN..."
                     className="flex-1 px-4 py-3 text-sm bg-transparent outline-none placeholder:text-neutral-400" />
-                  <button onClick={analyzeHero} className="glow px-5 py-3 bg-black text-white font-medium rounded-xl whitespace-nowrap text-sm">
+                  <button onClick={analyzeHero} className="px-5 py-3 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-xl whitespace-nowrap text-sm transition-colors shadow-sm">
                     <span className="block leading-tight">Analyze →</span>
-                    <span className="block text-[10px] text-neutral-400 font-normal leading-tight mt-0.5">First analysis free</span>
+                    <span className="block text-[10px] text-orange-200 font-normal leading-tight mt-0.5">First analysis free</span>
                   </button>
                 </div>
                 {heroUrlError && <p className="text-xs text-red-500 mt-2 text-left px-1">{heroUrlError}</p>}
@@ -720,6 +720,24 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+
+      {/* ── SOCIAL PROOF STRIP ── */}
+      <div className="bg-neutral-900 py-4 px-6 overflow-hidden">
+        <div className="max-w-4xl mx-auto flex flex-wrap items-center justify-center gap-x-8 gap-y-2 text-xs text-neutral-400">
+          {[
+            { label: 'Health score out of 100', icon: '◉' },
+            { label: 'Complaints ranked by impact', icon: '↓' },
+            { label: 'Exact fixes, not guesses', icon: '✓' },
+            { label: 'Works on any Amazon listing', icon: '◈' },
+            { label: 'Results in under 2 minutes', icon: '⚡' },
+          ].map(item => (
+            <span key={item.label} className="flex items-center gap-2">
+              <span className="text-orange-500">{item.icon}</span>
+              {item.label}
+            </span>
+          ))}
+        </div>
+      </div>
 
       {/* ── DEMO ── */}
       <section className="py-20 px-6 bg-white border-b border-neutral-200">
