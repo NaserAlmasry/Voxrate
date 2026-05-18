@@ -540,9 +540,9 @@ function DashboardHomeInner() {
             <button
               onClick={handleAnalyze}
               disabled={loading}
-              className="px-5 py-3 bg-black text-white text-sm font-medium rounded-xl hover:bg-neutral-800 transition-colors disabled:opacity-40 whitespace-nowrap"
+              className="btn-press glow-orange px-5 py-3 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold rounded-xl disabled:opacity-40 whitespace-nowrap shadow-sm"
             >
-              {loading ? '...' : 'Analyze'}
+              {loading ? '...' : 'Analyze →'}
             </button>
           </div>
         </div>

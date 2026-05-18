@@ -35,6 +35,71 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* ── Scroll-triggered fade-up ── */
+.scroll-fade {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+              transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.scroll-fade.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Staggered children */
+.scroll-fade-group > *    { opacity: 0; transform: translateY(20px);
+  transition: opacity 0.5s cubic-bezier(0.22,1,0.36,1), transform 0.5s cubic-bezier(0.22,1,0.36,1); }
+.scroll-fade-group.visible > *:nth-child(1) { opacity:1; transform:translateY(0); transition-delay: 0ms;   }
+.scroll-fade-group.visible > *:nth-child(2) { opacity:1; transform:translateY(0); transition-delay: 80ms;  }
+.scroll-fade-group.visible > *:nth-child(3) { opacity:1; transform:translateY(0); transition-delay: 160ms; }
+.scroll-fade-group.visible > *:nth-child(4) { opacity:1; transform:translateY(0); transition-delay: 240ms; }
+.scroll-fade-group.visible > *:nth-child(5) { opacity:1; transform:translateY(0); transition-delay: 320ms; }
+
+/* ── Page load entrance ── */
+.animate-fadeIn {
+  animation: fadeIn 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Hero headline transitions ── */
+.hero-rotate-in  { animation: heroIn  0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+.hero-rotate-out { animation: heroOut 0.35s cubic-bezier(0.55, 0, 1, 0.45) forwards; }
+@keyframes heroIn  { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+@keyframes heroOut { from { opacity:1; transform:translateY(0); }    to { opacity:0; transform:translateY(-12px); } }
+
+/* ── Card hover lift ── */
+.card-lift {
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.card-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px -4px rgba(0,0,0,0.08), 0 2px 8px -2px rgba(0,0,0,0.04);
+}
+
+/* ── Button press ── */
+.btn-press {
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+.btn-press:active {
+  transform: scale(0.97);
+}
+
+/* ── Orange glow CTA ── */
+.glow-orange {
+  transition: box-shadow 0.25s ease, background 0.2s ease, transform 0.1s ease;
+}
+.glow-orange:hover {
+  box-shadow: 0 0 0 3px rgba(240, 90, 30, 0.18), 0 4px 20px rgba(240, 90, 30, 0.35);
+}
+.glow-orange:active { transform: scale(0.97); }
+
+/* ── Legacy glow (black) ── */
 .glow {
   position: relative;
   transition: box-shadow 0.3s ease, background 0.2s ease;
@@ -42,11 +107,47 @@ body {
 .glow:hover {
   box-shadow: 0 0 0 2px #000, 0 0 18px 4px rgba(249, 115, 22, 0.5);
 }
-/* Headline fades in on page load */
-.animate-fadeIn {
-  animation: fadeIn 0.7s ease forwards;
+
+/* ── Feat card hover ── */
+.feat-card {
+  transition: transform 0.22s cubic-bezier(0.22,1,0.36,1),
+              box-shadow 0.22s cubic-bezier(0.22,1,0.36,1),
+              border-color 0.2s ease;
 }
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
+.feat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px -4px rgba(0,0,0,0.07);
+  border-color: #ffc59e;
+}
+
+/* ── Pricing card ── */
+.pcard {
+  transition: transform 0.22s cubic-bezier(0.22,1,0.36,1),
+              box-shadow 0.22s cubic-bezier(0.22,1,0.36,1);
+}
+.pcard:hover { transform: translateY(-3px); box-shadow: 0 12px 32px -6px rgba(0,0,0,0.1); }
+
+/* ── Shimmer skeleton ── */
+@keyframes shimmer {
+  from { background-position: -200% 0; }
+  to   { background-position:  200% 0; }
+}
+.shimmer {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease infinite;
+}
+
+/* ── Smooth number counter ── */
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+.count-up { animation: countUp 0.4s ease forwards; }
+
+/* ── Soft pulse on live indicator ── */
+@keyframes softPulse {
+  0%, 100% { opacity: 1;   transform: scale(1);    }
+  50%       { opacity: 0.4; transform: scale(0.85); }
+}
+.soft-pulse { animation: softPulse 2s ease infinite; }

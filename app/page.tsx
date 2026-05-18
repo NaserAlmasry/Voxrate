@@ -484,7 +484,7 @@ export default function LandingPage() {
   }
 
   useEffect(() => {
-    const els = document.querySelectorAll('.scroll-fade')
+    const els = document.querySelectorAll('.scroll-fade, .scroll-fade-group')
     const obs = new IntersectionObserver((entries) => {
       entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); obs.unobserve(e.target) } })
     }, { threshold: 0.1 })
@@ -606,24 +606,12 @@ export default function LandingPage() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap');
         html { scroll-behavior: smooth; }
-        .glow { position: relative; transition: box-shadow 0.3s ease, background 0.2s ease; }
-        .glow:hover { box-shadow: 0 0 0 2px #000, 0 0 18px 4px rgba(249,115,22,0.5); }
         .bdg:hover .bdot { animation: blink 1.1s ease infinite; }
         @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.1} }
-        .pcard { transition: transform 0.22s ease, box-shadow 0.22s ease; position: relative; }
-        .pcard:hover { transform: translateY(-4px) scale(1.01); box-shadow: 0 0 0 2px rgba(249,115,22,0.4), 0 16px 48px rgba(249,115,22,0.15); z-index: 2; }
         .ndrop { animation: ndwn 0.18s ease forwards; }
         @keyframes ndwn { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:translateY(0)} }
-        .hero-fade { animation: herofade 0.8s ease forwards; }
+        .hero-fade { animation: herofade 0.8s cubic-bezier(0.22,1,0.36,1) forwards; }
         @keyframes herofade { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
-        .hero-rotate-in  { animation: heroIn  0.6s ease forwards; }
-        .hero-rotate-out { animation: heroOut 0.4s ease forwards; }
-        @keyframes heroIn  { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
-        @keyframes heroOut { from{opacity:1;transform:translateY(0)} to{opacity:0;transform:translateY(-14px)} }
-        .scroll-fade { opacity:0; transform:translateY(24px); transition: opacity 0.6s ease, transform 0.6s ease; }
-        .scroll-fade.visible { opacity:1; transform:translateY(0); }
-        .feat-card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
-        .feat-card:hover { transform: translateY(-3px); box-shadow: 0 0 0 2px rgba(249,115,22,0.3), 0 8px 32px rgba(249,115,22,0.12); }
         .step-connector { background: linear-gradient(90deg, #f05a1e, #fb923c); }
       `}</style>
 
@@ -665,7 +653,7 @@ export default function LandingPage() {
             <button onClick={() => { setAuthModalMode({ step: 'auth', authMode: 'login' }); setShowAuthModal(true) }}
               className="text-sm text-neutral-600 hover:text-black hidden sm:block transition-colors bg-transparent border-none cursor-pointer p-0">Login</button>
             <button onClick={() => setShowAuthModal(true)}
-              className="px-5 py-2.5 text-sm font-semibold rounded-full bg-orange-500 text-white hover:bg-orange-600 transition-colors shadow-sm">
+              className="glow-orange btn-press px-5 py-2.5 text-sm font-semibold rounded-full bg-orange-500 text-white hover:bg-orange-600 shadow-sm">
               Start free →
             </button>
           </div>
@@ -695,7 +683,7 @@ export default function LandingPage() {
                     onKeyDown={e => e.key === 'Enter' && analyzeHero()}
                     placeholder="Paste your Amazon URL or ASIN..."
                     className="flex-1 px-4 py-3 text-sm bg-transparent outline-none placeholder:text-neutral-400" />
-                  <button onClick={analyzeHero} className="px-5 py-3 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-xl whitespace-nowrap text-sm transition-colors shadow-sm">
+                  <button onClick={analyzeHero} className="glow-orange btn-press px-5 py-3 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-xl whitespace-nowrap text-sm shadow-sm">
                     <span className="block leading-tight">Analyze →</span>
                     <span className="block text-[10px] text-orange-200 font-normal leading-tight mt-0.5">First analysis free</span>
                   </button>
@@ -1205,7 +1193,7 @@ export default function LandingPage() {
           <h2 className="text-3xl md:text-4xl font-bold mb-3">How it works</h2>
           <p className="text-sm text-neutral-600 mb-14">From listing URL to full action plan</p>
 
-          <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-0">
+          <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-0 scroll-fade-group">
             {[
               {
                 n: 1,
@@ -1228,9 +1216,9 @@ export default function LandingPage() {
             ].map((s, idx) => (
               <div key={s.n} className="flex flex-col md:flex-row items-center">
                 {/* Step card */}
-                <div className="flex flex-col items-center text-center scroll-fade w-full md:w-64 px-4">
+                <div className="flex flex-col items-center text-center w-full md:w-64 px-4">
                   <div className="relative mb-5">
-                    <div className="w-20 h-20 bg-white rounded-2xl shadow-md border border-neutral-100 flex items-center justify-center mx-auto">
+                    <div className="card-lift w-20 h-20 bg-white rounded-2xl shadow-md border border-neutral-100 flex items-center justify-center mx-auto cursor-default">
                       {s.icon}
                     </div>
                     <span className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-orange-500 text-white text-xs font-bold flex items-center justify-center shadow">{s.n}</span>
