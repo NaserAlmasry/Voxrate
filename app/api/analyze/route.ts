@@ -914,7 +914,7 @@ export async function POST(request: NextRequest) {
           { status: 403 },
         )
       }
-      const { error: deductError } = await supabase.rpc('deduct_credits', {
+      const { data: deducted, error: deductError } = await supabase.rpc('deduct_credits', {
         p_user_id: user.id,
         p_amount:  creditCost,
       })
@@ -923,6 +923,12 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           { error: 'Could not deduct credits. Please refresh and try again.', upgradeRequired: false },
           { status: 503 },
+        )
+      }
+      if (!deducted) {
+        return NextResponse.json(
+          { error: 'Not enough credits.', upgradeRequired: true },
+          { status: 403 },
         )
       }
       creditsDeducted    = true
