@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/app/lib/supabase/client'
 import CheckoutButton from '@/app/components/CheckoutButton'
 import AuthModal from '@/app/components/AuthModal'
-import { Coffee, Search, Crosshair, Zap, PenLine, MessageCircle, Layers, BarChart2, Bell, Puzzle, RefreshCw, Gift, HelpCircle, AlertCircle, ThumbsUp, Wrench, TrendingUp, Megaphone, Star } from 'lucide-react'
+import { Coffee, Search, Crosshair, Zap, PenLine, MessageCircle, Layers, BarChart2, Bell, Puzzle, RefreshCw, Gift, HelpCircle, AlertCircle, Sparkles, Wrench, TrendingUp, Megaphone, Star } from 'lucide-react'
 
 // ── helpers ────────────────────────────────────────────────────
 function scoreColor(n: number) {
@@ -49,97 +49,97 @@ function CsvGuide({ show, onToggle, onClose }: { show: boolean; onToggle: () => 
 // ── demo data ─────────────────────────────────────────────────
 const demoComplaints = [
   {
-    title: 'Handle snaps at the base after 3–6 weeks',
-    severity: 'CRITICAL', frequency: '187 of 1,000 reviews',
-    quote: '"snapped clean off while I was lifting it — completely unusable after 3 weeks of daily use"',
-    description: 'Reviewers consistently describe the break happening at the lower attachment point after 3–6 weeks of daily use. This complaint accounts for 71% of all 1-star reviews.',
-    revenueImpact: '19% of buyers affected — at $35/mug, each return costs ~$8–15 in shipping plus the unit cost',
-    riskIfIgnored: 'Each new 1-star review pushes your listing down Amazon search — at current velocity, your ranking will drop measurably within 60 days',
+    title: 'Lid leaks when tilted or in bags',
+    severity: 'CRITICAL', frequency: '203 of 1,000 reviews',
+    quote: '"leaked all over my gym bag — soaked my clothes and phone. The twist lock feels secure but it just drips constantly"',
+    description: 'Reviewers report leaking when the bottle is tilted past 45° or stored sideways. The complaint clusters around the lid gasket seal and accounts for 74% of all 1-star reviews.',
+    revenueImpact: '20% of buyers affected — at $28/unit, each return costs ~$9–14 in shipping plus replacement. Return rate on this complaint is 68%.',
+    riskIfIgnored: '"Leaked in my bag" reviews are the most-shared negative reviews on Amazon — buyers include photos, which Amazon surfaces prominently',
     fixes: [
-      { simple: 'Score both surfaces before joining the handle, use slip, and dry slowly covered in plastic — prevents the crack that forms when parts dry at different rates', why: '187 of 1,000 reviewers reported this, generating returns and active dispute cases' },
-      { simple: 'Add a small clay coil to reinforce the inside of the lower handle join before firing — this is where reviewers say the break happens', why: 'Targets the exact failure point reviewers describe' },
-      { simple: 'Add a care card with hand wash instructions and thermal shock warning — sets expectations before the 3–6 week failure window', why: 'Reduces dispute rate without requiring production changes' },
+      { simple: 'Source a lid with a double-seal silicone gasket (inner + outer ring) — single-ring gaskets fail when pressure builds during temperature changes', why: '203 of 1,000 reviewers reported leaking, the #1 reason for 1-star reviews and returns' },
+      { simple: 'Add a "leak-test passed" QC sticker to each lid at packaging — sets buyer expectation and reduces dispute rate', why: 'Reduces unboxing anxiety and return-without-reason disputes' },
+      { simple: 'Update listing title to include "leak-proof lid" explicitly — buyers who searched this term and got a leak feel actively deceived', why: 'Sets correct expectations, reduces "not as described" dispute rate' },
     ]
   },
   {
-    title: 'Glaze color significantly darker than photos',
-    severity: 'MEDIUM', frequency: '134 of 1,000 reviews',
-    quote: '"expected the light sage green from the photos — what arrived was closer to army green, I felt completely misled"',
-    description: 'Color complaints cluster in 2★ and 3★ reviews from buyers selecting for specific color-matched home decor projects. Each color complaint carries a 40% chance of a return request.',
-    revenueImpact: '13% of buyers affected — color returns are the most time-intensive to resolve',
-    riskIfIgnored: '"Not as described" reviews — Amazon weights these heavily in dispute resolution',
+    title: 'Condensation on exterior defeats the insulation claim',
+    severity: 'MEDIUM', frequency: '141 of 1,000 reviews',
+    quote: '"heavy condensation on the outside — the whole point of double-wall vacuum is no sweat. Mine sweats more than a cheap plastic bottle"',
+    description: 'Condensation appears when the vacuum seal between walls is compromised. Reviewers report this starting within 2–4 weeks of purchase, indicating a manufacturing consistency issue.',
+    revenueImpact: '14% of buyers affected — condensation complaints generate the most detailed negative reviews with photos, which suppresses conversion on your listing',
+    riskIfIgnored: 'Each photo review showing condensation costs you conversions — Amazon A/B tests show photo-negative reviews reduce add-to-cart rate by up to 12%',
     fixes: [
-      { simple: 'Reshoot on a cloudy day near a north-facing window — eliminates the warm color shift that makes your glaze look darker than it is', why: 'Zero cost fix that eliminates the root cause of 134 complaints' },
-      { simple: 'Add a color note: "Photos taken in natural daylight — colors may vary slightly on warm-toned screens"', why: 'Reduces return rate and protects against Amazon dispute resolutions' },
+      { simple: 'Tighten vacuum seal QC — test a sample of each batch with a pressure gauge before shipping. Reject any unit showing >0.5 psi variance', why: 'Targets the manufacturing root cause rather than masking it' },
+      { simple: 'Add "if you experience condensation, contact us for immediate replacement" to your listing description', why: 'Converts a 1-star review into a resolved customer interaction' },
     ]
   },
   {
-    title: 'Packaging offers no transit protection',
-    severity: 'LOW', frequency: '43 of 1,000 reviews',
-    quote: '"the box was completely caved in — the mug survived but I was shaking opening it, zero padding inside"',
-    description: 'Single-wall boxes with no internal padding are transmitting transit impacts directly to the ceramic.',
-    revenueImpact: '4% of buyers affected — each damaged arrival generates a return, replacement cost, and a probable 1-star review',
-    riskIfIgnored: '"Arrived broken" has zero ambiguity and Amazon sides with the buyer in disputes',
+    title: 'Paint and coating chips within first month',
+    severity: 'LOW', frequency: '48 of 1,000 reviews',
+    quote: '"the matte black coating started flaking near the bottom after 3 weeks — looks terrible and I\'m worried about what\'s getting into my water"',
+    description: 'Powder-coat and painted finishes are chipping at the base and around the lid threads. Buyers raising food-safety concerns are the highest-return segment.',
+    revenueImpact: '5% of buyers affected — paint complaints generate food-safety questions that trigger Amazon\'s health product review process',
+    riskIfIgnored: 'Food-safety flag reviews can trigger Amazon category restrictions — a low-frequency complaint with outsized platform risk',
     fixes: [
-      { simple: 'Switch to a double-wall box with foam inserts on all sides so the mug cannot move', why: '~$1.05/unit cost increase eliminates the transit damage reviews' },
+      { simple: 'Switch to a food-safe, BPA-free powder coat with a minimum 2-coat process — the base is the highest-impact zone and needs a rubber bumper or reinforced coat', why: '~$0.80/unit cost increase eliminates the chipping complaint and the food-safety risk' },
     ]
   },
 ]
 
 const demoStrengths = [
   {
-    title: 'Heat retention excites daily coffee drinkers',
-    frequency: '312 of 1,000 reviews',
-    quote: '"still hot after 45 minutes — I keep forgetting about my coffee and it\'s always still drinkable."',
-    segment: 'Daily coffee and tea drinkers, aged 28–45',
-    summary: 'Heat retention is the single most-mentioned feature in your 5-star reviews — appearing in 31% of all feedback without any prompting. This phrase does not appear in your listing title or tags — it is invisible to search.',
-    businessImpact: 'Adding "keeps coffee hot 45+ minutes" to your title targets a validated search term your own customers already use.',
-    marketingAngle: '"still hot after 45 minutes — nothing else I\'ve owned does this."',
+    title: 'Ice retention praised across all buyer segments',
+    frequency: '341 of 1,000 reviews',
+    quote: '"ice still in there after 18 hours in the car — I\'ve tried 6 different bottles and nothing comes close"',
+    segment: 'Outdoor and gym buyers, aged 22–45',
+    summary: 'Ice retention is the single most-mentioned feature in your 5-star reviews — appearing in 34% of all feedback without any prompting. "Ice still there after X hours" appears in 341 reviews verbatim. This phrase does not appear in your listing title or bullet points.',
+    businessImpact: 'Adding "ice retention 18+ hours" to your title directly targets the search term your own customers already use — and it\'s a term competitors aren\'t ranking for.',
+    marketingAngle: '"ice still in there after 18 hours — I\'ve tried 6 different bottles and nothing comes close"',
   },
   {
-    title: 'Gift buyers describe it as luxury and gift-worthy',
-    frequency: '198 of 1,000 reviews',
-    quote: '"gave this as a birthday gift and she immediately asked where I got it — feels expensive"',
-    segment: 'Gift buyers aged 30–55, milestone occasions',
-    summary: 'Gift buyers spend 40% more per transaction and write the most detailed 5-star reviews. "Feels expensive" appears in 89 reviews verbatim.',
-    businessImpact: 'Adding gift-wrapping as an option and "perfect gift" language to your first listing photo would capture gift-search traffic you are currently losing.',
-    marketingAngle: '"feels expensive, way more substantial than anything at this price point"',
+    title: 'Buyers describe it as a gift upgrade over competitors',
+    frequency: '210 of 1,000 reviews',
+    quote: '"bought this as a graduation gift and she said it\'s the nicest water bottle she\'s ever owned — feels premium"',
+    segment: 'Gift buyers aged 28–50, outdoor and fitness occasions',
+    summary: 'Gift buyers spend 35% more per transaction and write the most-detailed 5-star reviews. "Feels premium" and "great gift" appear in 210 reviews — none of which are being captured in your listing\'s gift-search keywords.',
+    businessImpact: 'Adding a gift-wrapping option and "perfect gift for hikers / gym-goers" to your first bullet would capture high-intent gift traffic you are currently losing to competitors.',
+    marketingAngle: '"feels premium, way more substantial than anything at this price point — everyone I\'ve given one to has re-ordered"',
   },
 ]
 
 const demoImprovements = [
-  { title: 'Add dimensions and capacity as your first listing line', description: '67 reviews mention surprise at the mug size. Adding "Height: 4.1 inches · Capacity: 14oz" as the very first line eliminates the single most common pre-purchase uncertainty and ranks you for capacity-specific searches.', impact: 'Reduces size-related returns + captures dimension-specific search traffic' },
-  { title: 'Move "keeps coffee hot" into your listing title', description: 'Your 5-star reviewers independently use "keeps coffee hot" in 312 reviews. None of these phrases appear in your title or bullet points. Your strongest selling point is invisible to Amazon search.', impact: 'Captures validated search intent your existing customers already proved' },
+  { title: 'Add ice retention hours to your listing title', description: '341 reviews independently use "ice still there after X hours" without any prompting. This phrase does not appear anywhere in your title or bullet points — your strongest selling point is invisible to search. Adding "ice retention 18+ hours" to the title targets a validated, high-intent search term.', impact: 'Captures validated search intent your own buyers already proved — zero cost' },
+  { title: 'Add capacity and dimensions as your first listing bullet', description: '89 reviews mention surprise at the bottle size or weight. Adding "32oz · Height: 10.5 inches · Weight: 13oz" as the very first bullet eliminates the most common pre-purchase uncertainty and improves search ranking for size-specific queries.', impact: 'Reduces size-related returns and ranks for capacity-specific searches' },
 ]
 
 const demoMarketingCopy = [
-  '"still hot after 45 minutes — I keep forgetting about my coffee and it\'s always still drinkable."',
-  '"gave this as a birthday gift and she immediately asked where I got it — feels expensive"',
-  '"this mug has completely spoiled me for everything else in my cabinet. Perfect weight, perfect handle."',
-  '"I bought this for myself and immediately ordered two more as gifts. The craftsmanship is extraordinary."',
+  '"ice still in there after 18 hours in the car — I\'ve tried 6 different bottles and nothing comes close"',
+  '"bought this as a graduation gift and she said it\'s the nicest water bottle she\'s ever owned — feels premium"',
+  '"this bottle has completely replaced my Yeti. Same insulation, half the price, and it actually fits in my car cupholder."',
+  '"I bought one for myself and immediately ordered three more as gifts. Everyone asks where I got it."',
 ]
 
 const demoStarBreakdown = [
-  { star: 5, count: 520, pct: 52 }, { star: 4, count: 150, pct: 15 },
-  { star: 3, count: 80,  pct: 8  }, { star: 2, count: 110, pct: 11 },
+  { star: 5, count: 510, pct: 51 }, { star: 4, count: 160, pct: 16 },
+  { star: 3, count: 85,  pct: 9  }, { star: 2, count: 105, pct: 10 },
   { star: 1, count: 140, pct: 14 },
 ]
 
 const compComplaints = [
-  { title: 'Thin walls chip easily', severity: 'CRITICAL', frequency: '203 of 900 reviews', opportunity: true,
-    quote: '"the rim chipped on the second wash — felt like cheap porcelain, not the artisan quality they advertise"',
-    yourOpportunity: 'Add "thick stoneware walls — chip-resistant" to your title and first listing bullet. Buyers who\'ve been burned by thin-walled mugs search specifically for this. Your wall thickness is 8mm vs their estimated 4mm.' },
-  { title: 'Handle too small for large hands', severity: 'MEDIUM', frequency: '98 of 900 reviews', opportunity: true,
-    quote: '"I have average-sized hands and I can barely fit two fingers in — completely unusable as a morning coffee mug"',
-    yourOpportunity: 'Mention your handle interior diameter (yours is 42mm) in the listing specs. Add "ergonomic handle — fits all hand sizes" to your listing description. This is a validated frustration their buyers have that yours don\'t.' },
-  { title: 'Glaze peeling after dishwasher', severity: 'MEDIUM', frequency: '67 of 900 reviews', opportunity: false,
-    quote: '"after 3 dishwasher cycles the glaze started peeling at the base — not food safe anymore"',
-    yourOpportunity: 'Highlight your food-safe, dishwasher-safe glaze certification in the listing. Their buyers are already nervous about this — capitalize on it.' },
+  { title: 'Lid cracks at the hinge after 2–3 months', severity: 'CRITICAL', frequency: '198 of 900 reviews', opportunity: true,
+    quote: '"the hinge cracked and now the lid doesn\'t seal — completely unusable. I switched to this brand and the lid feels 3x more solid"',
+    yourOpportunity: 'Add "reinforced stainless lid — no plastic hinge" to your title and first bullet. Buyers burned by cracked hinges search specifically for this. Their lid is plastic-hinged; yours is full stainless.' },
+  { title: 'Doesn\'t fit standard car cupholders', severity: 'MEDIUM', frequency: '112 of 900 reviews', opportunity: true,
+    quote: '"too wide for any cupholder in my car or truck — I have to hold it the entire drive, completely defeats the purpose"',
+    yourOpportunity: 'Add "fits standard car cupholders" to your listing description — your base diameter is 3.1 inches vs their 3.6 inches. This is a validated frustration their buyers have that yours don\'t.' },
+  { title: 'Metallic taste reported in first 1–2 weeks', severity: 'MEDIUM', frequency: '71 of 900 reviews', opportunity: false,
+    quote: '"strong metallic taste for the first two weeks — barely drinkable. Eventually went away but shouldn\'t be an issue at this price point"',
+    yourOpportunity: 'Add a "first-use rinse guide" card in your packaging — a baking soda rinse eliminates the metallic taste immediately. Their buyers don\'t know this fix; yours will.' },
 ]
 
 const compStrengths = [
-  { title: 'Beautiful minimalist design', frequency: '290 reviews' },
-  { title: 'Fast shipping praised', frequency: '187 reviews' },
+  { title: 'Bold color selection praised', frequency: '276 reviews' },
+  { title: 'Carry loop praised for outdoor use', frequency: '194 reviews' },
 ]
 
 // ── Inline stats strip (below hero URL bar) ───────────────────
@@ -713,7 +713,7 @@ export default function LandingPage() {
       <div className="bg-neutral-900 py-4 px-6 overflow-hidden">
         <div className="max-w-4xl mx-auto flex flex-wrap items-center justify-center gap-x-8 gap-y-2 text-xs text-neutral-400">
           {[
-            { label: 'Health score out of 100',       icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> },
+            { label: 'Health score out of 100',       icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg> },
             { label: 'Complaints ranked by impact',   icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg> },
             { label: 'Exact fixes, not guesses',      icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg> },
             { label: 'Works on any Amazon listing',   icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> },
@@ -794,10 +794,10 @@ export default function LandingPage() {
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                       <p className="text-xs font-semibold uppercase tracking-wider text-orange-100">Quick Win — Do This Today</p>
                     </div>
-                    <p className="text-sm font-semibold">Switch to stoneware clay and increase handle thickness to 9mm — eliminates 71% of 1-star reviews</p>
+                    <p className="text-sm font-semibold">Source a double-seal silicone lid gasket — eliminates 74% of 1-star reviews at ~$0.90/unit extra</p>
                     <div className="flex gap-3 mt-2 flex-wrap">
-                      <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">Eliminates 71% of complaints</span>
-                      <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">~$120 supplier upgrade</span>
+                      <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">Eliminates 74% of complaints</span>
+                      <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full">~$0.90/unit supplier upgrade</span>
                     </div>
                   </div>
                 </div>
@@ -805,7 +805,7 @@ export default function LandingPage() {
                 <div className="flex gap-2 px-6 pt-4 overflow-x-auto pb-1">
                   {[
                     { id: 'complaints',   label: 'Problems',       icon: <AlertCircle size={12} /> },
-                    { id: 'strengths',    label: 'Strengths',      icon: <ThumbsUp size={12} /> },
+                    { id: 'strengths',    label: 'Strengths',      icon: <Sparkles size={12} /> },
                     { id: 'improvements', label: 'Improvements',   icon: <Wrench size={12} /> },
                     { id: 'seo',          label: 'SEO',            icon: <TrendingUp size={12} /> },
                     { id: 'marketing',    label: 'Marketing copy', icon: <Megaphone size={12} /> },
@@ -932,16 +932,16 @@ export default function LandingPage() {
                         <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-xl">
                           <p className="text-xs font-semibold text-yellow-800 mb-2">Keywords your actual buyers use</p>
                           <div className="flex flex-wrap gap-2">
-                            {['keeps coffee hot', 'substantial and gift-worthy', 'handmade ceramic mug gift', 'stays warm 45 minutes', 'hand thrown pottery'].map(kw => (
+                            {['ice retention 18 hours', 'leak-proof water bottle', 'fits car cupholder', 'gym water bottle gift', 'stainless insulated bottle'].map(kw => (
                               <span key={kw} className="px-2 py-1 bg-yellow-200 text-yellow-900 text-xs rounded-full font-medium">{kw}</span>
                             ))}
                           </div>
                         </div>
                         <div className="space-y-1.5">
                           {[
-                            'Add "keeps coffee hot 45+ minutes" to listing title — appears in 312 five-star reviews',
-                            'Add "substantial and gift-worthy" as a backend keyword — gift buyers who search this spend 40% more',
-                            'Replace first listing bullet with the heat retention claim backed by your own reviews',
+                            'Add "ice retention 18+ hours" to listing title — appears in 341 five-star reviews unprompted',
+                            'Add "fits standard car cupholders" as a bullet — a validated frustration in competitor reviews that you solve',
+                            'Replace first listing bullet with the leak-proof claim, backed by your own QC process',
                           ].map(s => (
                             <div key={s} className="flex items-start gap-2 text-xs text-neutral-700 p-2 bg-blue-50 rounded-lg leading-relaxed">
                               <span className="text-blue-500 flex-shrink-0 mt-0.5">→</span>{s}
@@ -1562,7 +1562,7 @@ export default function LandingPage() {
           <div className="text-center mb-12 scroll-fade">
             <p className="text-xs font-semibold text-orange-600 uppercase tracking-widest mb-2">Live demo</p>
             <h2 className="text-3xl md:text-4xl font-bold mb-3">What Voxrate finds in one analysis</h2>
-            <p className="text-sm text-neutral-500">Demo listing — ceramic mug, 1,000 reviews. This is exactly what your report looks like.</p>
+            <p className="text-sm text-neutral-500">Demo listing — stainless water bottle, 1,000 reviews. This is exactly what your report looks like.</p>
           </div>
           <div className="grid md:grid-cols-2 gap-6 scroll-fade">
             {/* WHAT THE LISTING LOOKS LIKE */}
@@ -1650,7 +1650,7 @@ export default function LandingPage() {
               </div>
             ))}
           </div>
-          <p className="text-xs text-neutral-400 text-center mt-4">Demo listing — ceramic mug with 1,000 reviews. Paste any Amazon URL to see your real report.</p>
+          <p className="text-xs text-neutral-400 text-center mt-4">Demo listing — stainless water bottle with 1,000 reviews. Paste any Amazon URL to see your real report.</p>
         </div>
       </section>
 
