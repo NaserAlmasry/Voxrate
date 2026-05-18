@@ -829,11 +829,11 @@ export default function ReportPage() {
   if (loading) {
     // [UX#3] elapsed time from a ref, not pollCount * assumed 3s
     const secs = Math.floor((Date.now() - loadStartRef.current) / 1000)
-    const msg  = secs < 20  ? 'Voxrate is analyzing your data...'
-               : secs < 60  ? 'Reading your customer reviews...'
-               : secs < 120 ? 'Collecting your most critical reviews...'
+    const msg  = secs < 20  ? 'Voxrate is reading your reviews...'
+               : secs < 60  ? 'Surfacing the complaints that cost you sales...'
+               : secs < 120 ? 'Ranking what to fix first...'
                : secs < 180 ? 'Finding patterns across your reviews...'
-               : 'Writing your report...'
+               : 'Turning your reviews into an action plan...'
     return (
       <div className="max-w-2xl mx-auto text-center py-20">
         <svg className="animate-spin w-12 h-12 text-orange-500 mx-auto mb-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
