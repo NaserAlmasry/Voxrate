@@ -259,15 +259,43 @@ function FaqSection() {
   )
 }
 
+const HERO_HEADLINES = [
+  {
+    top: "You're getting reviews.",
+    accent: "Most sellers never read what they're actually saying.",
+    sub: 'Paste your Amazon URL. Get a health score, a ranked fix list, and the exact words to use — in under 2 minutes.',
+  },
+  {
+    top: 'Your buyers already told you',
+    accent: 'what to fix.',
+    sub: 'The answers are buried in your reviews. Voxrate reads them all and tells you exactly what to do.',
+  },
+]
+
 function HeroHeadline() {
+  const [idx, setIdx]     = useState(0)
+  const [visible, setVisible] = useState(true)
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setVisible(false)
+      setTimeout(() => {
+        setIdx(i => (i + 1) % HERO_HEADLINES.length)
+        setVisible(true)
+      }, 600)
+    }, 10_000)
+    return () => clearInterval(timer)
+  }, [])
+
+  const h = HERO_HEADLINES[idx]
   return (
-    <div className="mb-5">
+    <div className="mb-5" style={{ transition: 'opacity 0.6s ease', opacity: visible ? 1 : 0 }}>
       <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-normal leading-[1.15] text-center">
-        Your buyers already told you<br />
-        <span className="text-orange-500">what to fix.</span>
+        {h.top}<br />
+        <span className="text-orange-500">{h.accent}</span>
       </h1>
       <p className="text-base md:text-lg text-neutral-500 text-center mt-4 max-w-lg mx-auto leading-relaxed">
-        The answers are buried in your reviews. Voxrate reads them all and tells you exactly what to do.
+        {h.sub}
       </p>
     </div>
   )
