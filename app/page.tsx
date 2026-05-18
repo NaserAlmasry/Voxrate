@@ -261,14 +261,19 @@ function FaqSection() {
 
 const HERO_HEADLINES = [
   {
-    top: "You're getting reviews.",
-    accent: "Most sellers never read what they're actually saying.",
-    sub: 'Paste your Amazon URL. Get a health score, a ranked fix list, and the exact words to use — in under 2 minutes.',
-  },
-  {
     top: 'Your buyers already told you',
     accent: 'what to fix.',
-    sub: 'The answers are buried in your reviews. Voxrate reads them all and tells you exactly what to do.',
+    sub: 'The answers are buried in your reviews. Now you can read them.',
+  },
+  {
+    top: 'Every complaint is a return',
+    accent: "you didn't have to get.",
+    sub: 'Find them before your next buyer does.',
+  },
+  {
+    top: 'Your listing is leaking sales',
+    accent: 'right now.',
+    sub: "Your customers already wrote down exactly why — you just haven't seen it yet.",
   },
 ]
 
