@@ -194,9 +194,15 @@ function scorePhraseSpecificity(phrase: string): number {
 
 // ── Main export ───────────────────────────────────────────────
 
+export interface SeoPhrase {
+  phrase:  string
+  inTitle: boolean
+}
+
 export interface SeoAnalysis {
   score:       number
   topPhrases:  string[]
+  phrases:     SeoPhrase[]
   phraseCount: number
   reasoning:   string  // injected into prompt so LLM understands the score
 }
@@ -212,17 +218,20 @@ export function calculateSeoScore(
     return {
       score:       25,
       topPhrases:  [],
+      phrases:     [],
       phraseCount: 0,
       reasoning:   `SEO score: 25/100 — insufficient 5★ reviews (${fiveStarCount}) to extract searchable phrases. Product needs more reviews before Amazon A10 keyword optimization can be assessed.`,
     }
   }
 
   const phrases = extractPhrases(reviews)
+  const titleLower = productName.toLowerCase()
 
   if (phrases.length === 0) {
     return {
       score:       20,
       topPhrases:  [],
+      phrases:     [],
       phraseCount: 0,
       reasoning:   `SEO score: 20/100 — no recurring specific phrases found in 5★ reviews after filtering generic terms. Buyers are not using consistent specific language that could drive Amazon search traffic.`,
     }
@@ -252,6 +261,12 @@ export function calculateSeoScore(
   // Clamp to 0-100
   score = Math.min(100, Math.max(10, Math.round(score)))
 
+  // Build per-phrase inTitle flag
+  const phrasesWithFlag: SeoPhrase[] = topPhrases.slice(0, 5).map(phrase => ({
+    phrase,
+    inTitle: titleLower.includes(phrase.toLowerCase()),
+  }))
+
   // Build reasoning string for prompt injection
   const topThree = topPhrases.slice(0, 3).join('", "')
   const reasoning = `SEO score: ${score}/100 (pre-calculated from ${fiveStarCount} five-star reviews)
@@ -264,6 +279,7 @@ The score is LOCKED at ${score} — do not change it.`
   return {
     score,
     topPhrases: topPhrases.slice(0, 5),
+    phrases:    phrasesWithFlag,
     phraseCount: phrases.length,
     reasoning,
   }

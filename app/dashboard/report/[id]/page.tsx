@@ -1550,11 +1550,20 @@ export default function ReportPage() {
               </div>
               {safeArray(fr.seo.magicKeywords).length > 0 && (
                 <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-xl">
-                  <p className="text-xs font-semibold text-yellow-800 mb-2">Magic Keywords — exact words your buyers use</p>
+                  <p className="text-xs font-semibold text-yellow-800 mb-1">Magic Keywords — exact words your buyers use</p>
+                  <p className="text-[10px] text-yellow-700 mb-2">Add phrases marked <span className="font-semibold text-orange-600">Missing from title</span> to your listing title or first bullet.</p>
                   <div className="flex flex-wrap gap-2">
-                    {safeArray(fr.seo.magicKeywords).map((kw: string, i: number) => (
-                      <span key={i} className="px-2 py-1 bg-yellow-200 text-yellow-900 text-xs rounded-full font-medium">{kw}</span>
-                    ))}
+                    {safeArray(fr.seo.keywordFlags || fr.seo.magicKeywords).map((item: any, i: number) => {
+                      const phrase   = typeof item === 'string' ? item : item.phrase
+                      const inTitle  = typeof item === 'string' ? null  : item.inTitle
+                      return (
+                        <span key={i} className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full font-medium ${inTitle === false ? 'bg-orange-100 text-orange-800' : inTitle === true ? 'bg-green-100 text-green-800' : 'bg-yellow-200 text-yellow-900'}`}>
+                          {phrase}
+                          {inTitle === false && <span className="text-[9px] font-semibold opacity-80">· missing</span>}
+                          {inTitle === true  && <span className="text-[9px] opacity-60">· in title</span>}
+                        </span>
+                      )
+                    })}
                   </div>
                 </div>
               )}

@@ -355,6 +355,15 @@ Return ONLY this JSON — start with { immediately:
           }
         }
 
+        // Tag each keyword with whether it already appears in the product title
+        if (updatedReport.seo) {
+          const titleLower = (report.product_name || '').toLowerCase()
+          updatedReport.seo.keywordFlags = (updatedReport.seo.magicKeywords as string[]).map((kw: string) => ({
+            phrase:  kw,
+            inTitle: titleLower.includes(kw.toLowerCase()),
+          }))
+        }
+
         // Fallback marketing copy from raw review text
         if (!updatedReport.marketingCopy || updatedReport.marketingCopy.length < 3) {
           const lines = reviewText.split('\n').filter((l: string) => l.startsWith('[5★]')).slice(0, 5)
