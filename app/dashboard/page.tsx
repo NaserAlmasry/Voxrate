@@ -616,23 +616,28 @@ function DashboardHomeInner() {
                   {ownReports.length === 0 ? (
                     <p className="text-xs text-neutral-400 italic">Analyze one of your own products first.</p>
                   ) : (
-                    <select
-                      value={spyOwnReportId}
-                      onChange={e => { setSpyOwnReportId(e.target.value); setSpyError('') }}
-                      disabled={spyLoading}
-                      className="w-full px-4 py-3 text-sm border border-neutral-200 rounded-xl outline-none focus:border-purple-400 transition-colors bg-white disabled:opacity-50"
-                    >
-                      <option value="">Select your product…</option>
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
                       {ownReports.map(r => {
-                        const used  = competitorCounts[r.id] ?? 0
-                        const limit = userPlan === 'pro' ? 10 : userPlan === 'growth' ? 3 : 1
+                        const used    = competitorCounts[r.id] ?? 0
+                        const limit   = userPlan === 'pro' ? 10 : userPlan === 'growth' ? 3 : 1
+                        const sel     = spyOwnReportId === r.id
+                        const atLimit = used >= limit
                         return (
-                          <option key={r.id} value={r.id}>
-                            {r.product_name} — {used}/{limit} this month
-                          </option>
+                          <button
+                            key={r.id}
+                            type="button"
+                            disabled={spyLoading || atLimit}
+                            onClick={() => { setSpyOwnReportId(r.id); setSpyError('') }}
+                            className={`w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl border text-left transition-colors disabled:opacity-40 ${
+                              sel ? 'border-purple-400 bg-purple-50' : 'border-neutral-200 hover:border-neutral-300 bg-white'
+                            }`}
+                          >
+                            <p className="text-sm font-medium text-neutral-800 truncate">{r.product_name || 'Unnamed'}</p>
+                            <span className={`text-xs flex-shrink-0 ${atLimit ? 'text-red-400' : 'text-neutral-400'}`}>{used}/{limit}</span>
+                          </button>
                         )
                       })}
-                    </select>
+                    </div>
                   )}
                 </div>
 
