@@ -870,6 +870,30 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Check 7-day re-analyze cooldown BEFORE deducting credits
+    if (isReAnalyze) {
+      const { data: lastReport } = await supabase
+        .from('reports')
+        .select('last_analyzed_at')
+        .eq('user_id', user.id)
+        .eq('product_url', productUrl)
+        .eq('status', 'completed')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single()
+
+      if (lastReport?.last_analyzed_at) {
+        const daysSince =
+          (Date.now() - new Date(lastReport.last_analyzed_at).getTime()) / 86_400_000
+        if (daysSince < 7) {
+          return NextResponse.json(
+            { error: `Re-analyze available in ${Math.ceil(7 - daysSince)} day(s).` },
+            { status: 429 },
+          )
+        }
+      }
+    }
+
     if (!isAdminUser) {
       if (credits < creditCost) {
         return NextResponse.json(
@@ -909,30 +933,6 @@ export async function POST(request: NextRequest) {
 
     }
 
-    if (isReAnalyze) {
-      const { data: lastReport } = await supabase
-        .from('reports')
-        .select('last_analyzed_at')
-        .eq('user_id', user.id)
-        .eq('product_url', productUrl)
-        .eq('status', 'completed')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single()
-
-      if (lastReport?.last_analyzed_at) {
-        const daysSince =
-          (Date.now() - new Date(lastReport.last_analyzed_at).getTime()) / 86_400_000
-        if (daysSince < 7) {
-          await refundCredits()
-          return NextResponse.json(
-            { error: `Re-analyze available in ${Math.ceil(7 - daysSince)} day(s).` },
-            { status: 429 },
-          )
-        }
-      }
-    }
-
     const { data: reportRow, error: reportError } = await supabase
       .from('reports')
       .insert({ user_id: user.id, product_url: productUrl, status: 'pending', report_type: reportType })
@@ -964,7 +964,7 @@ export async function POST(request: NextRequest) {
       const unansweredQACount = qa.filter(q => q.answer === null).length
 
       if (rawReviews.length === 0) {
-        await supabase.from('reports').update({ status: 'failed' }).eq('id', reportId)
+        await supabase.from('reports').update({ status: 'failed', product_name: amazonProduct.title || null }).eq('id', reportId)
         await refundCredits()
         return NextResponse.json({ error: 'No reviews found for this product. Your credits have been refunded.' }, { status: 400 })
       }

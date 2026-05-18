@@ -573,9 +573,11 @@ export default function ReportPage() {
         })()
       } else {
         // Partial — show complaints now, load rest progressively
+        // Skip section loading for free/limited reports — they use a single-call flow
         setReport(data)
         setSectionsReady(ready.length > 0 ? ready : ['complaints'])
-        if (!sectionLoadingRef.current) {
+        const isLimitedReport = data.full_report?._isLimited === true
+        if (!sectionLoadingRef.current && !isLimitedReport) {
           sectionLoadingRef.current = true
           loadSections(data.id, ready)
         }

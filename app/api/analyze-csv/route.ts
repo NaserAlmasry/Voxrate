@@ -108,10 +108,10 @@ function friendlyGroqLimitMessage(retryAfterSeconds: number | null): string {
 function parseCSV(
   csvText: string,
 ): Array<{ rating: number; text: string; date: string }> {
-  const lines = csvText.trim().split('\n')
+  const lines = csvText.trim().replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
   if (lines.length < 2) throw new Error('CSV file is empty or has no reviews')
 
-  const header = lines[0].toLowerCase().replace(/"/g, '')
+  const header = lines[0].toLowerCase().replace(/"/g, '').replace(/\r/g, '')
   const cols   = header.split(',').map((c) => c.trim())
 
   const ratingIdx = cols.findIndex(
