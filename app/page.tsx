@@ -1382,7 +1382,7 @@ export default function LandingPage() {
                   badge: null,
                   features: [
                     '300 credits every month',
-                    '1 competitor analysis included — see exactly why they outsell you',
+                    '1 competitor analysis per month — resets on the 1st',
                     'Full own-listing reports, no limits',
                     'All free tools included',
                   ],
