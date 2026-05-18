@@ -731,20 +731,22 @@ export async function POST(request: NextRequest) {
 
   const ip =
     request.headers.get('x-real-ip') ||
-    request.headers.get('x-forwarded-for')?.split(',').at(-1)?.trim() ||
+    request.headers.get('x-forwarded-for')?.split(',').at(0)?.trim() ||
     'unknown'
 
   const timeoutSignal = AbortSignal.timeout(270_000)
 
   let creditsDeducted    = false
+  let creditsRefunded    = false
   let creditRefundUserId = ''
   let creditRefundAmount = 0
 
   const refundCredits = async () => {
-    if (!creditsDeducted || !creditRefundUserId) return
+    if (!creditsDeducted || !creditRefundUserId || creditsRefunded) return
     try {
       const supabase = await createClient()
       await supabase.rpc('add_credits', { p_user_id: creditRefundUserId, p_amount: creditRefundAmount })
+      creditsRefunded = true
       console.log(`[Analyze] Refunded ${creditRefundAmount} credits to user ${creditRefundUserId}`)
     } catch (e) {
       console.error('[Analyze] Credit refund failed — manual review needed for user', creditRefundUserId)
@@ -922,6 +924,7 @@ export async function POST(request: NextRequest) {
         const daysSince =
           (Date.now() - new Date(lastReport.last_analyzed_at).getTime()) / 86_400_000
         if (daysSince < 7) {
+          await refundCredits()
           return NextResponse.json(
             { error: `Re-analyze available in ${Math.ceil(7 - daysSince)} day(s).` },
             { status: 429 },
@@ -942,7 +945,7 @@ export async function POST(request: NextRequest) {
     try {
       console.log(`[Pipeline] Starting Amazon scrape: ${productUrl}`)
 
-      const scrapeResult = await withRetry(() => scrapeAmazon(productUrl), 0)
+      const scrapeResult = await withRetry(() => scrapeAmazon(productUrl), 2)
       const { product: amazonProduct, reviews: rawReviews, qa } = scrapeResult
 
       const product = {

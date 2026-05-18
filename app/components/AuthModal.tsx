@@ -88,6 +88,7 @@ export default function AuthModal({ onClose, initialStep = 'plan', initialAuthMo
   const [password, setPassword]   = useState('')
   const [loading, setLoading]     = useState(false)
   const [error, setError]         = useState('')
+  const [emailSent, setEmailSent] = useState(false)
 
   const redirectUrl = (sel: Selection) => {
     const base = window.location.origin
@@ -113,20 +114,18 @@ export default function AuthModal({ onClose, initialStep = 'plan', initialAuthMo
     setError('')
     setLoading(true)
     if (authMode === 'signup' && selection) {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
         password,
         options: { emailRedirectTo: redirectUrl(selection) },
       })
       setLoading(false)
       if (error) { setError(error.message); return }
-      // If email confirmation is off, session is set — redirect to dashboard
-      try {
-        const { data: { session } } = await supabase.auth.getSession()
-        if (session) { window.location.href = redirectUrl(selection).replace(window.location.origin, '') || '/dashboard' }
-        else setError('Account created — check your email to confirm before signing in.')
-      } catch {
-        setError('Account created — check your email to confirm before signing in.')
+      if (data.session) {
+        // Email confirmations off — session granted immediately
+        window.location.href = redirectUrl(selection).replace(window.location.origin, '') || '/dashboard'
+      } else {
+        setEmailSent(true)
       }
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
@@ -169,7 +168,7 @@ export default function AuthModal({ onClose, initialStep = 'plan', initialAuthMo
         <div className="p-6 overflow-y-auto">
 
           {/* ── STEP 1: Plan picker ── */}
-          {step === 'plan' && (
+          {!emailSent && step === 'plan' && (
             <>
               <div className="flex gap-1 bg-neutral-100 p-1 rounded-xl mb-4">
                 {(['subscription', 'packs'] as const).map(t => (
@@ -236,8 +235,24 @@ export default function AuthModal({ onClose, initialStep = 'plan', initialAuthMo
             </>
           )}
 
+          {/* ── Email sent confirmation ── */}
+          {emailSent && (
+            <div className="text-center py-6">
+              <div className="w-14 h-14 bg-green-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2" strokeLinecap="round">
+                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                  <polyline points="22,6 12,13 2,6"/>
+                </svg>
+              </div>
+              <h2 className="text-base font-bold text-neutral-900 mb-2">Check your inbox</h2>
+              <p className="text-sm text-neutral-500 mb-1">We sent a confirmation link to</p>
+              <p className="text-sm font-semibold text-neutral-800 mb-4">{email}</p>
+              <p className="text-xs text-neutral-400">Click the link in the email to activate your account. Check your spam folder if you don't see it.</p>
+            </div>
+          )}
+
           {/* ── STEP 2: Auth ── */}
-          {step === 'auth' && (
+          {!emailSent && step === 'auth' && (
             <>
               {/* Google */}
               <button onClick={handleGoogle}

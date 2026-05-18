@@ -9,7 +9,7 @@ import { createClient } from '@/app/lib/supabase/server'
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 function applyPlanLimits(fullReport: any, plan: string, isAdmin: boolean) {
-  if (isAdmin || plan === 'pro' || plan === 'starter') {
+  if (isAdmin || plan === 'pro' || plan === 'growth' || plan === 'starter') {
     const { _cache, ...report } = fullReport || {}
     return { ...report, _isLimited: false }
   }

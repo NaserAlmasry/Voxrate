@@ -30,7 +30,7 @@ export default function CheckoutRedirectHandler() {
 
         if (pack && ['starter_pack', 'growth_pack', 'pro_pack'].includes(pack)) {
           body = { type: 'credit_pack', pack }
-        } else if (plan && billing && ['starter', 'pro'].includes(plan) && ['monthly'].includes(billing)) {
+        } else if (plan && billing && ['starter', 'growth', 'pro'].includes(plan) && ['monthly', 'annual'].includes(billing)) {
           body = { type: 'subscription', plan, billing }
         }
 

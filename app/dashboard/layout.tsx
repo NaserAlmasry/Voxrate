@@ -4,7 +4,7 @@
 // DASHBOARD LAYOUT — voxrate/app/dashboard/layout.tsx
 // ============================================================
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, useRef, Suspense } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/app/lib/supabase/client'
 import { PenLine, LayoutTemplate, Activity, MessageSquare, Crosshair, Eye, Bell, Home, LayoutGrid, Clock, Settings, Shield, Users, LogOut, ChevronLeft, ChevronRight, Menu, X } from 'lucide-react'
@@ -105,9 +105,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [showUpgradeBanner, setShowUpgradeBanner] = useState(false)
   const [authChecked, setAuthChecked] = useState(false)
 
-  const pathname = usePathname()
-  const router   = useRouter()
-  const supabase = createClient()
+  const pathname    = usePathname()
+  const router      = useRouter()
+  const supabaseRef = useRef(createClient())
+  const supabase    = supabaseRef.current
 
   const loadPlan = async () => {
     const { data: { user } } = await supabase.auth.getUser()

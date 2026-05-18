@@ -24,17 +24,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
     }
 
+    const limit = await checkRateLimit(user.id, 'user')
+    if (!limit.allowed) {
+      return NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 })
+    }
+
     // Get customer ID from Supabase
     const { data: userData } = await supabase
       .from('users')
       .select('stripe_customer_id')
       .eq('id', user.id)
       .single()
-
-    const limit = await checkRateLimit(user.id, 'user')
-    if (!limit.allowed) {
-      return NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 })
-    }
 
     if (!userData?.stripe_customer_id) {
       return NextResponse.json({ error: 'No billing account found. Please subscribe first.' }, { status: 400 })

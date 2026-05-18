@@ -1229,6 +1229,30 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    if (!isAdminUser && (plan === 'growth' || plan === 'pro')) {
+      const creditCost = 20
+      const { data: userCreditData } = await supabase
+        .from('users')
+        .select('credits')
+        .eq('id', user.id)
+        .single()
+      const currentCredits = userCreditData?.credits ?? 0
+      if (currentCredits < creditCost) {
+        return NextResponse.json(
+          { error: `Not enough credits. This analysis costs ${creditCost} credits and you have ${currentCredits}.`, upgradeRequired: true, creditCost },
+          { status: 403 },
+        )
+      }
+      const { error: deductError } = await supabase.rpc('deduct_credits', {
+        p_user_id: user.id,
+        p_amount:  creditCost,
+      })
+      if (deductError) {
+        console.error('[CSV] Credit deduction failed:', deductError.message)
+        return NextResponse.json({ error: 'Could not deduct credits. Please refresh and try again.' }, { status: 503 })
+      }
+    }
+
     const formData    = await request.formData()
     const file        = formData.get('file') as File
     const rawName     = formData.get('productName')        as string | null
@@ -1241,7 +1265,7 @@ export async function POST(request: NextRequest) {
 
     if (!file)                       return NextResponse.json({ error: 'No file uploaded' }, { status: 400 })
     const safeFileName = file.name.replace(/[^a-zA-Z0-9._\- ]/g, '').slice(0, 100) || 'upload.csv'
-    if (!file.name.endsWith('.csv') && file.type !== 'text/csv' && file.type !== 'application/csv') {
+    if (!file.name.endsWith('.csv') && !['text/csv', 'application/csv'].includes(file.type)) {
       return NextResponse.json({ error: 'Please upload a .csv file' }, { status: 400 })
     }
     if (file.size > 5 * 1024 * 1024) return NextResponse.json({ error: 'File too large. Max 5MB.' }, { status: 400 })

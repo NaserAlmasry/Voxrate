@@ -255,7 +255,7 @@ export default function OnboardingModal() {
 
           <button
             type="button"
-            onClick={() => goToStep(s.href)}
+            onClick={() => step < STEPS.length - 1 ? setStep(step + 1) : goToStep(s.href)}
             className="w-full py-3 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold rounded-xl transition-colors mb-3"
           >
             {s.cta}

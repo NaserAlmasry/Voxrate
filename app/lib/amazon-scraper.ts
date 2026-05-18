@@ -7,8 +7,7 @@ const SCRAPINGDOG_BASE    = 'https://api.scrapingdog.com/amazon/product'
 const CANOPY_BASE         = 'https://rest.canopyapi.co/api/amazon/product/reviews'
 const SCRAPERAPI_BASE     = 'https://api.scraperapi.com/structured/amazon/product'
 
-// Max pages to fetch per star (each page ~10 reviews, so 2 pages = ~20 per star = 100 total)
-const MAX_PAGES_PER_STAR = 2
+const REVIEWS_PER_PAGE = 10
 
 const STAR_FILTER_MAP: Record<1 | 2 | 3 | 4 | 5, string> = {
   1: 'ONE_STAR',
@@ -16,6 +15,37 @@ const STAR_FILTER_MAP: Record<1 | 2 | 3 | 4 | 5, string> = {
   3: 'THREE_STAR',
   4: 'FOUR_STAR',
   5: 'FIVE_STAR',
+}
+
+// Base pages per star tier. Each tier can absorb at most 1 extra page from rollover.
+// Excess rollover (beyond 1) keeps flowing to the next tier.
+// Max possible: 3+3+2+2+2 = 12 pages = ~120 reviews
+const BASE_PAGES: Record<1 | 2 | 3 | 4 | 5, number> = { 1: 3, 2: 2, 3: 1, 4: 1, 5: 1 }
+const MAX_ROLLOVER_PER_TIER = 1
+
+function allocatePages(ratingBreakdown: { one: number; two: number; three: number; four: number; five: number }): Record<1 | 2 | 3 | 4 | 5, number> {
+  const counts: Record<1 | 2 | 3 | 4 | 5, number> = {
+    1: ratingBreakdown.one,
+    2: ratingBreakdown.two,
+    3: ratingBreakdown.three,
+    4: ratingBreakdown.four,
+    5: ratingBreakdown.five,
+  }
+  const pages: Record<1 | 2 | 3 | 4 | 5, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
+  const totalReviews = counts[1] + counts[2] + counts[3] + counts[4] + counts[5]
+  let rollover = 0
+
+  for (const star of [1, 2, 3, 4, 5] as const) {
+    const usableRollover  = Math.min(MAX_ROLLOVER_PER_TIER, rollover)
+    const passedRollover  = rollover - usableRollover           // excess keeps flowing
+    const budget          = BASE_PAGES[star] + usableRollover
+    const needed          = (counts[star] < 5 && totalReviews > 100) ? 0 : Math.ceil(counts[star] / REVIEWS_PER_PAGE)
+    const alloc           = Math.min(budget, needed)
+    pages[star]           = alloc
+    rollover              = passedRollover + (budget - alloc)   // unused base + passed excess
+  }
+
+  return pages
 }
 
 // Maps amazon marketplace domain to Canopy domain code
@@ -41,12 +71,15 @@ export async function scrapeAmazon(input: string): Promise<AmazonScrapeResult> {
 
   const domain = DOMAIN_MAP[marketplace] ?? 'US'
 
-  // Product + Q&A via Rainforest, reviews via Canopy — all in parallel
-  const [{ product: productData }, qaData, allReviews] = await Promise.all([
+  // Fetch product first so we know the rating breakdown, then allocate pages smartly
+  const [{ product: productData }, qaData] = await Promise.all([
     fetchProduct(asin, marketplace),
     fetchQA(asin, marketplace),
-    fetchAllReviews(asin, domain),
   ])
+
+  const pageAlloc = allocatePages(productData.ratingBreakdown)
+  console.log(`[Scraper] Page budget: 1★×${pageAlloc[1]} 2★×${pageAlloc[2]} 3★×${pageAlloc[3]} 4★×${pageAlloc[4]} 5★×${pageAlloc[5]}`)
+  const allReviews = await fetchAllReviews(asin, domain, pageAlloc)
 
   const bystar = [1, 2, 3, 4, 5].map(s => allReviews.filter(r => r.rating === s).length)
 
@@ -66,10 +99,10 @@ export async function scrapeAmazon(input: string): Promise<AmazonScrapeResult> {
   }
 }
 
-// Fetch all 5 star tiers in parallel
-async function fetchAllReviews(asin: string, domain: string): Promise<AmazonReview[]> {
+// Fetch all 5 star tiers in parallel using pre-allocated page counts
+async function fetchAllReviews(asin: string, domain: string, pageAlloc: Record<1 | 2 | 3 | 4 | 5, number>): Promise<AmazonReview[]> {
   const batches = await Promise.all(
-    ([1, 2, 3, 4, 5] as const).map(star => fetchStarReviews(asin, domain, star))
+    ([1, 2, 3, 4, 5] as const).map(star => fetchStarReviews(asin, domain, star, pageAlloc[star]))
   )
   return batches.flat()
 }
@@ -78,11 +111,14 @@ async function fetchStarReviews(
   asin: string,
   domain: string,
   star: 1 | 2 | 3 | 4 | 5,
+  maxPages: number,
 ): Promise<AmazonReview[]> {
   const reviews: AmazonReview[] = []
   const rating = STAR_FILTER_MAP[star]
 
-  for (let page = 1; page <= MAX_PAGES_PER_STAR; page++) {
+  if (maxPages === 0) return reviews
+
+  for (let page = 1; page <= maxPages; page++) {
     try {
       const url = `${CANOPY_BASE}?asin=${asin}&domain=${domain}&page=${page}&rating=${rating}`
       const res = await fetch(url, {
