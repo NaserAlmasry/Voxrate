@@ -671,11 +671,7 @@ export default function LandingPage() {
                 <span className="bdot w-1.5 h-1.5 rounded-full bg-orange-500" />
                 TURN REVIEWS INTO REVENUE
               </div>
-              <p className="text-sm text-neutral-500 mb-3 max-w-lg mx-auto">
-                You're getting reviews. Most sellers never read what they're actually saying.
-              </p>
               <HeroHeadline />
-              <p className="text-sm text-neutral-500 mb-4 max-w-lg mx-auto">Paste your Amazon URL. Get a health score, a ranked fix list, and the exact words to use — in under 2 minutes.</p>
 
               <div className="max-w-lg mx-auto w-full">
                 <div className={`flex flex-col sm:flex-row gap-2 p-2 bg-white rounded-2xl border shadow-sm transition-colors ${heroUrlError ? 'border-red-300' : 'border-neutral-200'}`}>
