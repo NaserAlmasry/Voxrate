@@ -1235,7 +1235,7 @@ export async function POST(request: NextRequest) {
     const refundCsvCredits  = async () => {
       if (!csvCreditsDeducted || csvCreditsRefunded) return
       csvCreditsRefunded = true
-      await supabase.rpc('add_credits', { p_user_id: user.id, p_amount: csvCreditCost }).catch(() => {})
+      void supabase.rpc('add_credits', { p_user_id: user.id, p_amount: csvCreditCost })
     }
 
     if (!isAdminUser && (plan === 'growth' || plan === 'pro')) {

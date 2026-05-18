@@ -510,9 +510,11 @@ Return ONLY this JSON — start with { immediately:
     if (allDone) {
       try {
         const { validateReport } = await import('@/app/lib/report-schema')
-        const validation = validateReport(finalReport)
-        if (!validation.valid) {
-          console.warn(`[Section] Schema issues in final report ${reportId}:`, validation.errorStrings?.slice(0, 5))
+        const healthScore = finalReport.healthScore ?? 0
+        const ctx = { tier: finalReport._isLimited ? 'free' : 'pro', healthScore, starCounts: finalReport.starBreakdown ?? {}, totalReviewCount: 0, weightedRaw: 0, penaltyCount: 0 } as any
+        const validation = validateReport(finalReport, ctx)
+        if (!validation.success) {
+          console.warn(`[Section] Schema issues in final report ${reportId}:`, (validation as any).errorStrings?.slice(0, 5))
         }
       } catch (e) {
         console.warn('[Section] Schema validation threw:', e)
