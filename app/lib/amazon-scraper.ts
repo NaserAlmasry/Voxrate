@@ -1,8 +1,27 @@
 import { AmazonScrapeResult, AmazonProduct, AmazonReview, AmazonQA } from './amazon-types'
 
-const SCRAPINGDOG_API_KEY = process.env.SCRAPINGDOG_API_KEY!
-const CANOPY_API_KEY      = process.env.CANOPY_API_KEY!
-const SCRAPERAPI_KEY      = process.env.SCRAPERAPI_KEY!
+const SCRAPINGDOG_API_KEY  = process.env.SCRAPINGDOG_API_KEY!
+const SCRAPERAPI_KEY       = process.env.SCRAPERAPI_KEY!
+
+// Two Canopy keys — auto-rotates to backup when primary returns 429/quota error
+const CANOPY_KEYS = [
+  process.env.CANOPY_API_KEY,
+  process.env.CANOPY_API_KEY_2,
+].filter(Boolean) as string[]
+
+async function canopyFetch(url: string): Promise<Response> {
+  for (let i = 0; i < CANOPY_KEYS.length; i++) {
+    const res = await fetch(url, {
+      headers: { 'API-KEY': CANOPY_KEYS[i], 'accept': 'application/json' },
+    })
+    if (res.status !== 429 && res.status !== 403) return res
+    console.warn(`[Scraper] Canopy key ${i + 1} quota hit (${res.status}) — trying next key`)
+  }
+  // All keys exhausted — return last response
+  return fetch(url, {
+    headers: { 'API-KEY': CANOPY_KEYS[CANOPY_KEYS.length - 1], 'accept': 'application/json' },
+  })
+}
 const SCRAPINGDOG_BASE    = 'https://api.scrapingdog.com/amazon/product'
 const CANOPY_BASE         = 'https://rest.canopyapi.co/api/amazon/product/reviews'
 const SCRAPERAPI_BASE     = 'https://api.scraperapi.com/structured/amazon/product'
@@ -126,9 +145,7 @@ export async function scrapeAmazonFree(input: string): Promise<AmazonScrapeResul
 async function fetchOnePage(asin: string, domain: string): Promise<AmazonReview[]> {
   try {
     const url = `${CANOPY_BASE}?asin=${asin}&domain=${domain}&page=1`
-    const res = await fetch(url, {
-      headers: { 'API-KEY': CANOPY_API_KEY, 'accept': 'application/json' },
-    })
+    const res = await canopyFetch(url)
     if (!res.ok) {
       console.warn(`[Scraper:free] Canopy page 1 HTTP ${res.status}`)
       return []
@@ -175,9 +192,7 @@ async function fetchStarReviews(
   for (let page = 1; page <= maxPages; page++) {
     try {
       const url = `${CANOPY_BASE}?asin=${asin}&domain=${domain}&page=${page}&rating=${rating}`
-      const res = await fetch(url, {
-        headers: { 'API-KEY': CANOPY_API_KEY, 'accept': 'application/json' },
-      })
+      const res = await canopyFetch(url)
 
       if (!res.ok) {
         console.warn(`[Scraper] Canopy ${star}★ page ${page} HTTP ${res.status}`)
