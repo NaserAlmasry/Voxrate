@@ -157,7 +157,7 @@ export default function AuthModal({ onClose, initialStep = 'plan', initialAuthMo
               {step === 'plan' ? 'Get started with Voxrate' : authMode === 'login' && !selection ? 'Sign in to Voxrate' : `Continue — ${selLabel}`}
             </p>
             {step === 'auth' && selection && (
-              <button onClick={() => { setStep('plan'); setError('') }}
+              <button onClick={() => { setStep('plan'); setError(''); setEmailSent(false) }}
                 className="text-xs text-neutral-400 hover:text-black mt-0.5 block">← Back to plans</button>
             )}
           </div>
