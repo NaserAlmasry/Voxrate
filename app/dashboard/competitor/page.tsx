@@ -15,6 +15,8 @@ function CompetitorPage() {
   const [loading, setLoading]       = useState(false)
   const [error, setError]           = useState('')
   const [plan, setPlan]             = useState('free')
+  const [ownReports, setOwnReports] = useState<any[]>([])
+  const [ownReportId, setOwnReportId] = useState('')
   const [pastReports, setPastReports] = useState<any[]>([])
   const [reportsLoading, setReportsLoading] = useState(true)
   const controllerRef               = useRef<AbortController | null>(null)
@@ -32,16 +34,27 @@ function CompetitorPage() {
         .from('users').select('plan').eq('id', user.id).single()
       setPlan(userData?.plan || 'free')
 
-      const { data: reports } = await supabase
-        .from('reports')
-        .select('id, product_name, product_url, health_score, created_at, total_reviews_analyzed')
-        .eq('user_id', user.id)
-        .eq('report_type', 'competitor')
-        .eq('status', 'completed')
-        .order('created_at', { ascending: false })
-        .limit(20)
+      const [{ data: reports }, { data: own }] = await Promise.all([
+        supabase
+          .from('reports')
+          .select('id, product_name, product_url, health_score, created_at, total_reviews_analyzed')
+          .eq('user_id', user.id)
+          .eq('report_type', 'competitor')
+          .eq('status', 'completed')
+          .order('created_at', { ascending: false })
+          .limit(20),
+        supabase
+          .from('reports')
+          .select('id, product_name, health_score')
+          .eq('user_id', user.id)
+          .eq('status', 'completed')
+          .or('report_type.eq.own,report_type.is.null')
+          .order('created_at', { ascending: false })
+          .limit(20),
+      ])
 
       setPastReports(reports || [])
+      setOwnReports(own || [])
       setReportsLoading(false)
 
       const preUrl = searchParams.get('url')
@@ -76,7 +89,11 @@ function CompetitorPage() {
         setLoading(false)
         return
       }
-      router.push(`/dashboard/report/${data.reportId}`)
+      if (ownReportId) {
+        router.push(`/dashboard/compare?own=${ownReportId}&competitor=${data.reportId}`)
+      } else {
+        router.push(`/dashboard/report/${data.reportId}`)
+      }
     } catch (err: any) {
       if (!cancelledRef.current && err?.name !== 'AbortError') {
         setError('Something went wrong. Please try again.')
@@ -141,6 +158,31 @@ function CompetitorPage() {
                 className="w-full text-sm border border-neutral-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:border-transparent transition-all"
               />
             </div>
+
+            {ownReports.length > 0 && (
+              <div>
+                <label className="text-xs font-semibold text-neutral-600 block mb-2">Which of your products does this compete with? <span className="text-neutral-400 font-normal">(optional)</span></label>
+                <div className="space-y-2 max-h-44 overflow-y-auto">
+                  {ownReports.map(r => {
+                    const sel = ownReportId === r.id
+                    return (
+                      <button
+                        key={r.id}
+                        type="button"
+                        disabled={loading}
+                        onClick={() => setOwnReportId(sel ? '' : r.id)}
+                        className={`w-full flex items-center justify-between gap-3 px-4 py-2.5 rounded-xl border text-left transition-colors disabled:opacity-40 ${
+                          sel ? 'border-black bg-neutral-50' : 'border-neutral-200 hover:border-neutral-300 bg-white'
+                        }`}
+                      >
+                        <p className="text-sm font-medium text-neutral-800 truncate">{r.product_name || 'Unnamed'}</p>
+                        {sel && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="flex-shrink-0"><polyline points="20 6 9 17 4 12"/></svg>}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
 
             {error && (
               <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-100 rounded-xl">
