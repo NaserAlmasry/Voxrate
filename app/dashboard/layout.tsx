@@ -354,9 +354,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </aside>
 
-      <main className={`flex-1 transition-all duration-250 md:${collapsed ? 'ml-16' : 'ml-56'} ml-0`}>
-        <div className="h-16 bg-white border-b border-neutral-200 flex items-center px-6 pl-16 md:pl-6">
-          <p className="text-sm text-neutral-400">
+      <main className={`flex-1 transition-all duration-250 ml-0 ${collapsed ? 'md:ml-16' : 'md:ml-56'}`}>
+        <div className="h-16 bg-white border-b border-neutral-200 flex items-center px-6 pl-16 md:pl-6 overflow-hidden">
+          <p className="text-sm text-neutral-400 truncate">
             {NAV_ITEMS.find(i => pathname === i.href || (i.href !== '/dashboard' && pathname.startsWith(i.href)))?.label ?? 'Dashboard'}
           </p>
         </div>
