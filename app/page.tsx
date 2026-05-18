@@ -259,43 +259,16 @@ function FaqSection() {
   )
 }
 
-const HERO_HEADLINES = [
-  { stat: 'Your buyers already told you what to fix.', action: 'The answers are buried in your reviews. Now you can read them.' },
-  { stat: 'Every complaint is a return you didn\'t have to get.', action: 'Find them before your next buyer does.' },
-  { stat: 'Your listing is leaking sales right now.', action: 'Your customers already wrote down exactly why — you just haven\'t seen it yet.' },
-]
-
 function HeroHeadline() {
-  const [idx, setIdx]       = useState(0)
-  const [phase, setPhase]   = useState<'in' | 'out'>('in')
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setPhase('out')
-      setTimeout(() => {
-        setIdx(i => (i + 1) % HERO_HEADLINES.length)
-        setPhase('in')
-      }, 420)
-    }, 5000)
-    return () => clearInterval(timer)
-  }, [])
-
-  const h = HERO_HEADLINES[idx]
   return (
-    <div className="min-h-[140px] flex flex-col items-center justify-center mb-5">
-      <h1
-        key={idx}
-        className={`text-3xl md:text-4xl lg:text-5xl font-bold tracking-normal leading-[1.15] text-center ${phase === 'in' ? 'hero-rotate-in' : 'hero-rotate-out'}`}
-      >
-        {h.stat}<br />{h.action}
+    <div className="mb-5">
+      <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-normal leading-[1.15] text-center">
+        Your buyers already told you<br />
+        <span className="text-orange-500">what to fix.</span>
       </h1>
-      <div className="flex gap-1.5 mt-4 justify-center">
-        {HERO_HEADLINES.map((_, i) => (
-          <button key={i} onClick={() => { setPhase('out'); setTimeout(() => { setIdx(i); setPhase('in') }, 420) }}
-            className={`h-1 rounded-full transition-all duration-300 ${i === idx ? 'w-6 bg-orange-500' : 'w-2 bg-neutral-300'}`}
-            aria-label={`Headline ${i + 1}`} />
-        ))}
-      </div>
+      <p className="text-base md:text-lg text-neutral-500 text-center mt-4 max-w-lg mx-auto leading-relaxed">
+        The answers are buried in your reviews. Voxrate reads them all and tells you exactly what to do.
+      </p>
     </div>
   )
 }
@@ -1299,20 +1272,15 @@ export default function LandingPage() {
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-10">
             <p className="text-xs font-semibold text-orange-600 uppercase tracking-widest mb-2">Pricing</p>
-            <h2 className="text-3xl md:text-4xl font-bold mb-3">
-              {pricingTab === 'subscription' ? 'Your listing always improving' : 'Buy once, use forever'}
-            </h2>
-            <p className="text-sm text-neutral-500 mb-6 max-w-xl mx-auto">
-              {pricingTab === 'subscription'
-                ? 'Subscribe and get credits every month. Unused credits reset each month.'
-                : 'Buy credits when you need them — they never expire. No subscription required.'}
+            <h2 className="text-3xl md:text-4xl font-bold mb-3">Simple, honest pricing</h2>
+            <p className="text-sm text-neutral-500 mb-6 max-w-lg mx-auto">
+              Subscribe monthly or buy credits once — they never expire. Start free, no card required.
             </p>
             <div className="inline-flex items-center gap-1 p-1 bg-neutral-100 rounded-full">
-              {[{ id: 'subscription', label: 'Subscription' }, { id: 'packs', label: 'Credit packs' }].map(t => (
+              {[{ id: 'subscription', label: 'Subscription' }, { id: 'packs', label: 'Pay as you go' }].map(t => (
                 <button key={t.id} onClick={() => setPricingTab(t.id as any)}
                   className={`px-4 py-1.5 text-sm rounded-full transition-all ${pricingTab === t.id ? 'bg-white shadow-sm font-medium' : 'text-neutral-500'}`}>
                   {t.label}
-                  {t.id === 'subscription' && <span className="text-orange-500 text-xs ml-1">Save 2 months</span>}
                 </button>
               ))}
             </div>
@@ -1361,11 +1329,7 @@ export default function LandingPage() {
                   <h3 className={`font-semibold mb-1 ${pack.popular ? 'text-white' : ''}`}>{pack.name}</h3>
                   <p className={`text-xs mb-4 ${pack.popular ? 'text-neutral-400' : 'text-neutral-500'}`}>{pack.desc}</p>
                   <p className="text-4xl font-black mb-1">${pack.price}</p>
-                  <p className={`text-xs mb-1 ${pack.popular ? 'text-neutral-400' : 'text-neutral-500'}`}>one-time · never expires</p>
-                  <div className={`my-4 p-3 rounded-xl ${pack.popular ? 'bg-white/10' : 'bg-orange-50'}`}>
-                    <p className={`text-2xl font-black ${pack.popular ? 'text-orange-400' : 'text-orange-600'}`}>{pack.credits.toLocaleString()}</p>
-                    <p className={`text-xs ${pack.popular ? 'text-neutral-400' : 'text-neutral-500'}`}>credits · {pack.analyses}</p>
-                  </div>
+                  <p className={`text-sm font-medium mb-4 ${pack.popular ? 'text-orange-400' : 'text-orange-600'}`}>{pack.analyses}</p>
                   <ul className={`space-y-1.5 text-xs mb-6 ${pack.popular ? 'text-neutral-300' : 'text-neutral-600'}`}>
                     {pack.features.map(f => (
                       <li key={f} className="flex gap-2"><span className={pack.popular ? 'text-orange-400' : 'text-green-500'}>✓</span>{f}</li>
@@ -1448,10 +1412,7 @@ export default function LandingPage() {
                       ${(sub.annualPrice * 12).toFixed(0)}/year — save ${((sub.monthlyPrice - sub.annualPrice) * 12).toFixed(0)}
                     </p>
                   )}
-                  <div className={`my-4 p-3 rounded-xl ${sub.popular ? 'bg-white/10' : 'bg-orange-50'}`}>
-                    <p className={`text-2xl font-black ${sub.popular ? 'text-orange-400' : 'text-orange-600'}`}>{sub.credits.toLocaleString()}</p>
-                    <p className={`text-xs ${sub.popular ? 'text-neutral-400' : 'text-neutral-500'}`}>credits/month · {sub.analyses}</p>
-                  </div>
+                  <p className={`text-sm font-medium mb-4 ${sub.popular ? 'text-orange-400' : 'text-orange-600'}`}>{sub.analyses}</p>
                   <ul className={`space-y-1.5 text-xs mb-4 ${sub.popular ? 'text-neutral-300' : 'text-neutral-600'}`}>
                     {sub.features.map(f => (
                       <li key={f} className="flex gap-2"><span className={sub.popular ? 'text-orange-400' : 'text-green-500'}>✓</span>{f}</li>

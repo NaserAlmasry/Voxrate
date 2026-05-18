@@ -840,7 +840,7 @@ export default function ReportPage() {
                : secs < 180 ? 'Finding patterns across your reviews...'
                : 'Turning your reviews into an action plan...'
     return (
-      <div className="max-w-2xl mx-auto text-center py-20">
+      <div className="max-w-4xl mx-auto text-center py-20">
         <svg className="animate-spin w-12 h-12 text-orange-500 mx-auto mb-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
           <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
         </svg>
@@ -884,7 +884,7 @@ export default function ReportPage() {
 
   return (
     <>
-    <div className="max-w-3xl mx-auto space-y-5">
+    <div className="max-w-4xl mx-auto space-y-5">
 
       {/* Low review count warning */}
       {report.total_reviews_analyzed < 30 && (
@@ -1350,9 +1350,9 @@ export default function ReportPage() {
                           </span>
                           <span className="text-xs text-neutral-400">{safeStr(c.frequency)}</span>
                         </div>
-                        <h3 className="font-semibold text-sm text-neutral-900">{safeStr(c.title)}</h3>
-                        <p className="text-xs text-neutral-600 mt-1 leading-relaxed">{displayDescription}</p>
-                        {c.quote && <p className="text-xs text-neutral-400 italic mt-2">&quot;{c.quote}&quot;</p>}
+                        <h3 className="font-semibold text-base text-neutral-900">{safeStr(c.title)}</h3>
+                        <p className="text-sm text-neutral-600 mt-1 leading-relaxed">{displayDescription}</p>
+                        {c.quote && <p className="text-sm text-neutral-400 italic mt-2">&quot;{c.quote}&quot;</p>}
                       </div>
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
                         className={`flex-shrink-0 text-neutral-400 transition-transform mt-1 ${isExpanded ? 'rotate-180' : ''}`}>
@@ -1386,14 +1386,14 @@ export default function ReportPage() {
                     <div className={`px-5 pb-5 pt-0 border-t ${sev.border} space-y-3`}>
                       {c.revenueImpact && (
                         <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-xl">
-                          <p className="text-xs font-semibold text-orange-800 mb-0.5">Revenue impact</p>
-                          <p className="text-xs text-orange-700 leading-relaxed">{c.revenueImpact}</p>
+                          <p className="text-sm font-semibold text-orange-800 mb-0.5">Revenue impact</p>
+                          <p className="text-sm text-orange-700 leading-relaxed">{c.revenueImpact}</p>
                         </div>
                       )}
                       {(c.riskIfIgnored || c.urgency) && (c.severity === 'CRITICAL' || c.severity === 'MEDIUM') && (
                         <div className="p-3 bg-red-50 border border-red-200 rounded-xl">
-                          <p className="text-xs font-semibold text-red-800 mb-0.5">If you ignore this</p>
-                          <p className="text-xs text-red-700 leading-relaxed">{c.riskIfIgnored || c.urgency}</p>
+                          <p className="text-sm font-semibold text-red-800 mb-0.5">If you ignore this</p>
+                          <p className="text-sm text-red-700 leading-relaxed">{c.riskIfIgnored || c.urgency}</p>
                         </div>
                       )}
                       {safeArray(c.fixes).length > 0 && (
@@ -1406,11 +1406,11 @@ export default function ReportPage() {
                               return (
                                 <div key={fi} className="p-3 bg-neutral-50 rounded-xl border border-neutral-100">
                                   <div className="flex items-start gap-3">
-                                    <span className="w-5 h-5 rounded-full bg-neutral-200 flex items-center justify-center text-[10px] font-bold flex-shrink-0 mt-0.5">{fi + 1}</span>
+                                    <span className="w-5 h-5 rounded-full bg-neutral-200 flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">{fi + 1}</span>
                                     <div className="flex-1 min-w-0">
-                                      <p className="text-xs font-medium text-neutral-800 leading-relaxed">{simple}</p>
-                                      {advanced !== simple && <p className="text-xs text-neutral-500 mt-1 leading-relaxed">{advanced}</p>}
-                                      {fix.why && <p className="text-xs text-neutral-400 mt-1">{fix.why}</p>}
+                                      <p className="text-sm font-medium text-neutral-800 leading-relaxed">{simple}</p>
+                                      {advanced !== simple && <p className="text-sm text-neutral-500 mt-1 leading-relaxed">{advanced}</p>}
+                                      {fix.why && <p className="text-sm text-neutral-400 mt-1">{fix.why}</p>}
                                     </div>
                                   </div>
                                 </div>
