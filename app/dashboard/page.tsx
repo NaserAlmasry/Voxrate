@@ -232,7 +232,8 @@ function DashboardHomeInner() {
         // Load weekly digest: most recently monitored listing with a score change
         try {
           const dismissed = localStorage.getItem('voxrate_digest_week')
-          const thisWeek  = `${new Date().getFullYear()}-W${Math.ceil(new Date().getDate() / 7)}`
+          const _wd = new Date(); _wd.setDate(_wd.getDate() - _wd.getDay() + 1)
+          const thisWeek  = _wd.toISOString().slice(0, 10)
           if (dismissed !== thisWeek) {
             const { data: monData } = await supabase
               .from('monitored_listings')
@@ -465,7 +466,7 @@ function DashboardHomeInner() {
             )}
           </div>
           <button
-            onClick={() => { setDigestDismissed(true); const w = `${new Date().getFullYear()}-W${Math.ceil(new Date().getDate() / 7)}`; localStorage.setItem('voxrate_digest_week', w) }}
+            onClick={() => { setDigestDismissed(true); const _d = new Date(); _d.setDate(_d.getDate() - _d.getDay() + 1); localStorage.setItem('voxrate_digest_week', _d.toISOString().slice(0, 10)) }}
             className="text-neutral-300 hover:text-neutral-500 flex-shrink-0 transition-colors"
             aria-label="Dismiss"
           >

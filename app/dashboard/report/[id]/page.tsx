@@ -496,6 +496,12 @@ export default function ReportPage() {
     }
   }, [])
 
+  const resumeAnalysis = useCallback(() => {
+    if (!reportId || sectionLoadingRef.current) return
+    sectionLoadingRef.current = true
+    loadSections(reportId, sectionsReady)
+  }, [reportId, sectionsReady, loadSections])
+
   // ── Load report (defined before effects so closure is always valid) ──
   const loadReport = useCallback(async (retries: number) => {
     console.log('[Report] loadReport called — reportId:', reportId, 'retries:', retries)
@@ -896,6 +902,19 @@ export default function ReportPage() {
               ? ' Results may be unreliable — patterns are harder to detect with fewer than 15 reviews.'
               : ' Results are usable but more reviews will make patterns clearer. Best results with 30+ reviews.'}
           </p>
+        </div>
+      )}
+
+      {/* Resume partial analysis */}
+      {report.status === 'partial' && !loadingSection && !isLimited && (
+        <div className="flex items-center justify-between gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
+          <p className="text-xs text-amber-800">Some sections did not finish loading.</p>
+          <button
+            onClick={resumeAnalysis}
+            className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-medium rounded-lg transition-colors flex-shrink-0"
+          >
+            Resume analysis
+          </button>
         </div>
       )}
 

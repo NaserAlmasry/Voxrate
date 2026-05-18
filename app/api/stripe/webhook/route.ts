@@ -206,11 +206,24 @@ export async function POST(request: NextRequest) {
           await supabase.from('processed_webhook_events').delete().eq('stripe_event_id', event.id)
           return NextResponse.json({ error: 'Plan update failed' }, { status: 500 })
         }
-        // On renewal: reset credits to plan amount (no rollover) + reset competitor counter
+        // On renewal: top up to plan amount only if current balance is below it (preserves pack credits)
         if (credits > 0 && credits <= 2000) {
+          const { data: currentUser, error: fetchError } = await supabase
+            .from('users')
+            .select('credits')
+            .eq('id', userId)
+            .single()
+          if (fetchError) {
+            console.error(`[Webhook] Could not fetch current credits:`, fetchError.message)
+            await supabase.from('processed_webhook_events').delete().eq('stripe_event_id', event.id)
+            return NextResponse.json({ error: 'Credit update failed' }, { status: 500 })
+          }
+          const currentCredits = currentUser?.credits ?? 0
+          const updatePayload: any = { competitor_analyses_used: 0 }
+          if (credits > currentCredits) updatePayload.credits = credits
           const { error: resetError } = await supabase
             .from('users')
-            .update({ credits, competitor_analyses_used: 0 })
+            .update(updatePayload)
             .eq('id', userId)
           if (resetError) {
             console.error(`[Webhook] Credit reset failed on renewal:`, resetError.message)

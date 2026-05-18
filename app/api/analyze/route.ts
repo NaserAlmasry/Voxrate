@@ -37,6 +37,7 @@ import { calculateSeoScore } from '@/app/lib/seo-scorer'
 import { sendReportComplete } from '@/app/lib/email'
 import { scrapeAmazon, scrapeAmazonFree } from '@/app/lib/amazon-scraper'
 import type { AmazonReview } from '@/app/lib/amazon-types'
+import { extractJson } from '@/app/lib/extract-json'
 
 export const maxDuration = 300
 
@@ -80,55 +81,23 @@ function sanitizeAmazonInput(raw: string): string | null {
 
 // ── Retry wrapper ─────────────────────────────────────────────
 
+function isRetryable(err: any): boolean {
+  const status = err?.status ?? err?.statusCode ?? 0
+  return status === 0 || status >= 500 // network error or server error only
+}
+
 async function withRetry<T>(fn: () => Promise<T>, retries = 2): Promise<T> {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       return await fn()
     } catch (err) {
-      if (attempt === retries) throw err
+      if (attempt === retries || !isRetryable(err)) throw err
       const delay = 1500 * (attempt + 1)
       console.log(`[Retry] Attempt ${attempt + 1} failed, retrying in ${delay}ms`)
       await new Promise((r) => setTimeout(r, delay))
     }
   }
   throw new Error('Max retries exceeded')
-}
-
-// ── JSON extractor ────────────────────────────────────────────
-
-function extractJson(content: string): unknown {
-  const stripped = content
-    .replace(/<think>[\s\S]*?<\/think>/gi, '')
-    .replace(/```json\s*/gi, '')
-    .replace(/```\s*/g, '')
-    .trim()
-
-  const candidates: { json: unknown; length: number }[] = []
-  let depth = 0, start = -1, inStr = false, escape = false
-
-  for (let i = 0; i < stripped.length; i++) {
-    const ch = stripped[i]
-    if (escape)               { escape = false; continue }
-    if (ch === '\\' && inStr) { escape = true;  continue }
-    if (ch === '"')           { inStr = !inStr;  continue }
-    if (inStr) continue
-    if (ch === '{') { if (depth === 0) start = i; depth++ }
-    else if (ch === '}') {
-      depth--
-      if (depth === 0 && start !== -1) {
-        const candidate = stripped.substring(start, i + 1)
-        try {
-          candidates.push({ json: JSON.parse(candidate), length: candidate.length })
-        } catch {}
-        start = -1
-      }
-    }
-  }
-
-  if (candidates.length === 0)
-    throw new Error('No valid JSON object found in model response')
-  candidates.sort((a, b) => b.length - a.length)
-  return candidates[0].json
 }
 
 // ── Groq callers — one per model tier ────────────────────────
@@ -814,7 +783,7 @@ export async function POST(request: NextRequest) {
 
     const { data: userData } = await supabase
       .from('users')
-      .select('plan, is_admin, credits, competitor_analyses_used, free_competitor_used')
+      .select('plan, is_admin, credits, competitor_analyses_used')
       .eq('id', user.id)
       .single()
 
@@ -822,7 +791,6 @@ export async function POST(request: NextRequest) {
     const plan                     = userData?.plan    || 'free'
     const credits                  = userData?.credits ?? 0
     const competitorAnalysesUsed   = userData?.competitor_analyses_used ?? 0
-    const freeCompetitorUsed       = userData?.free_competitor_used ?? false
 
     // Dedup: prevent same user+product within 60 seconds (double-click protection)
     {
@@ -948,30 +916,20 @@ export async function POST(request: NextRequest) {
           { status: 403 },
         )
       }
-      // Starter's one free competitor analysis: skip credit deduction
-      const skipCreditDeduction = plan === 'starter' && reportType === 'competitor' && !freeCompetitorUsed
-
-      if (!skipCreditDeduction) {
-        const { error: deductError } = await supabase.rpc('deduct_credits', {
-          p_user_id: user.id,
-          p_amount:  creditCost,
-        })
-        if (deductError) {
-          console.error('[Analyze] Credit deduction failed:', deductError.message)
-          return NextResponse.json(
-            { error: 'Could not deduct credits. Please refresh and try again.', upgradeRequired: false },
-            { status: 503 },
-          )
-        }
-        creditsDeducted    = true
-        creditRefundUserId = user.id
-        creditRefundAmount = creditCost
+      const { error: deductError } = await supabase.rpc('deduct_credits', {
+        p_user_id: user.id,
+        p_amount:  creditCost,
+      })
+      if (deductError) {
+        console.error('[Analyze] Credit deduction failed:', deductError.message)
+        return NextResponse.json(
+          { error: 'Could not deduct credits. Please refresh and try again.', upgradeRequired: false },
+          { status: 503 },
+        )
       }
-
-      // Mark free competitor slot used (Starter)
-      if (plan === 'starter' && reportType === 'competitor' && !freeCompetitorUsed) {
-        await supabase.from('users').update({ free_competitor_used: true }).eq('id', user.id)
-      }
+      creditsDeducted    = true
+      creditRefundUserId = user.id
+      creditRefundAmount = creditCost
 
     }
 
