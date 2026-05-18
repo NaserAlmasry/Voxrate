@@ -7,7 +7,7 @@
 import { useState, useEffect, useRef, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/app/lib/supabase/client'
-import { AlertTriangle, Lightbulb, TrendingUp, Crosshair, Dumbbell, BarChart2, Heart, Upload } from 'lucide-react'
+import { AlertTriangle, Lightbulb, TrendingUp, Crosshair, Dumbbell, BarChart2, Sparkles, Upload } from 'lucide-react'
 
 export const SIMULATE_USER_KEY = 'voxrate_simulate_user'
 
@@ -393,7 +393,7 @@ function DashboardHomeInner() {
   const insightsToShow = latestReport ? [
     { icon: <TrendingUp size={14} />, color: 'text-green-600 bg-green-50', text: `Health score: ${latestReport.health_score}/100` },
     { icon: <AlertTriangle size={14} />, color: 'text-red-500 bg-red-50', text: latestReport.top_complaint || 'No major complaints found' },
-    { icon: <Heart size={14} />, color: 'text-orange-500 bg-orange-50', text: latestReport.top_strength || 'No strengths found' },
+    { icon: <Sparkles size={14} />, color: 'text-orange-500 bg-orange-50', text: latestReport.top_strength || 'No strengths found' },
     { icon: <BarChart2 size={14} />, color: 'text-blue-500 bg-blue-50', text: `${latestReport.total_reviews_analyzed} reviews analyzed` },
   ] : [
     { icon: <AlertTriangle size={14} />, color: 'text-red-500 bg-red-50', text: 'Most products have 2–4 fixable complaints' },
@@ -657,10 +657,10 @@ function DashboardHomeInner() {
       </div>
 
       {/* ── Insights + Health Score ── */}
-      <div className="grid md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 overflow-hidden">
         <div className="md:col-span-3 bg-white rounded-2xl border border-neutral-200 shadow-sm p-5">
           <div className="flex items-center justify-between mb-4">
-            <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest">
+            <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest truncate max-w-[180px] sm:max-w-xs">
               {latestReport ? `Latest: ${latestReport.product_name}` : 'What to expect'}
             </p>
             {latestReport && userPlan !== 'free' && (() => {
