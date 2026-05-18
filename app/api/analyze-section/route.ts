@@ -12,8 +12,7 @@
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server'
-import Groq from 'groq-sdk'
-import { callWithFallback, type Message } from '@/app/lib/mistral-fallback'
+import { callMistral2411, type Message } from '@/app/lib/mistral-fallback'
 import { createClient } from '@/app/lib/supabase/server'
 import { applyHardOverrides, validateSemanticConstraints } from '@/app/lib/health-score'
 import { enforceRateLimit, checkRateLimit } from '@/app/lib/rate-limit'
@@ -22,8 +21,6 @@ import { getClientIp } from '@/app/lib/ip'
 
 export const maxDuration = 300
 
-const groq  = new Groq({ apiKey: process.env.GROQ_API_KEY })
-const MODEL = 'llama-3.3-70b-versatile'
 
 
 function extractJson(content: string): unknown {
@@ -58,44 +55,7 @@ function extractJson(content: string): unknown {
   return candidates[0].json
 }
 
-async function callGroqDirect(
-  messages: Message[],
-  maxTokens: number,
-  retries = 2,
-): Promise<string> {
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    try {
-      const response = await groq.chat.completions.create({
-        model: MODEL,
-        max_tokens: maxTokens,
-        temperature: 0.1,
-        messages,
-      })
-      const usage = response.usage
-      if (usage) console.log(`[Groq] prompt:${usage.prompt_tokens} completion:${usage.completion_tokens} total:${usage.total_tokens}`)
-      return response.choices[0].message.content || ''
-    } catch (err: any) {
-      const is429 = err?.status === 429 || err?.message?.includes('429') || err?.message?.includes('rate limit')
-      // On 429 retry once with short wait, then let callWithFallback handle quota fallback
-      if (is429 && attempt === 0) {
-        console.warn('[Groq] 429 — waiting 15s before retry')
-        await new Promise(r => setTimeout(r, 15_000))
-        continue
-      }
-      throw err
-    }
-  }
-  throw new Error('Groq rate limit exceeded after retries')
-}
 
-async function callGroq(messages: Message[], maxTokens: number): Promise<string> {
-  const { result } = await callWithFallback(
-    () => callGroqDirect(messages, maxTokens),
-    messages,
-    maxTokens,
-  )
-  return result
-}
 
 const SYSTEM_PROMPT = `You are a review analysis engine. Convert reviewer language into structured JSON. Every word you write must trace back to something a reviewer actually said or described.
 
@@ -221,7 +181,7 @@ export async function POST(request: NextRequest) {
     // ── Call 2: STRENGTHS + IMPROVEMENTS ────────────────────
     if (section === 'strengths') {
       console.log(`[Section:strengths] Starting for report ${reportId}`)
-      const raw = await callGroq([
+      const raw = await callMistral2411([
         { role: 'system', content: SYSTEM_PROMPT },
         {
           role: 'user',
@@ -289,7 +249,7 @@ Return ONLY this JSON — start with { immediately:
     // ── Call 3: SEO + MARKETING COPY ────────────────────────
     if (section === 'seo') {
       console.log(`[Section:seo] Starting for report ${reportId}`)
-      const raw = await callGroq([
+      const raw = await callMistral2411([
         { role: 'system', content: SYSTEM_PROMPT },
         {
           role: 'user',
@@ -394,7 +354,7 @@ Return ONLY this JSON — start with { immediately:
           )
           if (violations.length > 2) {
             console.warn('[Section:seo] marketingCopy likely paraphrased — running correction...')
-            const fixRaw = await callGroq([
+            const fixRaw = await callMistral2411([
               { role: 'system', content: SYSTEM_PROMPT },
               { role: 'user', content: `REVIEWS:\n${reviewText.slice(0, 2000)}\n\nPick 5 verbatim sentences from 5★ reviews above. Return only: { "marketingCopy": ["...", "...", "...", "...", "..."] }` },
             ], 600)
@@ -419,7 +379,7 @@ Return ONLY this JSON — start with { immediately:
       console.log(`[Section:summary] Starting for report ${reportId}`)
       const topStrengthTitle = updatedReport.strengths?.[0]?.title || fullReport.strengths?.[0]?.title || 'product quality'
 
-      const raw = await callGroq([
+      const raw = await callMistral2411([
         { role: 'system', content: SYSTEM_PROMPT },
         {
           role: 'user',

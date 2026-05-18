@@ -9,15 +9,14 @@
 //   RAINFOREST_API_KEY — from rainforestapi.com dashboard
 //
 // MODEL ROUTING:
-//  [ROUTING-1] Call 1 (Complaints):    llama-3.3-70b-versatile
-//  [ROUTING-2] Call 2 (Strengths):     llama-3.3-70b-versatile
-//  [ROUTING-3] Call 3 (SEO+Marketing): llama-3.1-8b-instant
-//  [ROUTING-4] Call 4 (Summary):       llama-3.1-8b-instant
+//  Complaints (full analysis): Groq 70b → fallback Mistral Large Latest → Mistral Large 2411
+//  Free preview:               Mistral Large 2411 (200B/month free pool, direct)
+//  Strengths, SEO, Summary:    Mistral Large 2411 (200B/month free pool, direct)
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server'
 import Groq from 'groq-sdk'
-import { callWithFallback, type Message } from '@/app/lib/mistral-fallback'
+import { callWithFallback, callMistral2411, type Message } from '@/app/lib/mistral-fallback'
 import { createClient } from '@/app/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import {
@@ -45,7 +44,6 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
 
 // ── Model routing ─────────────────────────────────────────────
 const MODEL_70B = 'llama-3.3-70b-versatile'
-const MODEL_8B  = 'llama-3.1-8b-instant'
 
 // ── Amazon URL validator ──────────────────────────────────────
 // Accepts Amazon URLs (any marketplace) or bare ASINs (10 char alphanumeric)
@@ -148,19 +146,6 @@ async function callGroq70b(messages: Message[], maxTokens: number): Promise<stri
   return result
 }
 
-async function callGroq8b(messages: Message[], maxTokens: number): Promise<string> {
-  const groqFn = async () => {
-    const response = await groq.chat.completions.create({
-      model: MODEL_8B, max_tokens: maxTokens, temperature: 0.1, messages,
-    })
-    const usage = response.usage
-    if (usage) console.log(`[Groq-8b] prompt:${usage.prompt_tokens} completion:${usage.completion_tokens} total:${usage.total_tokens}`)
-    return response.choices[0].message.content || ''
-  }
-  // 8b fallback also goes to Mistral Large — better to get high quality than fail
-  const { result } = await callWithFallback(groqFn, messages, maxTokens)
-  return result
-}
 
 // ── Complaint count guidance ──────────────────────────────────
 
@@ -581,7 +566,7 @@ async function analyzeFreePreview(
   let strengthsData: any  = { strengths: [] }
 
   try {
-    const raw = await callGroq8b([
+    const raw = await callMistral2411([
       {
         role: 'system' as const,
         content: `You are a compact review analysis engine. Return JSON only.

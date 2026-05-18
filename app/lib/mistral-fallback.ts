@@ -50,6 +50,12 @@ async function callMistral(messages: Message[], maxTokens: number, model: string
   return json.choices?.[0]?.message?.content || ''
 }
 
+// ── Direct Mistral 2411 call (no Groq, uses 200B free pool) ──
+
+export async function callMistral2411(messages: Message[], maxTokens: number): Promise<string> {
+  return callMistral(messages, maxTokens, MISTRAL_MODEL_2411)
+}
+
 // ── Main export ───────────────────────────────────────────────
 
 export async function callWithFallback(
