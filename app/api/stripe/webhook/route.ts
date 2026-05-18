@@ -117,17 +117,18 @@ export async function POST(request: NextRequest) {
         const MAX_SUB_CREDITS  = 2000
 
         if (type === 'credit_pack') {
-          // Add credits for one-time purchase
+          // Pack purchase — increments both credits and pack_credits so renewal
+          // and cancellation can preserve the purchased portion separately.
           const credits = parseInt(session.metadata?.credits || '0', 10)
           if (credits > 0 && credits <= MAX_PACK_CREDITS) {
-            console.log(`[Webhook] Adding ${credits} credits to user ${userId} (pack)`)
-            const { error: rpcError } = await supabase.rpc('add_credits', { p_user_id: userId, p_amount: credits })
+            console.log(`[Webhook] Adding ${credits} pack credits to user ${userId}`)
+            const { error: rpcError } = await supabase.rpc('add_pack_credits', { p_user_id: userId, p_amount: credits })
             if (rpcError) {
-              console.error(`[Webhook] add_credits RPC failed:`, rpcError.message)
+              console.error(`[Webhook] add_pack_credits RPC failed:`, rpcError.message)
               await supabase.from('processed_webhook_events').delete().eq('stripe_event_id', event.id)
               return NextResponse.json({ error: 'Credit update failed' }, { status: 500 })
             }
-            console.log(`[Webhook] ✅ ${credits} credits added`)
+            console.log(`[Webhook] ✅ ${credits} pack credits added`)
           } else if (credits > MAX_PACK_CREDITS) {
             console.error(`[Webhook] Suspicious credit amount ${credits} — rejected`)
           }
@@ -206,32 +207,32 @@ export async function POST(request: NextRequest) {
           await supabase.from('processed_webhook_events').delete().eq('stripe_event_id', event.id)
           return NextResponse.json({ error: 'Plan update failed' }, { status: 500 })
         }
-        // On renewal: top up to plan amount only if current balance is below it (preserves pack credits)
+        // On renewal: reset subscription portion to plan_credits, preserve pack_credits.
+        // credits = pack_credits + plan_credits ensures both bugs are closed:
+        //   - Downgrade exploit: subscription portion always resets to plan amount
+        //   - Pack preservation: purchased packs are never wiped by a renewal
         if (credits > 0 && credits <= 2000) {
           const { data: currentUser, error: fetchError } = await supabase
             .from('users')
-            .select('credits')
+            .select('pack_credits')
             .eq('id', userId)
             .single()
           if (fetchError) {
-            console.error(`[Webhook] Could not fetch current credits:`, fetchError.message)
+            console.error(`[Webhook] Could not fetch pack_credits on renewal:`, fetchError.message)
             await supabase.from('processed_webhook_events').delete().eq('stripe_event_id', event.id)
             return NextResponse.json({ error: 'Credit update failed' }, { status: 500 })
           }
-          const currentCredits = currentUser?.credits ?? 0
-          // Always reset to plan_credits on renewal — this handles downgrades correctly.
-          // Pack credits (one-time purchases) are not tracked separately, so they are
-          // not preserved on renewal. Users should spend packs before downgrading.
-          const updatePayload: any = { competitor_analyses_used: 0, credits }
+          const packCredits = currentUser?.pack_credits ?? 0
           const { error: resetError } = await supabase
             .from('users')
-            .update(updatePayload)
+            .update({ credits: packCredits + credits, competitor_analyses_used: 0 })
             .eq('id', userId)
           if (resetError) {
             console.error(`[Webhook] Credit reset failed on renewal:`, resetError.message)
             await supabase.from('processed_webhook_events').delete().eq('stripe_event_id', event.id)
             return NextResponse.json({ error: 'Credit update failed' }, { status: 500 })
           }
+          console.log(`[Webhook] ✅ Renewal credits set: ${packCredits} (pack) + ${credits} (plan) = ${packCredits + credits}`)
         } else if (credits > 2000) {
           console.error(`[Webhook] Suspicious renewal credit amount ${credits} — rejected`)
         }
@@ -258,8 +259,15 @@ export async function POST(request: NextRequest) {
         const userId = subscription.metadata?.user_id
         if (!userId) break
 
-        console.log(`[Webhook] Subscription cancelled for user ${userId} — downgrading to free`)
-        await supabase.from('users').update({ plan: 'free', credits: 0, stripe_current_period_end: null }).eq('id', userId)
+        console.log(`[Webhook] Subscription cancelled for user ${userId} — downgrading to free, preserving pack credits`)
+        // Fetch pack_credits so purchased packs survive the subscription cancellation
+        const { data: cancelUser } = await supabase.from('users').select('pack_credits').eq('id', userId).single()
+        const packCreditsOnCancel = cancelUser?.pack_credits ?? 0
+        await supabase.from('users').update({
+          plan:                      'free',
+          credits:                   packCreditsOnCancel,
+          stripe_current_period_end: null,
+        }).eq('id', userId)
         break
       }
 
