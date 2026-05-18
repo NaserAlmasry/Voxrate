@@ -54,4 +54,5 @@ export interface AmazonScrapeResult {
   qa: AmazonQA[]
   scrapedAt: string
   marketplace: string
+  fromCache?: boolean
 }

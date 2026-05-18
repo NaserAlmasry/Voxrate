@@ -1,4 +1,54 @@
+import { createClient } from '@supabase/supabase-js'
 import { AmazonScrapeResult, AmazonProduct, AmazonReview, AmazonQA } from './amazon-types'
+
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000 // 24 hours
+
+function getAdminClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  )
+}
+
+async function writeReviewCache(asin: string, domain: string, reviews: AmazonReview[]): Promise<void> {
+  try {
+    const supabase = getAdminClient()
+    await supabase.from('asin_review_cache').upsert(
+      { asin, domain, reviews, cached_at: new Date().toISOString() },
+      { onConflict: 'asin,domain' },
+    )
+    console.log(`[Cache] Wrote ${reviews.length} reviews for ${asin}/${domain}`)
+  } catch (e: any) {
+    console.warn('[Cache] Write failed:', e?.message)
+  }
+}
+
+async function readReviewCache(asin: string, domain: string): Promise<AmazonReview[] | null> {
+  try {
+    const supabase = getAdminClient()
+    const { data, error } = await supabase
+      .from('asin_review_cache')
+      .select('reviews, cached_at')
+      .eq('asin', asin)
+      .eq('domain', domain)
+      .single()
+
+    if (error || !data) return null
+
+    const ageMs = Date.now() - new Date(data.cached_at).getTime()
+    if (ageMs > CACHE_TTL_MS) {
+      console.warn(`[Cache] Cache for ${asin}/${domain} is stale (${Math.round(ageMs / 3600000)}h old) — skipping`)
+      return null
+    }
+
+    const reviews = data.reviews as AmazonReview[]
+    console.warn(`[Cache] Serving ${reviews.length} cached reviews for ${asin}/${domain} (${Math.round(ageMs / 3600000)}h old)`)
+    return reviews
+  } catch (e: any) {
+    console.warn('[Cache] Read failed:', e?.message)
+    return null
+  }
+}
 
 const SCRAPINGDOG_API_KEY  = process.env.SCRAPINGDOG_API_KEY!
 const SCRAPERAPI_KEY       = process.env.SCRAPERAPI_KEY!
@@ -104,7 +154,20 @@ export async function scrapeAmazon(input: string): Promise<AmazonScrapeResult> {
 
   const pageAlloc = allocatePages(productData.ratingBreakdown)
   console.log(`[Scraper] Page budget: 1★×${pageAlloc[1]} 2★×${pageAlloc[2]} 3★×${pageAlloc[3]} 4★×${pageAlloc[4]} 5★×${pageAlloc[5]}`)
-  const allReviews = await fetchAllReviews(asin, domain, pageAlloc)
+  let allReviews = await fetchAllReviews(asin, domain, pageAlloc)
+  let fromCache  = false
+
+  if (allReviews.length > 0) {
+    // Write to cache fire-and-forget — don't block the analysis
+    writeReviewCache(asin, domain, allReviews).catch(() => {})
+  } else {
+    // Canopy returned nothing — try the cache before giving up
+    const cached = await readReviewCache(asin, domain)
+    if (cached && cached.length > 0) {
+      allReviews = cached
+      fromCache  = true
+    }
+  }
 
   const bystar = [1, 2, 3, 4, 5].map(s => allReviews.filter(r => r.rating === s).length)
 
@@ -112,15 +175,16 @@ export async function scrapeAmazon(input: string): Promise<AmazonScrapeResult> {
     `[Scraper] "${productData.title.slice(0, 50)}" | ` +
     `${productData.totalReviews} total ratings | ` +
     `${allReviews.length} texts (1★:${bystar[0]} 2★:${bystar[1]} 3★:${bystar[2]} 4★:${bystar[3]} 5★:${bystar[4]}) | ` +
-    `${qaData.length} Q&A`
+    `${qaData.length} Q&A${fromCache ? ' [FROM CACHE]' : ''}`
   )
 
   return {
-    product: productData,
-    reviews: allReviews,
-    qa: qaData,
+    product:   productData,
+    reviews:   allReviews,
+    qa:        qaData,
     scrapedAt: new Date().toISOString(),
     marketplace,
+    fromCache,
   }
 }
 
