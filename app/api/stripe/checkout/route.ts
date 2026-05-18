@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 // ============================================================
 // STRIPE CHECKOUT — voxrate/app/api/stripe/checkout/route.ts
 // ============================================================
@@ -8,9 +10,8 @@ import { createClient } from '@/app/lib/supabase/server'
 import { checkCsrf } from '@/app/lib/csrf'
 import { checkRateLimit } from '@/app/lib/rate-limit'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2024-06-20' as any,
-})
+let _stripe: Stripe | null = null
+const getStripe = () => _stripe ??= new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-06-20' as any })
 
 // ── Subscription price IDs ────────────────────────────────────
 const SUBSCRIPTION_PRICE_IDS: Record<string, string> = {
@@ -41,6 +42,7 @@ const CREDIT_PACK_AMOUNTS: Record<string, number> = {
 }
 
 export async function POST(request: NextRequest) {
+  const stripe = getStripe()
   const csrfError = checkCsrf(request)
   if (csrfError) return csrfError
 

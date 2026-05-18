@@ -663,9 +663,13 @@ export async function POST(request: NextRequest) {
   const isCronRequest = (() => {
     if (!cronSecret || !cronHeader) return false
     try {
-      const a = Buffer.from(cronSecret)
-      const b = Buffer.from(cronHeader)
-      if (a.length !== b.length) return false
+      // Pad both buffers to the same length before comparing to avoid leaking
+      // secret length via timing (early return on length mismatch is a side-channel).
+      const maxLen = Math.max(cronSecret.length, cronHeader.length)
+      const a = Buffer.alloc(maxLen)
+      const b = Buffer.alloc(maxLen)
+      Buffer.from(cronSecret).copy(a)
+      Buffer.from(cronHeader).copy(b)
       return require('crypto').timingSafeEqual(a, b)
     } catch { return false }
   })()
@@ -990,7 +994,7 @@ export async function POST(request: NextRequest) {
         ? await analyzeFreePreview(product, rawReviews, ctx, productDescription)
         : await analyzeWithGroq(product, rawReviews, ctx, productDescription)
 
-      await supabase
+      const { error: reportUpdateError } = await supabase
         .from('reports')
         .update({
           product_name:           product.title,
@@ -1025,6 +1029,12 @@ export async function POST(request: NextRequest) {
           last_analyzed_at:       new Date().toISOString(),
         })
         .eq('id', reportId)
+
+      if (reportUpdateError) {
+        console.error('[Analyze] Report update failed — credits refunded:', reportUpdateError.message)
+        await refundCredits()
+        return NextResponse.json({ error: 'Failed to save analysis. Your credits have been refunded.' }, { status: 500 })
+      }
 
       await supabase
         .from('usage_logs')

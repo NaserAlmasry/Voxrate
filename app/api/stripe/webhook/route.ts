@@ -6,11 +6,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2024-06-20' as any,
-})
+let _stripe: Stripe | null = null
+const getStripe = () => _stripe ??= new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-06-20' as any })
 
 export async function POST(request: NextRequest) {
+  const stripe = getStripe()
   const body      = await request.text()
   const signature = request.headers.get('stripe-signature')
 
@@ -219,8 +219,10 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Credit update failed' }, { status: 500 })
           }
           const currentCredits = currentUser?.credits ?? 0
-          const updatePayload: any = { competitor_analyses_used: 0 }
-          if (credits > currentCredits) updatePayload.credits = credits
+          // Always reset to plan_credits on renewal — this handles downgrades correctly.
+          // Pack credits (one-time purchases) are not tracked separately, so they are
+          // not preserved on renewal. Users should spend packs before downgrading.
+          const updatePayload: any = { competitor_analyses_used: 0, credits }
           const { error: resetError } = await supabase
             .from('users')
             .update(updatePayload)
@@ -246,19 +248,30 @@ export async function POST(request: NextRequest) {
         break
       }
 
-      // ── Subscription cancelled or payment failed ───────────────
-      case 'customer.subscription.deleted':
-      case 'invoice.payment_failed': {
+      // ── Subscription fully cancelled ──────────────────────────
+      case 'customer.subscription.deleted': {
         const obj            = event.data.object as any
-        const subscriptionId = obj.subscription || obj.id
+        const subscriptionId = obj.id
         if (!subscriptionId) break
 
         const subscription = await stripe.subscriptions.retrieve(subscriptionId)
         const userId = subscription.metadata?.user_id
         if (!userId) break
 
-        console.log(`[Webhook] Subscription ended for user ${userId} — downgrading to free, zeroing credits`)
+        console.log(`[Webhook] Subscription cancelled for user ${userId} — downgrading to free`)
         await supabase.from('users').update({ plan: 'free', credits: 0, stripe_current_period_end: null }).eq('id', userId)
+        break
+      }
+
+      // ── Payment failed — do NOT downgrade yet (Stripe handles dunning) ────
+      // Downgrade only fires on customer.subscription.deleted (after dunning exhausted).
+      // Zeroing credits here would wipe legitimately purchased credit packs on a
+      // single failed payment.
+      case 'invoice.payment_failed': {
+        const obj            = event.data.object as any
+        const subscriptionId = obj.subscription
+        if (!subscriptionId) break
+        console.log(`[Webhook] Payment failed for subscription ${subscriptionId} — awaiting Stripe dunning`)
         break
       }
 

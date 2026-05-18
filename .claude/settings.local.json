@@ -80,7 +80,14 @@
       "WebFetch(domain:affninja.io)",
       "WebFetch(domain:revenuegeeks.com)",
       "WebFetch(domain:developer-docs.amazon.com)",
-      "WebFetch(domain:publicityport.com)"
+      "WebFetch(domain:publicityport.com)",
+      "Bash(git reset *)",
+      "Bash(grep -v \"^\\\\-\\\\-$\\\\|role:\\\\|content:\")",
+      "Bash(git *)",
+      "Bash(npx next *)",
+      "Bash(sed -i '1s/^/export const dynamic = '\"'\"'force-dynamic'\"'\"'\\\\n\\\\n/' C:/Users/Naser/voxrate/app/api/stripe/checkout/route.ts)",
+      "Bash(sed -i '1s/^/export const dynamic = '\"'\"'force-dynamic'\"'\"'\\\\n\\\\n/' C:/Users/Naser/voxrate/app/api/stripe/portal/route.ts)",
+      "Bash(sed -i '1s/^/export const dynamic = '\"'\"'force-dynamic'\"'\"'\\\\n\\\\n/' C:/Users/Naser/voxrate/app/api/account/delete/route.ts)"
     ]
   }
 }

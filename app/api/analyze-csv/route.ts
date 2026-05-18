@@ -45,6 +45,7 @@ import {
 import { extractPatterns, buildSmartSample } from '@/app/lib/pattern-extractor'
 import { calculateSeoScore } from '@/app/lib/seo-scorer'
 import { sendReportComplete } from '@/app/lib/email'
+import { extractJson } from '@/app/lib/extract-json'
 
 export const maxDuration = 180
 
@@ -167,43 +168,6 @@ function parseCSV(
 
   if (reviews.length === 0) throw new Error('No valid reviews found in CSV')
   return reviews
-}
-
-// ── JSON extractor ────────────────────────────────────────────
-
-function extractJson(content: string): unknown {
-  const stripped = content
-    .replace(/<think>[\s\S]*?<\/think>/gi, '')
-    .replace(/```json\s*/gi, '')
-    .replace(/```\s*/g, '')
-    .trim()
-
-  const candidates: { json: unknown; length: number }[] = []
-  let depth = 0, start = -1, inStr = false, escape = false
-
-  for (let i = 0; i < stripped.length; i++) {
-    const ch = stripped[i]
-    if (escape)              { escape = false; continue }
-    if (ch === '\\' && inStr){ escape = true;  continue }
-    if (ch === '"')          { inStr = !inStr;  continue }
-    if (inStr)               continue
-    if (ch === '{')          { if (depth === 0) start = i; depth++ }
-    else if (ch === '}') {
-      depth--
-      if (depth === 0 && start !== -1) {
-        const candidate = stripped.substring(start, i + 1)
-        try {
-          candidates.push({ json: JSON.parse(candidate), length: candidate.length })
-        } catch {}
-        start = -1
-      }
-    }
-  }
-
-  if (candidates.length === 0)
-    throw new Error('No valid JSON object found in model response')
-  candidates.sort((a, b) => b.length - a.length)
-  return candidates[0].json
 }
 
 // ── Groq callers — one per model tier ────────────────────────
@@ -526,12 +490,23 @@ async function analyzeFreeWithGroq(
   ctx:         ReturnType<typeof calculateHealthScore>,
   productInfo: ProductInfo,
 ): Promise<any> {
+  const sanitizeReview = (t: string) =>
+    t.replace(/ignore\s+(previous|all|above|prior)\s+(instructions?|prompts?|context)/gi, '[…]')
+     .replace(/you\s+are\s+(now|a|an)\s+/gi, '[…]')
+     .replace(/system\s*:/gi, '[…]')
+     .replace(/assistant\s*:/gi, '[…]')
+     .replace(/disregard\s+(all|previous|prior|above)/gi, '[…]')
+     .replace(/forget\s+(all|previous|prior|above)/gi, '[…]')
+     .replace(/override\s+(your|all|previous)/gi, '[…]')
+     .replace(/\bdo not follow\b/gi, '[…]')
+     .replace(/\bnew instruction/gi, '[…]')
+
   const patterns        = extractPatterns(reviews)
   const sampledReviews  = buildSmartSample(reviews, patterns, 60)
   const negativeReviews = sampledReviews.filter(r => r.rating <= 2).slice(0, 18)
   const positiveReviews = sampledReviews.filter(r => r.rating >= 4).slice(0, 12)
   const reviewsForPrompt = [...negativeReviews, ...positiveReviews]
-    .map(r => `[${r.rating}★] ${r.text.slice(0, 180).trimEnd()}${r.text.length > 180 ? '…' : ''}`)
+    .map(r => `[${r.rating}★] ${sanitizeReview(r.text).slice(0, 180).trimEnd()}${r.text.length > 180 ? '…' : ''}`)
     .join('\n')
 
   const seoAnalysis = calculateSeoScore(reviews, productInfo.name)
@@ -1252,7 +1227,16 @@ export async function POST(request: NextRequest) {
     const refundCsvCredits  = async () => {
       if (!csvCreditsDeducted || csvCreditsRefunded) return
       csvCreditsRefunded = true
-      void supabase.rpc('add_credits', { p_user_id: user.id, p_amount: csvCreditCost })
+      try {
+        const { error } = await supabase.rpc('add_credits', { p_user_id: user.id, p_amount: csvCreditCost })
+        if (error) {
+          console.error('[CSV] Credit refund RPC failed — MANUAL REVIEW NEEDED:', { userId: user.id, amount: csvCreditCost, error: error.message })
+        } else {
+          console.log(`[CSV] Refunded ${csvCreditCost} credits to ${user.id}`)
+        }
+      } catch (e: any) {
+        console.error('[CSV] Credit refund threw — MANUAL REVIEW NEEDED:', { userId: user.id, amount: csvCreditCost, error: e?.message })
+      }
     }
 
     if (!isAdminUser && (plan === 'growth' || plan === 'pro')) {
