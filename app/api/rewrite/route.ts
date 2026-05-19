@@ -79,22 +79,27 @@ Return ONLY valid JSON:
   "keywordsUsed": ["keyword1", "keyword2"]
 }`
 
-  const messages: Message[] = [
-    { role: 'system', content: SECURITY_SYSTEM_PROMPT },
-    { role: 'user', content: prompt }
-  ]
-  const raw = await callMistral2411(messages, 1000)
-
-  let parsed: any
   try {
-    parsed = extractJson(raw)
-  } catch {
-    parsed = null
-  }
+    const messages: Message[] = [
+      { role: 'system', content: SECURITY_SYSTEM_PROMPT },
+      { role: 'user', content: prompt }
+    ]
+    const raw = await callMistral2411(messages, 1000)
 
-  if (!parsed?.rewritten) {
+    let parsed: any
+    try {
+      parsed = extractJson(raw)
+    } catch {
+      parsed = null
+    }
+
+    if (!parsed?.rewritten) {
+      return NextResponse.json({ error: 'Failed to rewrite. Please try again.' }, { status: 500 })
+    }
+
+    return NextResponse.json(parsed)
+  } catch (err: any) {
+    console.error('[Rewrite] Error:', err.message)
     return NextResponse.json({ error: 'Failed to rewrite. Please try again.' }, { status: 500 })
   }
-
-  return NextResponse.json(parsed)
 }

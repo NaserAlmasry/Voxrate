@@ -88,7 +88,10 @@
       "Bash(sed -i '1s/^/export const dynamic = '\"'\"'force-dynamic'\"'\"'\\\\n\\\\n/' C:/Users/Naser/voxrate/app/api/stripe/checkout/route.ts)",
       "Bash(sed -i '1s/^/export const dynamic = '\"'\"'force-dynamic'\"'\"'\\\\n\\\\n/' C:/Users/Naser/voxrate/app/api/stripe/portal/route.ts)",
       "Bash(sed -i '1s/^/export const dynamic = '\"'\"'force-dynamic'\"'\"'\\\\n\\\\n/' C:/Users/Naser/voxrate/app/api/account/delete/route.ts)",
-      "Bash(vercel env *)"
+      "Bash(vercel env *)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(list\\(d.get\\('dependencies',{}\\).keys\\(\\)\\)[:30]\\); print\\(list\\(d.get\\('devDependencies',{}\\).keys\\(\\)\\)[:20]\\)\")",
+      "Bash(node *)",
+      "Bash(npm uninstall *)"
     ]
   }
 }

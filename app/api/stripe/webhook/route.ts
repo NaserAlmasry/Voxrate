@@ -143,9 +143,9 @@ export async function POST(request: NextRequest) {
           }
 
           const PLAN_CREDITS: Record<string, number> = {
-            starter: 10,
-            growth:  35,
-            pro:     120,
+            starter: 300,
+            growth:  800,
+            pro:     2000,
           }
           const newPlan = plan
           const resolvedCredits = credits === 0 ? (PLAN_CREDITS[newPlan] ?? 0) : credits

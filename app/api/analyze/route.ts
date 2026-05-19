@@ -1,9 +1,7 @@
 // ============================================================
 // app/api/analyze/route.ts
 //
-// AMAZON MIGRATION (this version):
-//  Replaced all Etsy scraping (Decodo proxy, internal Etsy API, DeepDive API)
-//  with Rainforest API calls via amazon-scraper.ts.
+// Amazon review analysis — scrapes via Rainforest/Canopy APIs (amazon-scraper.ts).
 //
 // ENV VARS NEEDED:
 //   RAINFOREST_API_KEY — from rainforestapi.com dashboard

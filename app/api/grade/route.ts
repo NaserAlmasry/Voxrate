@@ -63,7 +63,7 @@ Return ONLY valid JSON:
   "tags": {
     "score": 60, "grade": "D",
     "summary": "Tags are too generic and won't rank for buyer searches.",
-    "fixes": ["Use all 13 tag slots", "Include long-tail phrases like 'personalized wood sign for kitchen'", "Avoid single-word tags — buyers search phrases"]
+    "fixes": ["Use all available keyword fields in your listing", "Include long-tail buyer-intent phrases like 'stainless steel water bottle insulated 32oz'", "Avoid single-word terms — buyers search phrases not individual words"]
   },
   "description": {
     "score": 80, "grade": "B",
@@ -77,21 +77,26 @@ Return ONLY valid JSON:
   }
 }`
 
-  const messages: Message[] = [
-    { role: 'system', content: SECURITY_SYSTEM_PROMPT },
-    { role: 'user', content: prompt }
-  ]
-  const raw = await callMistral2411(messages, 900)
-  let parsed: any
   try {
-    parsed = extractJson(raw)
-  } catch {
-    parsed = null
-  }
+    const messages: Message[] = [
+      { role: 'system', content: SECURITY_SYSTEM_PROMPT },
+      { role: 'user', content: prompt }
+    ]
+    const raw = await callMistral2411(messages, 900)
+    let parsed: any
+    try {
+      parsed = extractJson(raw)
+    } catch {
+      parsed = null
+    }
 
-  if (!parsed?.overallScore) {
+    if (!parsed?.overallScore) {
+      return NextResponse.json({ error: 'Failed to grade. Please try again.' }, { status: 500 })
+    }
+
+    return NextResponse.json(parsed)
+  } catch (err: any) {
+    console.error('[Grade] Error:', err.message)
     return NextResponse.json({ error: 'Failed to grade. Please try again.' }, { status: 500 })
   }
-
-  return NextResponse.json(parsed)
 }

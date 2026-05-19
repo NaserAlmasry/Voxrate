@@ -32,14 +32,9 @@
 //         8b-instant handles it perfectly, is faster, and uses fewer tokens.
 // ============================================================
 
-import Groq from 'groq-sdk'
+import { callMistral2411 } from '@/app/lib/mistral-fallback'
 import { sanitizeReview } from '@/app/lib/sanitize-review'
 import { escapePromptInput } from '@/app/lib/escape-prompt'
-
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
-
-// Model for this pre-call — extraction only, no complex reasoning needed
-const DOMAIN_MODEL = 'llama-3.1-8b-instant'
 
 export interface DomainResult {
   knowledge:  string   // review-grounded problem context → injected into main prompt
@@ -155,14 +150,7 @@ phrase four
 phrase five`
 
   try {
-    const response = await groq.chat.completions.create({
-      model:       DOMAIN_MODEL,  // llama-3.1-8b-instant — was llama-4-scout (deprecated Feb 2026)
-      max_tokens:  300,           // was 500 — output is structured text, 300 is plenty
-      temperature: 0.1,
-      messages: [{ role: 'user', content: prompt }],
-    })
-
-    const raw = response.choices[0].message.content || ''
+    const raw = await callMistral2411([{ role: 'user', content: prompt }], 300)
 
     // Split on SEO_THEMES: marker
     const parts          = raw.split('SEO_THEMES:')
@@ -259,7 +247,7 @@ GROUNDING RULES — the main analysis must follow these:
 - A fix should sound like advice from an experienced Amazon seller — practical, specific to what went wrong`
     }
 
-    console.log(`[DomainKnowledge] ${complaintLines.length} complaint patterns for "${productName}" via ${DOMAIN_MODEL}`)
+    console.log(`[DomainKnowledge] ${complaintLines.length} complaint patterns for "${productName}" via mistral-large-2411`)
     console.log(`[DomainKnowledge] SEO themes: ${seoThemes.join(' | ')}`)
     if (qaGapLines.length > 0) console.log(`[DomainKnowledge] QA gaps: ${qaGapLines.join(' | ')}`)
 

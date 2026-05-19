@@ -51,7 +51,7 @@ function safeArray(v: any): any[]  { return Array.isArray(v) ? v : [] }
 function safeStr(v: any, fb = '—'): string { return typeof v === 'string' && v.trim() ? v : fb }
 
 // Escape HTML special chars before injecting LLM content into PDF HTML.
-// Prevents XSS via malicious Etsy review text copied verbatim by the LLM.
+// Prevents XSS via malicious Amazon review text copied verbatim by the LLM.
 function esc(v: any, fb = '—'): string {
   const s = safeStr(v, fb)
   return s
