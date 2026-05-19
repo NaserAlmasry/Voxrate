@@ -9,14 +9,13 @@
 //   RAINFOREST_API_KEY — from rainforestapi.com dashboard
 //
 // MODEL ROUTING:
-//  Complaints (full analysis): Groq 70b → fallback Mistral Large Latest → Mistral Large 2411
+//  Complaints (full analysis): Mistral Large Latest → fallback Mistral Large 2411
 //  Free preview:               Mistral Large 2411 (200B/month free pool, direct)
 //  Strengths, SEO, Summary:    Mistral Large 2411 (200B/month free pool, direct)
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server'
-import Groq from 'groq-sdk'
-import { callWithFallback, callMistral2411, type Message } from '@/app/lib/mistral-fallback'
+import { callMistral2411, callMistralLatest, type Message } from '@/app/lib/mistral-fallback'
 import { createClient } from '@/app/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import {
@@ -43,11 +42,6 @@ import { sanitizeReview } from '@/app/lib/sanitize-review'
 import { getComplaintCountGuidance } from '@/app/lib/complaint-guidance'
 
 export const maxDuration = 300
-
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
-
-// ── Model routing ─────────────────────────────────────────────
-const MODEL_70B = 'llama-3.3-70b-versatile'
 
 // ── Amazon URL validator ──────────────────────────────────────
 // Accepts Amazon URLs (any marketplace) or bare ASINs (10 char alphanumeric)
@@ -102,22 +96,6 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 2): Promise<T> {
   }
   throw new Error('Max retries exceeded')
 }
-
-// ── Groq callers — one per model tier ────────────────────────
-
-async function callGroq70b(messages: Message[], maxTokens: number): Promise<string> {
-  const groqFn = async () => {
-    const response = await groq.chat.completions.create({
-      model: MODEL_70B, max_tokens: maxTokens, temperature: 0.1, messages,
-    })
-    const usage = response.usage
-    if (usage) console.log(`[Groq-70b] prompt:${usage.prompt_tokens} completion:${usage.completion_tokens} total:${usage.total_tokens}`)
-    return response.choices[0].message.content || ''
-  }
-  const { result } = await callWithFallback(groqFn, messages, maxTokens)
-  return result
-}
-
 
 // ── Complaint count guidance ──────────────────────────────────
 
@@ -308,8 +286,8 @@ For Amazon: focus on buyer intent phrases, problem-solution language, and materi
 
   console.log(`[Section:complaints] Starting for ${reviews.length} reviews...`)
 
-  // ── Call 1: COMPLAINTS — llama-3.3-70b-versatile ─────────
-  const complaintsRaw = await callGroq70b([
+  // ── Call 1: COMPLAINTS — Mistral Large Latest ────────────
+  const complaintsRaw = await callMistralLatest([
     { role: 'system' as const, content: systemPrompt },
     {
       role: 'user' as const,
@@ -396,7 +374,7 @@ Return ONLY this JSON — start with { immediately:
   if (!complaintsData.complaints || complaintsData.complaints.length === 0) {
     console.warn('[Section:complaints] 0 complaints — retrying on 70b...')
     try {
-      const retryRaw = await callGroq70b([
+      const retryRaw = await callMistralLatest([
         { role: 'system' as const, content: systemPrompt },
         {
           role: 'user' as const,

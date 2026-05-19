@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import Groq from 'groq-sdk'
+import { callMistral2411, type Message } from '@/app/lib/mistral-fallback'
 import { createClient } from '@/app/lib/supabase/server'
 import { enforceRateLimit } from '@/app/lib/rate-limit'
 import { checkCsrf } from '@/app/lib/csrf'
 import { getClientIp } from '@/app/lib/ip'
-
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
 
 export async function POST(request: NextRequest) {
   const csrfError = checkCsrf(request)
@@ -76,14 +74,8 @@ Return ONLY valid JSON:
   "keywordsUsed": ["keyword1", "keyword2"]
 }`
 
-  const completion = await groq.chat.completions.create({
-    model:       'llama-3.1-8b-instant',
-    max_tokens:  1000,
-    temperature: 0.6,
-    messages:    [{ role: 'user', content: prompt }],
-  })
-
-  const raw = completion.choices[0]?.message?.content || ''
+  const messages: Message[] = [{ role: 'user', content: prompt }]
+  const raw = await callMistral2411(messages, 1000)
 
   let parsed: any
   try {

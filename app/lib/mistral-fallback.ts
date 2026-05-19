@@ -63,6 +63,17 @@ export async function callMistral2411(messages: Message[], maxTokens: number): P
   return callMistral(messages, maxTokens, MISTRAL_MODEL_2411)
 }
 
+// ── Mistral Large Latest call (4M tokens/month, highest quality) ──
+export async function callMistralLatest(messages: Message[], maxTokens: number): Promise<string> {
+  try {
+    return await callMistral(messages, maxTokens, MISTRAL_MODEL_LATEST)
+  } catch (err: any) {
+    if (!isQuotaError(err)) throw err
+    console.warn('[MistralLatest] Quota hit — falling back to Mistral 2411')
+    return callMistral(messages, maxTokens, MISTRAL_MODEL_2411)
+  }
+}
+
 // ── Main export ───────────────────────────────────────────────
 
 export async function callWithFallback(

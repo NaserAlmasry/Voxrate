@@ -1,32 +1,21 @@
 // ============================================================
 // app/api/analyze-csv/route.ts
 //
-// CHANGES IN THIS VERSION — model routing only, prompts untouched:
+// MODEL ROUTING (current):
 //
-//  [ROUTING-1] Call 1 (Complaints):    llama-3.3-70b-versatile — unchanged
-//  [ROUTING-2] Call 2 (Strengths):     llama-3.3-70b-versatile — unchanged
-//  [ROUTING-3] Call 3 (SEO+Marketing): llama-3.1-8b-instant    — was 70b
-//              max_tokens: 1200 → 800
-//              fiveStarText: 20 reviews → 10 reviews
-//              sleep before: 35s → 3s  (8b has separate TPM bucket)
-//  [ROUTING-4] Call 4 (Summary):       llama-3.1-8b-instant    — was 70b
-//              max_tokens: 1000 → 600
-//              sleep before: 35s → 3s
-//  [ROUTING-5] Free preview:           llama-3.1-8b-instant    — unchanged
-//  [ROUTING-6] callGroq() split into callGroq70b() and callGroq8b()
+//  [ROUTING-1] Call 1 (Complaints):    Mistral Large Latest — hardest reasoning
+//  [ROUTING-2] Call 2 (Strengths):     Mistral Large Latest — creative synthesis
+//  [ROUTING-3] Call 3 (SEO+Marketing): Mistral Large 2411   — pure extraction
+//  [ROUTING-4] Call 4 (Summary):       Mistral Large 2411   — formatting task
+//  [ROUTING-5] Free preview:           Mistral Large 2411   — simple 2-complaint extraction
 //
-//  Speed: CSV analyses were ~3.5 minutes (including 70s of sleep).
-//         Now ~2 minutes (sleeps before 8b calls reduced to 3s each).
-//
-//  Token improvement: ~20-30% fewer tokens per paid CSV analysis.
-//  The 35s sleeps existed to avoid 70b TPM limits.
-//  8b has its own much higher TPM limit — 3s is sufficient.
+//  Groq is no longer used for inference calls.
+//  getGroqRateLimitInfo is kept for legacy error detection in the outer catch.
 //
 //  Prompts: NOT changed.
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server'
-import Groq from 'groq-sdk'
 import { createClient } from '@/app/lib/supabase/server'
 import {
   calculateHealthScore,
@@ -45,20 +34,13 @@ import {
 import { extractPatterns, buildSmartSample } from '@/app/lib/pattern-extractor'
 import { calculateSeoScore } from '@/app/lib/seo-scorer'
 import { sendReportComplete, sendReportFailed } from '@/app/lib/email'
-import { callWithFallback, callMistral2411 } from '@/app/lib/mistral-fallback'
+import { callMistral2411, callMistralLatest } from '@/app/lib/mistral-fallback'
 import { extractJson } from '@/app/lib/extract-json'
 import { sanitizeReview } from '@/app/lib/sanitize-review'
 import { getComplaintCountGuidance } from '@/app/lib/complaint-guidance'
 import { applyPlanLimits } from '@/app/lib/plan-limits'
 
 export const maxDuration = 180
-
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
-
-// ── Model routing ─────────────────────────────────────────────
-const MODEL_70B = 'llama-3.3-70b-versatile'  // Calls 1+2: complex reasoning
-const MODEL_8B  = 'llama-3.1-8b-instant'     // Calls 3+4: extraction/formatting
-
 
 const MAX_REVIEW_CHARS   = 300
 const MAX_PROMPT_REVIEWS = 280
@@ -172,45 +154,6 @@ function parseCSV(
 
   if (reviews.length === 0) throw new Error('No valid reviews found in CSV')
   return reviews
-}
-
-// ── Groq callers — one per model tier ────────────────────────
-
-async function callGroq70b(
-  messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
-  maxTokens: number,
-): Promise<string> {
-  const groqFn = async () => {
-    const response = await groq.chat.completions.create({
-      model: MODEL_70B, max_tokens: maxTokens, temperature: 0.1, messages,
-    })
-    const usage = response.usage
-    if (usage) console.log(`[CSV-Groq-70b] prompt:${usage.prompt_tokens} completion:${usage.completion_tokens}`)
-    return response.choices[0].message.content || ''
-  }
-  const { result } = await callWithFallback(groqFn, messages, maxTokens)
-  return result
-}
-
-async function callGroq8b(
-  messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
-  maxTokens: number,
-): Promise<string> {
-  const groqFn = async () => {
-    const response = await groq.chat.completions.create({
-      model: MODEL_8B, max_tokens: maxTokens, temperature: 0.1, messages,
-    })
-    const usage = response.usage
-    if (usage) console.log(`[CSV-Groq-8b] prompt:${usage.prompt_tokens} completion:${usage.completion_tokens}`)
-    return response.choices[0].message.content || ''
-  }
-  // 8b falls back to Mistral 2411 (200B/month) — same model tier, lighter tasks
-  try {
-    const { result } = await callWithFallback(groqFn, messages, maxTokens)
-    return result
-  } catch {
-    return callMistral2411(messages, maxTokens)
-  }
 }
 
 // ── Output guardrails ─────────────────────────────────────────
@@ -431,8 +374,8 @@ async function analyzeFreeWithGroq(
 
   const seoAnalysis = calculateSeoScore(reviews, productInfo.name)
 
-  // [ROUTING] Free preview always uses 8b — simple 2-complaint extraction
-  const freeRaw = await callGroq8b([
+  // [ROUTING] Free preview uses Mistral 2411 — simple 2-complaint extraction
+  const freeRaw = await callMistral2411([
     {
       role: 'system' as const,
       content: `You are a review analysis engine. Return compact JSON only.
@@ -663,9 +606,9 @@ Suggestions: use only phrases from 5★ reviews, never from complaint areas.`
 
   console.log(`[CSV] Starting sequential calls for ${reviews.length} reviews...`)
 
-  // ── Call 1: COMPLAINTS — llama-3.3-70b-versatile ─────────
-  // [ROUTING-1] Stays on 70b — hardest reasoning task.
-  const complaintsRaw = await callGroq70b([
+  // ── Call 1: COMPLAINTS — Mistral Large Latest ────────────
+  // [ROUTING-1] Mistral Large Latest — hardest reasoning task.
+  const complaintsRaw = await callMistralLatest([
     { role: 'system' as const, content: systemPrompt },
     {
       role: 'user' as const,
@@ -734,9 +677,9 @@ Return ONLY this JSON — start with { immediately:
   // [ROUTING] 35s sleep after 70b call — preserve existing TPM handling
   await sleep(SLEEP_AFTER_70B)
 
-  // ── Call 2: STRENGTHS + IMPROVEMENTS — llama-3.3-70b-versatile ──
-  // [ROUTING-2] Stays on 70b — creative synthesis from positive reviews.
-  const strengthsRaw = await callGroq70b([
+  // ── Call 2: STRENGTHS + IMPROVEMENTS — Mistral Large Latest ──
+  // [ROUTING-2] Mistral Large Latest — creative synthesis from positive reviews.
+  const strengthsRaw = await callMistralLatest([
     { role: 'system' as const, content: systemPrompt },
     {
       role: 'user' as const,
@@ -782,12 +725,10 @@ Return ONLY this JSON — start with { immediately:
   // [ROUTING-3] Only 3s sleep before 8b call — separate TPM bucket
   await sleep(SLEEP_AFTER_8B)
 
-  // ── Call 3: SEO + MARKETING COPY — llama-3.1-8b-instant ──
-  // [ROUTING-3] Switched to 8b — pure extraction + verbatim copy.
+  // ── Call 3: SEO + MARKETING COPY — Mistral Large 2411 ────
+  // [ROUTING-3] Mistral 2411 — pure extraction + verbatim copy.
   // SEO keywords are pre-calculated, marketing copy is verbatim quotes.
-  // 8b handles this perfectly and is 3-4x faster than 70b here.
-  // max_tokens: 1200 → 800 (output is structured and short)
-  const seoRaw = await callGroq8b([
+  const seoRaw = await callMistral2411([
     { role: 'system' as const, content: systemPrompt },
     {
       role: 'user' as const,
@@ -882,11 +823,11 @@ Return ONLY this JSON — start with { immediately:
     console.error('[Parallel] Call 3 FAILED. First 300 chars:', seoRaw.slice(0, 300))
   }
 
-  // Retry Call 1 if empty — stays on 70b since this is the critical call
+  // Retry Call 1 if empty — use Mistral Large Latest (same quality tier)
   if (!complaintsData.complaints || complaintsData.complaints.length === 0) {
-    console.warn('[Parallel] Call 1 returned 0 complaints — retrying on 70b...')
+    console.warn('[Parallel] Call 1 returned 0 complaints — retrying on Mistral Large Latest...')
     try {
-      const retryRaw = await callGroq70b([
+      const retryRaw = await callMistralLatest([
         { role: 'system' as const, content: systemPrompt },
         {
           role: 'user' as const,
@@ -925,10 +866,10 @@ Return ONLY: { "complaints": [ { "title": "...", "severity": "CRITICAL|MEDIUM|LO
   // [ROUTING-4] Only 3s sleep before 8b Call 4
   await sleep(SLEEP_AFTER_8B)
 
-  // ── Call 4: SUMMARY — llama-3.1-8b-instant ───────────────
-  // [ROUTING-4] Switched to 8b — formats pre-calculated values into JSON.
-  // No reasoning needed. max_tokens: 1000 → 600.
-  const summaryRaw = await callGroq8b([
+  // ── Call 4: SUMMARY — Mistral Large 2411 ─────────────────
+  // [ROUTING-4] Mistral 2411 — formats pre-calculated values into JSON.
+  // No deep reasoning needed.
+  const summaryRaw = await callMistral2411([
     { role: 'system' as const, content: systemPrompt },
     {
       role: 'user' as const,
@@ -1040,8 +981,8 @@ Return ONLY this JSON — start with { immediately:
       console.log('[SemanticCheck] marketingCopy violations — correcting...')
       const violations = mktViolations.map(e => `  • ${e.field}: ${e.message}`).join('\n')
       try {
-        // [ROUTING] Semantic correction also uses 8b — simple substitution task
-        const semContent = await callGroq8b([
+        // [ROUTING] Semantic correction uses Mistral 2411 — simple substitution task
+        const semContent = await callMistral2411([
           { role: 'system' as const, content: systemPrompt },
           {
             role: 'user' as const,
