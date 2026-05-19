@@ -34,6 +34,15 @@ const GENERIC_WORDS = new Set([
   'of', 'with', 'is', 'it', 'this', 'that', 'was', 'are', 'be', 'been',
   'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
   'should', 'may', 'might', 'very', 'really', 'so', 'just', 'my', 'your',
+  // Pronouns — the main source of garbage phrases like "they are", "but they"
+  'they', 'them', 'their', 'theyre', 'these', 'those', 'we', 'our', 'us',
+  'he', 'she', 'her', 'his', 'its', 'you', 'yours', 'i', 'me', 'mine',
+  'who', 'what', 'which', 'where', 'when', 'how', 'why',
+  // Common filler words
+  'not', 'no', 'too', 'all', 'more', 'most', 'some', 'any', 'each',
+  'few', 'many', 'much', 'other', 'such', 'both', 'then', 'than',
+  'from', 'by', 'up', 'out', 'about', 'if', 'can', 'now', 'here', 'there',
+  'one', 'two', 'three', 'been', 'were', 'well', 'see', 'look', 'new',
   // Generic praise words
   'great', 'good', 'nice', 'love', 'loved', 'like', 'beautiful', 'perfect',
   'amazing', 'awesome', 'excellent', 'wonderful', 'fantastic', 'best',
@@ -120,11 +129,11 @@ function extractPhrases(reviews: Array<{ rating: number; text: string }>): strin
     const text = review.text.toLowerCase()
     const words = text.split(/\s+/).map(w => w.replace(/[^a-z0-9']/g, ''))
 
-    // Extract 2-word phrases
+    // Extract 2-word phrases — require BOTH words to be non-generic
     for (let i = 0; i < words.length - 1; i++) {
       if (words[i].length > 2 && words[i + 1].length > 2) {
         const phrase = `${words[i]} ${words[i + 1]}`
-        if (!GENERIC_WORDS.has(words[i]) || !GENERIC_WORDS.has(words[i + 1])) {
+        if (!GENERIC_WORDS.has(words[i]) && !GENERIC_WORDS.has(words[i + 1])) {
           phraseCounts.set(phrase, (phraseCounts.get(phrase) || 0) + 1)
         }
       }
