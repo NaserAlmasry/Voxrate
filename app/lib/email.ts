@@ -159,6 +159,53 @@ export async function sendReportComplete({
   })
 }
 
+export async function sendReportFailed({
+  to,
+  productName,
+}: {
+  to: string
+  productName: string
+}) {
+  if (!resend) return
+
+  const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://voxrate.app'
+
+  await resend.emails.send({
+    from:    'Voxrate <reports@voxrate.app>',
+    to,
+    subject: `Analysis failed — ${productName}`,
+    html: `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f9fafb;margin:0;padding:24px;">
+  <div style="max-width:520px;margin:0 auto;background:#fff;border-radius:16px;border:1px solid #e5e7eb;overflow:hidden;">
+    <div style="background:#111;padding:20px 24px;">
+      <span style="font-size:18px;font-weight:900;color:#fff;">Voxrate</span>
+    </div>
+    <div style="padding:24px;">
+      <h1 style="font-size:16px;font-weight:700;color:#111;margin:0 0 8px;">Analysis failed</h1>
+      <p style="font-size:13px;color:#6b7280;margin:0 0 16px;">
+        We ran into an issue analyzing <strong>${h(productName)}</strong>. Your credits have been refunded automatically.
+      </p>
+      <p style="font-size:13px;color:#6b7280;margin:0 0 20px;">
+        You can try again from your dashboard. If the problem persists, reply to this email and we'll look into it.
+      </p>
+      <a href="${SITE_URL}/dashboard" style="display:block;text-align:center;padding:14px;background:#f05a1e;color:#fff;text-decoration:none;border-radius:10px;font-size:13px;font-weight:700;">
+        Go to dashboard →
+      </a>
+    </div>
+    <div style="padding:16px 24px;border-top:1px solid #f3f4f6;text-align:center;">
+      <p style="font-size:11px;color:#9ca3af;margin:0;">
+        <a href="${SITE_URL}" style="color:#f05a1e;text-decoration:none;">Voxrate</a> — Amazon review intelligence
+      </p>
+    </div>
+  </div>
+</body>
+</html>`,
+  })
+}
+
 export async function sendMonitorAlert({
   to,
   productName,

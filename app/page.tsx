@@ -1300,7 +1300,7 @@ export default function LandingPage() {
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-10">
             <p className="text-xs font-semibold text-orange-600 uppercase tracking-widest mb-2">Pricing</p>
-            <h2 className="text-3xl md:text-4xl font-bold mb-3">Simple, honest pricing</h2>
+            <h2 className="text-3xl md:text-4xl font-bold mb-3">Pay for what you use</h2>
             <p className="text-sm text-neutral-500 mb-6 max-w-lg mx-auto">
               Subscribe monthly or buy credits once — they never expire. Start free, no card required.
             </p>

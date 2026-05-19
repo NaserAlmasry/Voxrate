@@ -925,7 +925,10 @@ export async function POST(request: NextRequest) {
       if (rawReviews.length === 0) {
         await supabase.from('reports').update({ status: 'failed', product_name: amazonProduct.title || null }).eq('id', reportId)
         await refundCredits()
-        return NextResponse.json({ error: 'No reviews found for this product. Your credits have been refunded.' }, { status: 400 })
+        const msg = scrapeResult.fromCache === false
+          ? 'Our data provider is temporarily unavailable. Please try again in a few minutes. Your credits have been refunded.'
+          : 'No reviews found for this product. Your credits have been refunded.'
+        return NextResponse.json({ error: msg }, { status: 400 })
       }
 
       const ctx = calculateHealthScore(

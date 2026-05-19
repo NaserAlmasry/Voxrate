@@ -44,7 +44,7 @@ import {
 } from '@/app/lib/domain-knowledge'
 import { extractPatterns, buildSmartSample } from '@/app/lib/pattern-extractor'
 import { calculateSeoScore } from '@/app/lib/seo-scorer'
-import { sendReportComplete } from '@/app/lib/email'
+import { sendReportComplete, sendReportFailed } from '@/app/lib/email'
 import { extractJson } from '@/app/lib/extract-json'
 import { sanitizeReview } from '@/app/lib/sanitize-review'
 import { getComplaintCountGuidance } from '@/app/lib/complaint-guidance'
@@ -1303,6 +1303,10 @@ export async function POST(request: NextRequest) {
       console.error('[CSV] Pipeline error:', err instanceof Error ? err.message : String(err))
       await supabase.from('reports').update({ status: 'failed' }).eq('id', reportId)
       await refundCsvCredits()
+      if (user.email) {
+        sendReportFailed({ to: user.email, productName: productInfo.name })
+          .catch(e => console.error('[CSV] Failure email failed:', e.message))
+      }
       throw err
     }
   } catch (error: any) {
