@@ -203,7 +203,7 @@ Return ONLY this JSON — start with { immediately:
   ]
 }`,
         },
-      ], 3000)
+      ], 4000)
 
       try {
         const parsed: any = extractJson(raw)
@@ -361,16 +361,26 @@ Return ONLY this JSON — start with { immediately:
     if (section === 'summary') {
       console.log(`[Section:summary] Starting for report ${reportId}`)
       const topStrengthTitle = updatedReport.strengths?.[0]?.title || fullReport.strengths?.[0]?.title || 'product quality'
+      const hs = updatedReport.healthScore || fullReport.healthScore || 0
 
-      const raw = await callMistralLatest([
-        { role: 'system', content: SYSTEM_PROMPT },
-        {
-          role: 'user',
-          content: `${contextBlock}
+      // Set fallbacks before any LLM calls so parse failures still leave valid data
+      updatedReport.freeSummary = `Your health score of ${hs}/100 is driven primarily by ${topComplaintTitle.toLowerCase()}, reported in ${negPct}% of reviews.`
+      updatedReport.keyInsight  = ''
+      updatedReport.summary     = `Health score ${hs}/100 — biggest threat: ${topComplaintTitle.toLowerCase()}.`
+      updatedReport.quickWin    = null
+      updatedReport.topActions  = []
 
-TOP COMPLAINT FOUND: "${topComplaintTitle}"
-TOP STRENGTH FOUND: "${topStrengthTitle}"
-HEALTH SCORE: ${updatedReport.healthScore || fullReport.healthScore}/100
+      // Call A: freeSummary, keyInsight, summary, quickWin (flat structure — more reliable parse)
+      try {
+        const rawA = await callMistralLatest([
+          { role: 'system', content: SYSTEM_PROMPT },
+          {
+            role: 'user',
+            content: `${contextBlock}
+
+TOP COMPLAINT: "${topComplaintTitle}"
+TOP STRENGTH: "${topStrengthTitle}"
+HEALTH SCORE: ${hs}/100
 UNHAPPY BUYERS: ${negPct}%
 
 HARD CONSTRAINTS:
@@ -378,64 +388,91 @@ HARD CONSTRAINTS:
 2. quickWin.action: start with "Reviewers say [exact symptom]" — then the one action. No invented percentages.
 3. quickWin.impact: "X of Y reviewers described this" — nothing else
 4. quickWin.effort: only mention cost or time if reviewers described it or it can be directly inferred from the action
-5. topActions.action: 6-10 words using reviewer language — NOT "improve durability", NOT "enhance quality"
-6. topActions.detail: 4-5 sentences grounded in what reviewers described — no invented business outcomes
-7. topActions.segment: name the specific buyer type from reviews — e.g. "home cooks who prep daily" not "customers"
-8. keyInsight: a non-obvious pattern from the review data — something a seller would not notice reading reviews one by one
-9. BANNED in all fields: "improve durability", "enhance quality", "better materials", "customers will appreciate", "reduce returns", invented percentages, any sentence starting with "To address this" or "consider"
+5. keyInsight: a non-obvious pattern from the review data — something a seller would not notice reading reviews one by one
+6. BANNED in all fields: "improve durability", "enhance quality", "better materials", "customers will appreciate", "reduce returns", invented percentages, any sentence starting with "To address this" or "consider"
 
 Return ONLY this JSON — start with { immediately:
 {
   "freeSummary": "<2 sentences: state the health score, then describe what ${negPct}% of reviewers experienced using their exact words — zero fixes>",
-  "keyInsight": "<2-3 sentences: a non-obvious pattern from the data — e.g. the failure timing, which buyer segment is most affected, or why the same issue appears across different use cases>",
-  "summary": "<2-3 sentences: health score + how many reviewers described the top complaint + what the top strength is in reviewer words>",
+  "keyInsight": "<2-3 sentences: a non-obvious pattern from the data>",
+  "summary": "<2-3 sentences: health score + top complaint + top strength in reviewer words>",
   "quickWin": {
     "action": "Reviewers say [exact symptom from reviews] — [the one most impactful action grounded in that symptom]",
     "impact": "<X of Y reviewers described this>",
     "effort": "<specific step or cost — only if grounded>"
-  },
+  }
+}`,
+          },
+        ], 1200)
+
+        const parsedA: any = extractJson(rawA)
+        updatedReport.freeSummary = parsedA.freeSummary || updatedReport.freeSummary
+        updatedReport.keyInsight  = parsedA.keyInsight  || ''
+        updatedReport.summary     = parsedA.summary     || updatedReport.summary
+        updatedReport.quickWin    = parsedA.quickWin    || null
+        console.log(`[Section:summary] Call A done`)
+      } catch (e) {
+        console.error('[Section:summary] Call A parse failed:', String(e).slice(0, 200))
+      }
+
+      // Call B: topActions (focused prompt — isolated from Call A to prevent truncation)
+      try {
+        const rawB = await callMistralLatest([
+          { role: 'system', content: SYSTEM_PROMPT },
+          {
+            role: 'user',
+            content: `${contextBlock}
+
+TOP COMPLAINT: "${topComplaintTitle}"
+TOP STRENGTH: "${topStrengthTitle}"
+HEALTH SCORE: ${hs}/100
+UNHAPPY BUYERS: ${negPct}%
+
+Generate exactly 3 top actions a seller should take, grounded in what reviewers described.
+
+HARD CONSTRAINTS:
+1. action: 6-10 words using reviewer language — NOT "improve durability", NOT "enhance quality"
+2. detail: 4-5 sentences grounded in what reviewers described — no invented business outcomes
+3. segment: name the specific buyer type from reviews — e.g. "home cooks who prep daily" not "customers"
+4. Each action must address a different complaint or opportunity angle
+5. BANNED: "improve durability", "enhance quality", "better materials", "customers will appreciate", invented percentages
+
+Return ONLY this JSON — start with { immediately:
+{
   "topActions": [
     {
-      "action": "<6-10 words from reviewer language — the most specific version of this action>",
-      "detail": "<4-5 sentences: what reviewers described, which buyers are most affected, what the action is and why it follows from the reviews>",
+      "action": "<6-10 words from reviewer language>",
+      "detail": "<4-5 sentences grounded in reviewer descriptions>",
       "segment": "<specific buyer type from reviews>"
     },
-    { "action": "<action 2 — different complaint or angle>", "detail": "<detail>", "segment": "<segment>" },
-    { "action": "<action 3 — third distinct angle>", "detail": "<detail>", "segment": "<segment>" }
+    {
+      "action": "<action 2 — different complaint or angle>",
+      "detail": "<4-5 sentences>",
+      "segment": "<specific buyer type>"
+    },
+    {
+      "action": "<action 3 — third distinct angle>",
+      "detail": "<4-5 sentences>",
+      "segment": "<specific buyer type>"
+    }
   ]
 }`,
-        },
-      ], 1500)
+          },
+        ], 1500)
 
-      // Set fallbacks before parsing so parse failure still leaves valid data
-      const hs = updatedReport.healthScore || fullReport.healthScore || 0
-      updatedReport.freeSummary = `Your health score of ${hs}/100 is driven primarily by ${topComplaintTitle.toLowerCase()}, reported in ${negPct}% of reviews.`
-      updatedReport.keyInsight  = ''
-      updatedReport.summary     = `Health score ${hs}/100 — biggest threat: ${topComplaintTitle.toLowerCase()}.`
-      updatedReport.quickWin    = null
-      updatedReport.topActions  = [{ action: '', detail: '', segment: '' }, { action: '', detail: '', segment: '' }, { action: '', detail: '', segment: '' }]
-
-      try {
-        const parsed: any = extractJson(raw)
-
-        updatedReport.freeSummary = parsed.freeSummary || updatedReport.freeSummary
-        updatedReport.keyInsight  = parsed.keyInsight  || ''
-        updatedReport.summary     = parsed.summary     || updatedReport.summary
-        updatedReport.quickWin    = parsed.quickWin    || null
-        updatedReport.topActions  = Array.isArray(parsed.topActions) ? parsed.topActions : updatedReport.topActions
-
-        if (updatedReport.topActions.length < 3) {
-          while (updatedReport.topActions.length < 3) updatedReport.topActions.push({ action: '', detail: '', segment: '' })
+        const parsedB: any = extractJson(rawB)
+        if (Array.isArray(parsedB.topActions) && parsedB.topActions.length > 0) {
+          updatedReport.topActions = parsedB.topActions.filter(
+            (a: any) => a.action && a.action.trim().length > 0
+          )
         }
-
-        newSectionsReady.push('summary')
-        console.log(`[Section:summary] Done`)
+        console.log(`[Section:summary] Call B done — ${updatedReport.topActions.length} topActions`)
       } catch (e) {
-        console.error('[Section:summary] Parse failed:', String(e).slice(0, 200))
-        // Mark summary done even on parse failure so the report reaches 'completed'
-        // and shows up in history. Fallback values were already set above the try block.
-        if (!newSectionsReady.includes('summary')) newSectionsReady.push('summary')
+        console.error('[Section:summary] Call B parse failed:', String(e).slice(0, 200))
       }
+
+      newSectionsReady.push('summary')
+      console.log(`[Section:summary] Done`)
     }
 
     // Strip cache when summary section is processed (whether parsed or fallback)

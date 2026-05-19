@@ -684,20 +684,25 @@ export default function ReportPage() {
     if (!reportId) return
     if (!isPublic && !window.confirm('Make this report publicly visible? Anyone with the link will be able to view it.')) return
     setShareLoading(true)
-    const next = !isPublic
-    const res  = await fetch(`/api/report/${reportId}/share`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-      body:    JSON.stringify({ public: next }),
-    })
-    const data = await res.json()
-    if (res.ok) {
-      setIsPublic(next)
-      setShareUrl(next ? data.shareUrl : null)
-    } else {
-      toast('Failed to update share settings. Please try again.', 'error')
+    try {
+      const next = !isPublic
+      const res  = await fetch(`/api/report/${reportId}/share`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        body:    JSON.stringify({ public: next }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setIsPublic(next)
+        setShareUrl(next ? data.shareUrl : null)
+      } else {
+        toast('Failed to update share settings. Please try again.', 'error')
+      }
+    } catch {
+      toast('Something went wrong. Please try again.', 'error')
+    } finally {
+      setShareLoading(false)
     }
-    setShareLoading(false)
   }
 
   const handleReanalyze = async () => {
@@ -726,18 +731,23 @@ export default function ReportPage() {
     setShowComparePicker(true)
     if (ownReports.length > 0) return
     setOwnReportsLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setOwnReportsLoading(false); return }
-    const { data } = await supabase
-      .from('reports')
-      .select('id, product_name, health_score, created_at')
-      .eq('status', 'completed')
-      .eq('user_id', user.id)
-      .or('report_type.eq.own,report_type.is.null')
-      .order('created_at', { ascending: false })
-      .limit(20)
-    setOwnReports(data || [])
-    setOwnReportsLoading(false)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { data } = await supabase
+        .from('reports')
+        .select('id, product_name, health_score, created_at')
+        .eq('status', 'completed')
+        .eq('user_id', user.id)
+        .or('report_type.eq.own,report_type.is.null')
+        .order('created_at', { ascending: false })
+        .limit(20)
+      setOwnReports(data || [])
+    } catch {
+      // picker shows empty state if fetch fails
+    } finally {
+      setOwnReportsLoading(false)
+    }
   }
 
   const copyShareUrl = () => {
@@ -749,15 +759,20 @@ export default function ReportPage() {
 
   const saveNotes = async () => {
     setNotesSaving(true)
-    const { error } = await supabase.from('reports').update({ notes }).eq('id', reportId).eq('user_id', currentUserId!)
-    setNotesSaving(false)
-    if (error) {
-      toast('Failed to save notes. Please try again.', 'error')
-      return
+    try {
+      const { error } = await supabase.from('reports').update({ notes }).eq('id', reportId).eq('user_id', currentUserId!)
+      if (error) {
+        toast('Failed to save notes. Please try again.', 'error')
+        return
+      }
+      setNotesSaved(true)
+      setNotesPersisted(true)
+      setTimeout(() => setNotesSaved(false), 2500)
+    } catch {
+      toast('Something went wrong. Please try again.', 'error')
+    } finally {
+      setNotesSaving(false)
     }
-    setNotesSaved(true)
-    setNotesPersisted(true)
-    setTimeout(() => setNotesSaved(false), 2500)
   }
 
   // [BUG#1] fr is computed via useMemo so handlePrint can close over it safely
