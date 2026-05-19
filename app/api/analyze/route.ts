@@ -122,9 +122,9 @@ async function analyzeProduct(
     )
     .join('\n')
 
-  const negativeReviews = sampledReviews.filter(r => r.rating <= 2).slice(0, 25)
-  const positiveReviews = sampledReviews.filter(r => r.rating >= 4).slice(0, 30)
-  const fiveStarReviews = sampledReviews.filter(r => r.rating === 5).slice(0, 10)
+  const negativeReviews = sampledReviews.filter(r => r.rating <= 2).slice(0, 50)
+  const positiveReviews = sampledReviews.filter(r => r.rating >= 4).slice(0, 50)
+  const fiveStarReviews = sampledReviews.filter(r => r.rating === 5).slice(0, 30)
 
   const negReviewText = (negativeReviews.length > 0 ? negativeReviews : sampledReviews.slice(0, 20))
     .map(r =>
