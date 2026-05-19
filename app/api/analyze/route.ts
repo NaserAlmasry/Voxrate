@@ -943,10 +943,8 @@ export async function POST(request: NextRequest) {
           top_improvement:        analysis.improvements?.[0]?.title || null,
           competitors:            [],
           full_report:            (() => {
-            // M2: strip _cache (raw review text) — saves ~60KB per row in the DB
-            const { _cache, ...publicAnalysis } = analysis
             return {
-            ...publicAnalysis,
+            ...analysis,
             asin:                amazonProduct.asin,
             marketplace:         amazonProduct.marketplace,
             productTitle:        amazonProduct.title,
