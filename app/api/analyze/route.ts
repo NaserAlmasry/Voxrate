@@ -33,7 +33,7 @@ import {
 import { extractPatterns, buildSmartSample } from '@/app/lib/pattern-extractor'
 import { calculateSeoScore } from '@/app/lib/seo-scorer'
 import { sendReportComplete } from '@/app/lib/email'
-import { scrapeAmazon, scrapeAmazonFree, scrapeAmazonSeoReviews } from '@/app/lib/amazon-scraper'
+import { scrapeAmazon, scrapeAmazonFree } from '@/app/lib/amazon-scraper'
 import type { AmazonReview } from '@/app/lib/amazon-types'
 import { extractJson } from '@/app/lib/extract-json'
 import { sanitizeReview } from '@/app/lib/sanitize-review'
@@ -104,7 +104,6 @@ async function analyzeProduct(
   reviews:             AmazonReview[],
   ctx:                 ReturnType<typeof calculateHealthScore>,
   listingDescription?: string,
-  seoReviews:          Array<{ rating: number; text: string }> = [],
 ): Promise<any> {
   // Convert AmazonReview[] to the shape pattern-extractor expects
   const reviewsForPatterns = reviews.map(r => ({
@@ -164,11 +163,8 @@ async function analyzeProduct(
   )
   const domainKnowledge = domainResult.knowledge
 
-  // Convert for SEO scorer — prefer dedicated Rainforest 5★ batch; fall back to main reviews
-  const reviewsForSeo = seoReviews.length >= 10
-    ? seoReviews
-    : reviews.map(r => ({ rating: r.rating, text: r.body }))
-  console.log(`[SEO] Using ${reviewsForSeo.length} reviews for scoring (${seoReviews.length >= 10 ? 'Rainforest 5★' : 'main batch fallback'})`)
+  // Convert for SEO scorer — 5★ reviews now include up to 3 pages from the main scrape
+  const reviewsForSeo = reviews.map(r => ({ rating: r.rating, text: r.body }))
   const seoAnalysis   = calculateSeoScore(reviewsForSeo, product.title)
   const seoTopPhrases = domainResult.seoThemes.length >= 3
     ? domainResult.seoThemes
@@ -883,10 +879,10 @@ export async function POST(request: NextRequest) {
       console.log(`[Pipeline] Starting Amazon scrape: ${productUrl} (plan: ${plan})`)
 
       const isFreeUser   = !isAdminUser && plan === 'free'
-      const [scrapeResult, seoReviews] = await Promise.all([
-        withRetry(() => isFreeUser ? scrapeAmazonFree(productUrl) : scrapeAmazon(productUrl), 2),
-        isFreeUser ? Promise.resolve([]) : scrapeAmazonSeoReviews(productUrl),
-      ])
+      const scrapeResult = await withRetry(
+        () => isFreeUser ? scrapeAmazonFree(productUrl) : scrapeAmazon(productUrl),
+        2,
+      )
       const { product: amazonProduct, reviews: rawReviews, qa } = scrapeResult
 
       const product = {
@@ -934,7 +930,7 @@ export async function POST(request: NextRequest) {
 
       const analysis = (!isAdminUser && plan === 'free')
         ? await analyzeFreePreview(product, rawReviews, ctx, productDescription)
-        : await analyzeProduct(product, rawReviews, ctx, productDescription, seoReviews)
+        : await analyzeProduct(product, rawReviews, ctx, productDescription)
 
       const { error: reportUpdateError } = await supabase
         .from('reports')

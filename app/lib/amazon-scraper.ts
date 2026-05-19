@@ -94,7 +94,7 @@ const STAR_FILTER_MAP: Record<1 | 2 | 3 | 4 | 5, string> = {
 // Base pages per star tier. Each tier can absorb at most 1 extra page from rollover.
 // Excess rollover (beyond 1) keeps flowing to the next tier.
 // Max possible: 3+3+2+2+2 = 12 pages = ~120 reviews
-const BASE_PAGES: Record<1 | 2 | 3 | 4 | 5, number> = { 1: 3, 2: 2, 3: 1, 4: 1, 5: 1 }
+const BASE_PAGES: Record<1 | 2 | 3 | 4 | 5, number> = { 1: 3, 2: 2, 3: 1, 4: 1, 5: 3 }
 const MAX_ROLLOVER_PER_TIER = 1
 
 function allocatePages(ratingBreakdown: { one: number; two: number; three: number; four: number; five: number }): Record<1 | 2 | 3 | 4 | 5, number> {
@@ -476,46 +476,3 @@ async function fetchQA(_asin: string, _marketplace: string): Promise<AmazonQA[]>
   return []
 }
 
-// ── Canopy SEO scrape — dedicated 5★ fetch for keyword extraction ──
-// Runs in parallel with the main scrape. Pulls up to 4 pages (40 reviews)
-// of five-star reviews specifically for SEO phrase extraction.
-export async function scrapeAmazonSeoReviews(
-  input: string,
-  pages = 4,
-): Promise<Array<{ rating: number; text: string }>> {
-  const { asin, marketplace } = parseInput(input)
-  const domain = DOMAIN_MAP[marketplace] ?? 'US'
-  const results: Array<{ rating: number; text: string }> = []
-
-  for (let page = 1; page <= pages; page++) {
-    try {
-      const url = `${CANOPY_BASE}?asin=${asin}&domain=${domain}&page=${page}&rating=FIVE_STAR`
-      const res = await canopyFetch(url)
-
-      if (!res.ok) {
-        console.warn(`[SEO Scraper] Canopy 5★ page ${page} HTTP ${res.status}`)
-        break
-      }
-
-      const data = await res.json()
-      const paginated = data?.data?.amazonProduct?.reviewsPaginated
-      if (!paginated) break
-
-      const batch: any[] = paginated.reviews ?? []
-      for (const r of batch) {
-        const body = r.body ?? ''
-        if (body.length > 20) results.push({ rating: 5, text: body })
-      }
-
-      console.log(`[SEO Scraper] 5★ page ${page} — ${batch.length} reviews (total: ${results.length})`)
-
-      if (!paginated.pageInfo?.hasNextPage) break
-    } catch (e: any) {
-      console.warn(`[SEO Scraper] Canopy 5★ page ${page} error:`, e?.message ?? e)
-      break
-    }
-  }
-
-  console.log(`[SEO Scraper] Done — ${results.length} five-star reviews for keyword extraction`)
-  return results
-}
