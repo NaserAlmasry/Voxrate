@@ -22,12 +22,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Too many requests. Please wait a moment.' }, { status: 429 })
     }
 
-    const { data: userData } = await supabase.from('users').select('plan, ai_reply_uses').eq('id', user.id).single()
-    const plan = userData?.plan || 'free'
-    if (plan === 'free' && (userData?.ai_reply_uses ?? 0) >= 1) {
-      return NextResponse.json({ error: 'Free plan includes 1 reply generation. Upgrade to continue using this feature.', upgrade: true }, { status: 403 })
-    }
-
     const body        = await request.json()
     const reviewText  = typeof body?.review       === 'string' ? body.review.trim().slice(0, 1000)       : ''
     const productName = typeof body?.productName  === 'string' ? body.productName.trim().slice(0, 200)   : 'our product'
@@ -82,10 +76,6 @@ Return ONLY valid JSON in this exact format:
 
     if (!parsed?.replies || !Array.isArray(parsed.replies)) {
       return NextResponse.json({ error: 'Failed to generate replies. Please try again.' }, { status: 500 })
-    }
-
-    if (plan === 'free') {
-      await supabase.rpc('increment_ai_reply_uses', { p_user_id: user.id, p_limit: 1 })
     }
 
     return NextResponse.json({ replies: parsed.replies })

@@ -58,14 +58,12 @@ export default function ReplyPage() {
   const [rating, setRating]         = useState(1)
   const [loading, setLoading]       = useState(false)
   const [error, setError]           = useState('')
-  const [needsUpgrade, setNeedsUpgrade] = useState(false)
   const [replies, setReplies]       = useState<{ tone: string; text: string }[]>([])
   const [copied, setCopied]         = useState<number | null>(null)
 
   const handleGenerate = async () => {
     if (!review.trim()) { setError('Please paste the customer review first.'); return }
     setError('')
-    setNeedsUpgrade(false)
     setLoading(true)
     setReplies([])
 
@@ -77,7 +75,6 @@ export default function ReplyPage() {
       })
       const data = await res.json()
       if (!res.ok) {
-        if (data.upgrade) { setNeedsUpgrade(true); setLoading(false); return }
         setError(data.error || 'Something went wrong.'); setLoading(false); return
       }
       setReplies(data.replies || [])
@@ -158,19 +155,10 @@ export default function ReplyPage() {
 
         {error && <ValidationError message={error} />}
 
-        {needsUpgrade && (
-          <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 text-center">
-            <p className="text-sm font-semibold text-orange-800 mb-1">Free plan limit reached</p>
-            <p className="text-xs text-orange-600 mb-3">You&apos;ve used your 1 free AI generation. Upgrade to keep going.</p>
-            <Link href="/dashboard/billing" className="inline-block px-4 py-2 bg-orange-500 text-white text-sm font-medium rounded-lg hover:bg-orange-600 transition-colors">
-              Upgrade plan →
-            </Link>
-          </div>
-        )}
 
         <button
           onClick={handleGenerate}
-          disabled={loading || !review.trim() || needsUpgrade}
+          disabled={loading || !review.trim()}
           className="w-full py-3 bg-black text-white text-sm font-medium rounded-xl hover:bg-neutral-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
         >
           {loading ? (
