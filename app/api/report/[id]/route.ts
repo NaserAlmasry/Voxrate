@@ -8,6 +8,11 @@ import { createClient } from '@/app/lib/supabase/server'
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+// NOTE: This is intentionally separate from app/lib/plan-limits.ts.
+// lib/plan-limits.ts runs on raw LLM output before DB storage.
+// This function runs on stored data fetched for display — it also strips
+// _cache, exposes seo.score as a teaser, and nulls quickWin for free users.
+// Keep both in sync when adding new plan-gated fields.
 function applyPlanLimits(fullReport: any, plan: string, isAdmin: boolean) {
   if (isAdmin || plan === 'pro' || plan === 'growth' || plan === 'starter') {
     const { _cache, ...report } = fullReport || {}

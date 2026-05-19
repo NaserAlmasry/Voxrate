@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
       console.error('[Worker] Report update failed — refunding:', updateError.message)
       await supabase.rpc('add_credits', { p_user_id: userId, p_amount: creditCost })
       await supabase.from('reports').update({ status: 'failed' }).eq('id', reportId)
-      if (userEmail) sendReportFailed({ to: userEmail, productName: productInfo.name }).catch(() => {})
+      if (userEmail) sendReportFailed({ to: userEmail, productName: productInfo.name }).catch((e: any) => console.error('[Worker] Failed to send email:', e?.message))
       return NextResponse.json({ ok: true })
     }
 
@@ -144,7 +144,7 @@ export async function POST(request: NextRequest) {
     console.error('[Worker] Analysis failed:', err.message)
     await supabase.rpc('add_credits', { p_user_id: userId, p_amount: creditCost })
     await supabase.from('reports').update({ status: 'failed' }).eq('id', reportId)
-    if (userEmail) sendReportFailed({ to: userEmail, productName: productInfo.name }).catch(() => {})
+    if (userEmail) sendReportFailed({ to: userEmail, productName: productInfo.name }).catch((e: any) => console.error('[Worker] Failed to send email:', e?.message))
     // Always return 200 — we handle errors internally, don't want QStash to retry
     return NextResponse.json({ ok: true })
   }

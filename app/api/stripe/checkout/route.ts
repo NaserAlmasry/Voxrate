@@ -11,7 +11,7 @@ import { checkCsrf } from '@/app/lib/csrf'
 import { checkRateLimit } from '@/app/lib/rate-limit'
 
 let _stripe: Stripe | null = null
-const getStripe = () => _stripe ??= new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-06-20' as any })
+const getStripe = () => _stripe ??= new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: Stripe.API_VERSION })
 
 // ── Subscription price IDs ────────────────────────────────────
 const SUBSCRIPTION_PRICE_IDS: Record<string, string> = {

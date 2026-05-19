@@ -29,6 +29,7 @@ export async function GET(request: NextRequest) {
     .select('*, users(email, plan)')
     .eq('is_active', true)
     .order('user_id')
+    .limit(2000)
 
   if (!listings || listings.length === 0) {
     return NextResponse.json({ sent: 0 })

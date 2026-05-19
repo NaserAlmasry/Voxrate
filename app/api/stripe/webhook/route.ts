@@ -7,7 +7,7 @@ import Stripe from 'stripe'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 
 let _stripe: Stripe | null = null
-const getStripe = () => _stripe ??= new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-06-20' as any })
+const getStripe = () => _stripe ??= new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: Stripe.API_VERSION })
 
 export async function POST(request: NextRequest) {
   const stripe = getStripe()
@@ -192,8 +192,8 @@ export async function POST(request: NextRequest) {
 
       // ── Subscription renewal — top up credits ─────────────────
       case 'invoice.payment_succeeded': {
-        const invoice        = event.data.object as any
-        const subscriptionId = invoice.subscription
+        const invoice        = event.data.object as Stripe.Invoice
+        const subscriptionId = (invoice as any).subscription
         if (!subscriptionId) break
 
         // Only handle renewals (not initial payment — already handled above)
@@ -254,17 +254,17 @@ export async function POST(request: NextRequest) {
 
       // ── Subscription updated (plan change, cancellation scheduled) ──
       case 'customer.subscription.updated': {
-        const sub    = event.data.object as any
+        const sub    = event.data.object as Stripe.Subscription
         const userId = sub.metadata?.user_id
         if (!userId) break
-        const periodEnd = sub.current_period_end ?? null
+        const periodEnd = (sub as any).current_period_end ?? null
         await supabase.from('users').update({ stripe_current_period_end: periodEnd }).eq('id', userId)
         break
       }
 
       // ── Subscription fully cancelled ──────────────────────────
       case 'customer.subscription.deleted': {
-        const obj            = event.data.object as any
+        const obj            = event.data.object as Stripe.Subscription
         const subscriptionId = obj.id
         if (!subscriptionId) break
 
@@ -297,8 +297,8 @@ export async function POST(request: NextRequest) {
       // Zeroing credits here would wipe legitimately purchased credit packs on a
       // single failed payment.
       case 'invoice.payment_failed': {
-        const obj            = event.data.object as any
-        const subscriptionId = obj.subscription
+        const obj            = event.data.object as Stripe.Invoice
+        const subscriptionId = (obj as any).subscription
         if (!subscriptionId) break
         console.log(`[Webhook] Payment failed for subscription ${subscriptionId} — awaiting Stripe dunning`)
         break
