@@ -52,8 +52,6 @@ async function readReviewCache(asin: string, domain: string): Promise<AmazonRevi
 
 const SCRAPINGDOG_API_KEY  = process.env.SCRAPINGDOG_API_KEY!
 const SCRAPERAPI_KEY       = process.env.SCRAPERAPI_KEY!
-const RAINFOREST_API_KEY   = process.env.RAINFOREST_API_KEY!
-const RAINFOREST_BASE      = 'https://api.rainforestapi.com/request'
 
 // Canopy keys — auto-rotates to next key when current hits quota (429/403)
 // Add CANOPY_API_KEY_2, _3, _4... in Vercel for more free-tier capacity
@@ -478,61 +476,42 @@ async function fetchQA(_asin: string, _marketplace: string): Promise<AmazonQA[]>
   return []
 }
 
-// ── Rainforest SEO scrape — 5★ most-helpful reviews for keyword extraction ──
-// Runs in parallel with the main scrape. Fetches 3 pages (30 reviews) sorted
-// by most_helpful so we get the most detailed buyer language first.
+// ── Canopy SEO scrape — dedicated 5★ fetch for keyword extraction ──
+// Runs in parallel with the main scrape. Pulls up to 4 pages (40 reviews)
+// of five-star reviews specifically for SEO phrase extraction.
 export async function scrapeAmazonSeoReviews(
   input: string,
-  pages = 3,
+  pages = 4,
 ): Promise<Array<{ rating: number; text: string }>> {
-  if (!RAINFOREST_API_KEY) {
-    console.warn('[SEO Scraper] RAINFOREST_API_KEY not set — skipping')
-    return []
-  }
-
   const { asin, marketplace } = parseInput(input)
-  const amazonDomain = marketplace  // e.g. "amazon.com"
-
+  const domain = DOMAIN_MAP[marketplace] ?? 'US'
   const results: Array<{ rating: number; text: string }> = []
 
   for (let page = 1; page <= pages; page++) {
     try {
-      const params = new URLSearchParams({
-        api_key:         RAINFOREST_API_KEY,
-        type:            'reviews',
-        amazon_domain:   amazonDomain,
-        asin,
-        filter_by_star:  'five_star',
-        sort_by:         'most_helpful',
-        page:            String(page),
-      })
-
-      const res = await fetch(`${RAINFOREST_BASE}?${params}`, {
-        signal: AbortSignal.timeout(15_000),
-      })
+      const url = `${CANOPY_BASE}?asin=${asin}&domain=${domain}&page=${page}&rating=FIVE_STAR`
+      const res = await canopyFetch(url)
 
       if (!res.ok) {
-        console.warn(`[SEO Scraper] Rainforest page ${page} HTTP ${res.status}`)
+        console.warn(`[SEO Scraper] Canopy 5★ page ${page} HTTP ${res.status}`)
         break
       }
 
       const data = await res.json()
-      const reviews: any[] = data?.reviews ?? []
+      const paginated = data?.data?.amazonProduct?.reviewsPaginated
+      if (!paginated) break
 
-      if (reviews.length === 0) break
-
-      for (const r of reviews) {
-        const body = r.body ?? r.review_text ?? ''
-        if (body.length > 20) {
-          results.push({ rating: 5, text: body })
-        }
+      const batch: any[] = paginated.reviews ?? []
+      for (const r of batch) {
+        const body = r.body ?? ''
+        if (body.length > 20) results.push({ rating: 5, text: body })
       }
 
-      console.log(`[SEO Scraper] Page ${page} — ${reviews.length} reviews (total: ${results.length})`)
+      console.log(`[SEO Scraper] 5★ page ${page} — ${batch.length} reviews (total: ${results.length})`)
 
-      if (!data?.pagination?.has_next_page) break
+      if (!paginated.pageInfo?.hasNextPage) break
     } catch (e: any) {
-      console.warn(`[SEO Scraper] Rainforest page ${page} error:`, e?.message ?? e)
+      console.warn(`[SEO Scraper] Canopy 5★ page ${page} error:`, e?.message ?? e)
       break
     }
   }
