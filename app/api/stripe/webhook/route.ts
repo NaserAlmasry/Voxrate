@@ -7,7 +7,7 @@ import Stripe from 'stripe'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 
 let _stripe: Stripe | null = null
-const getStripe = () => _stripe ??= new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: Stripe.API_VERSION })
+const getStripe = () => _stripe ??= new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-06-20' as any })
 
 export async function POST(request: NextRequest) {
   const stripe = getStripe()
