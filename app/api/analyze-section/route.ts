@@ -407,17 +407,24 @@ Return ONLY this JSON — start with { immediately:
         },
       ], 1500)
 
+      // Set fallbacks before parsing so parse failure still leaves valid data
+      const hs = updatedReport.healthScore || fullReport.healthScore || 0
+      updatedReport.freeSummary = `Your health score of ${hs}/100 is driven primarily by ${topComplaintTitle.toLowerCase()}, reported in ${negPct}% of reviews.`
+      updatedReport.keyInsight  = ''
+      updatedReport.summary     = `Health score ${hs}/100 — biggest threat: ${topComplaintTitle.toLowerCase()}.`
+      updatedReport.quickWin    = null
+      updatedReport.topActions  = [{ action: '', detail: '', segment: '' }, { action: '', detail: '', segment: '' }, { action: '', detail: '', segment: '' }]
+
       try {
         const parsed: any = extractJson(raw)
-        const hs = updatedReport.healthScore || fullReport.healthScore || 0
 
-        updatedReport.freeSummary = parsed.freeSummary || `Your health score of ${hs}/100 is driven primarily by ${topComplaintTitle.toLowerCase()}, reported in ${negPct}% of reviews.`
+        updatedReport.freeSummary = parsed.freeSummary || updatedReport.freeSummary
         updatedReport.keyInsight  = parsed.keyInsight  || ''
-        updatedReport.summary     = parsed.summary     || `Health score ${hs}/100 — biggest threat: ${topComplaintTitle.toLowerCase()}.`
+        updatedReport.summary     = parsed.summary     || updatedReport.summary
         updatedReport.quickWin    = parsed.quickWin    || null
-        updatedReport.topActions  = Array.isArray(parsed.topActions) ? parsed.topActions : []
+        updatedReport.topActions  = Array.isArray(parsed.topActions) ? parsed.topActions : updatedReport.topActions
 
-        if (!updatedReport.topActions || updatedReport.topActions.length < 3) {
+        if (updatedReport.topActions.length < 3) {
           while (updatedReport.topActions.length < 3) updatedReport.topActions.push({ action: '', detail: '', segment: '' })
         }
 
@@ -425,12 +432,14 @@ Return ONLY this JSON — start with { immediately:
         console.log(`[Section:summary] Done`)
       } catch (e) {
         console.error('[Section:summary] Parse failed:', String(e).slice(0, 200))
+        // Mark summary done even on parse failure so the report reaches 'completed'
+        // and shows up in history. Fallback values were already set above the try block.
+        if (!newSectionsReady.includes('summary')) newSectionsReady.push('summary')
       }
     }
 
-    // Strip cache only if summary was successfully parsed — if parse failed,
-    // _cache must survive so a retry can still find the review data.
-    if (section === 'summary' && newSectionsReady.includes('summary')) {
+    // Strip cache when summary section is processed (whether parsed or fallback)
+    if (section === 'summary') {
       delete updatedReport._cache
     }
 
