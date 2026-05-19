@@ -36,8 +36,8 @@ import { getClientIp } from '@/app/lib/ip'
 import { sendReportComplete, sendReportFailed } from '@/app/lib/email'
 import { applyPlanLimits } from '@/app/lib/plan-limits'
 import {
-  analyzeFreeWithGroq,
-  analyzeWithGroq,
+  analyzeFreeReviews,
+  analyzeReviews,
   applyOutputGuardrails,
   applyDeterministicNarrative,
   getGroqRateLimitInfo,
@@ -256,8 +256,8 @@ export async function POST(request: NextRequest) {
 
       const useFreePreview  = !isAdminUser && plan === 'free'
       let analysis          = useFreePreview
-        ? await analyzeFreeWithGroq(reviewInput, ctx, productInfo)
-        : await analyzeWithGroq(reviewInput, ctx, productInfo)
+        ? await analyzeFreeReviews(reviewInput, ctx, productInfo)
+        : await analyzeReviews(reviewInput, ctx, productInfo)
 
       analysis = applyPlanLimits(analysis, plan, isAdminUser)
 

@@ -99,7 +99,7 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 2): Promise<T> {
 
 // ── Main analysis ─────────────────────────────────────────────
 
-async function analyzeWithGroq(
+async function analyzeProduct(
   product:             any,
   reviews:             AmazonReview[],
   ctx:                 ReturnType<typeof calculateHealthScore>,
@@ -786,24 +786,25 @@ export async function POST(request: NextRequest) {
 
       if (plan === 'growth' || plan === 'pro') {
         const limit = plan === 'pro' ? 10 : 3
-        if (ownReportId) {
-          // Check per-product monthly usage
-          const { count } = await supabase
-            .from('competitor_usage')
-            .select('id', { count: 'exact', head: true })
-            .eq('user_id', user.id)
-            .eq('own_report_id', ownReportId)
-            .gte('created_at', monthStart)
-          if ((count ?? 0) >= limit) {
-            return NextResponse.json(
-              {
-                error: `You've used all ${limit} competitor analyses for this product this month. Resets on the 1st.${plan === 'growth' ? ' Upgrade to Pro for 10 per product.' : ''}`,
-                upgradeRequired: plan === 'growth',
-                upgradePrompt: 'pro',
-              },
-              { status: 403 },
-            )
-          }
+        const usageQuery = supabase
+          .from('competitor_usage')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .gte('created_at', monthStart)
+
+        // Per-product limit when ownReportId is provided; global monthly limit as fallback
+        if (ownReportId) usageQuery.eq('own_report_id', ownReportId)
+
+        const { count } = await usageQuery
+        if ((count ?? 0) >= limit) {
+          return NextResponse.json(
+            {
+              error: `You've used all ${limit} competitor analyses${ownReportId ? ' for this product' : ''} this month. Resets on the 1st.${plan === 'growth' ? ' Upgrade to Pro for 10 per product.' : ''}`,
+              upgradeRequired: plan === 'growth',
+              upgradePrompt: 'pro',
+            },
+            { status: 403 },
+          )
         }
       }
     }
@@ -929,7 +930,7 @@ export async function POST(request: NextRequest) {
 
       const analysis = (!isAdminUser && plan === 'free')
         ? await analyzeFreePreview(product, rawReviews, ctx, productDescription)
-        : await analyzeWithGroq(product, rawReviews, ctx, productDescription)
+        : await analyzeProduct(product, rawReviews, ctx, productDescription)
 
       const { error: reportUpdateError } = await supabase
         .from('reports')

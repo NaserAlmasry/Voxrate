@@ -27,7 +27,7 @@ export function applyPlanLimits(
     marketingCopy:   [],
     reviewTemplates: [],
     seo:             null,
-    topActions:      report.topActions || [],
+    topActions:      [],
     _isLimited:      true,
   }
 }

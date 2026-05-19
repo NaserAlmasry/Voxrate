@@ -28,10 +28,6 @@ export const MAX_GROQ_RETRY_WAIT_MS = 30_000 // hard clamp — never sleep more 
 
 const MAX_REVIEW_CHARS   = 300
 
-// Sleep durations by model — 8b has separate, higher TPM bucket
-const SLEEP_AFTER_70B = 35_000  // 35s between 70b calls (unchanged)
-const SLEEP_AFTER_8B  =  3_000  // 3s between 8b calls (was 35s — unnecessary)
-
 export const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 export function parseGroqRetrySeconds(message: string): number | null {
@@ -275,7 +271,7 @@ export interface ProductInfo {
   description?: string
 }
 
-export async function analyzeFreeWithGroq(
+export async function analyzeFreeReviews(
   reviews:     Array<{ rating: number; text: string }>,
   ctx:         ReturnType<typeof calculateHealthScore>,
   productInfo: ProductInfo,
@@ -395,7 +391,7 @@ Return ONLY this JSON:
   return report
 }
 
-export async function analyzeWithGroq(
+export async function analyzeReviews(
   reviews:     Array<{ rating: number; text: string }>,
   ctx:         ReturnType<typeof calculateHealthScore>,
   productInfo: ProductInfo,
@@ -593,9 +589,6 @@ Return ONLY this JSON — start with { immediately:
     },
   ], 3500)
 
-  // [ROUTING] 35s sleep after 70b call — preserve existing TPM handling
-  await sleep(SLEEP_AFTER_70B)
-
   // ── Call 2: STRENGTHS + IMPROVEMENTS — Mistral Large Latest ──
   // [ROUTING-2] Mistral Large Latest — creative synthesis from positive reviews.
   const strengthsRaw = await callMistralLatest([
@@ -642,8 +635,6 @@ Return ONLY this JSON — start with { immediately:
   ], 1800)
 
   // [ROUTING-3] Only 3s sleep before 8b call — separate TPM bucket
-  await sleep(SLEEP_AFTER_8B)
-
   // ── Call 3: SEO + MARKETING COPY — Mistral Large 2411 ────
   // [ROUTING-3] Mistral 2411 — pure extraction + verbatim copy.
   // SEO keywords are pre-calculated, marketing copy is verbatim quotes.
@@ -781,9 +772,6 @@ Return ONLY: { "complaints": [ { "title": "...", "severity": "CRITICAL|MEDIUM|LO
 
   const topComplaintTitle = complaintsData.complaints?.[0]?.title || 'quality issues'
   const topStrengthTitle  = strengthsData.strengths?.[0]?.title   || 'product quality'
-
-  // [ROUTING-4] Only 3s sleep before 8b Call 4
-  await sleep(SLEEP_AFTER_8B)
 
   // ── Call 4: SUMMARY — Mistral Large 2411 ─────────────────
   // [ROUTING-4] Mistral 2411 — formats pre-calculated values into JSON.

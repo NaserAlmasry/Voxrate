@@ -11,8 +11,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { Receiver } from '@upstash/qstash'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import {
-  analyzeWithGroq,
-  analyzeFreeWithGroq,
+  analyzeReviews,
+  analyzeFreeReviews,
   type ProductInfo,
 } from '@/app/lib/csv-analysis'
 import {
@@ -88,8 +88,8 @@ export async function POST(request: NextRequest) {
     const ctx            = calculateHealthScore(reviews, reviews.length)
     const useFreePreview = !isAdminUser && plan === 'free'
     let analysis         = useFreePreview
-      ? await analyzeFreeWithGroq(reviews, ctx, productInfo)
-      : await analyzeWithGroq(reviews, ctx, productInfo)
+      ? await analyzeFreeReviews(reviews, ctx, productInfo)
+      : await analyzeReviews(reviews, ctx, productInfo)
 
     const { data: patched, overrides } = applyHardOverrides(analysis, ctx)
     if (overrides.length > 0) console.warn('[Worker][HardOverrides] Patched:', overrides)
