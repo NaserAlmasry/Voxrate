@@ -115,6 +115,7 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (reportError || !report) {
+      console.error(`[AnalyzeSection] 404 userId=${user.id} plan=${userPlan} reportId=${reportId} dbCode=${reportError?.code} dbMsg=${reportError?.message}`)
       return NextResponse.json({ error: 'Report not found' }, { status: 404 })
     }
     if (report.user_id !== user.id && !isAdminUser) {
