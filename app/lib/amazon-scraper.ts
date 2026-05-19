@@ -52,6 +52,8 @@ async function readReviewCache(asin: string, domain: string): Promise<AmazonRevi
 
 const SCRAPINGDOG_API_KEY  = process.env.SCRAPINGDOG_API_KEY!
 const SCRAPERAPI_KEY       = process.env.SCRAPERAPI_KEY!
+const RAINFOREST_API_KEY   = process.env.RAINFOREST_API_KEY!
+const RAINFOREST_BASE      = 'https://api.rainforestapi.com/request'
 
 // Canopy keys — auto-rotates to next key when current hits quota (429/403)
 // Add CANOPY_API_KEY_2, _3, _4... in Vercel for more free-tier capacity
@@ -474,4 +476,67 @@ async function fetchProductScraperAPI(asin: string, marketplace: string): Promis
 // Q&A not available via Scrapingdog — return empty
 async function fetchQA(_asin: string, _marketplace: string): Promise<AmazonQA[]> {
   return []
+}
+
+// ── Rainforest SEO scrape — 5★ most-helpful reviews for keyword extraction ──
+// Runs in parallel with the main scrape. Fetches 3 pages (30 reviews) sorted
+// by most_helpful so we get the most detailed buyer language first.
+export async function scrapeAmazonSeoReviews(
+  input: string,
+  pages = 3,
+): Promise<Array<{ rating: number; text: string }>> {
+  if (!RAINFOREST_API_KEY) {
+    console.warn('[SEO Scraper] RAINFOREST_API_KEY not set — skipping')
+    return []
+  }
+
+  const { asin, marketplace } = parseInput(input)
+  const amazonDomain = marketplace  // e.g. "amazon.com"
+
+  const results: Array<{ rating: number; text: string }> = []
+
+  for (let page = 1; page <= pages; page++) {
+    try {
+      const params = new URLSearchParams({
+        api_key:         RAINFOREST_API_KEY,
+        type:            'reviews',
+        amazon_domain:   amazonDomain,
+        asin,
+        filter_by_star:  'five_star',
+        sort_by:         'most_helpful',
+        page:            String(page),
+      })
+
+      const res = await fetch(`${RAINFOREST_BASE}?${params}`, {
+        signal: AbortSignal.timeout(15_000),
+      })
+
+      if (!res.ok) {
+        console.warn(`[SEO Scraper] Rainforest page ${page} HTTP ${res.status}`)
+        break
+      }
+
+      const data = await res.json()
+      const reviews: any[] = data?.reviews ?? []
+
+      if (reviews.length === 0) break
+
+      for (const r of reviews) {
+        const body = r.body ?? r.review_text ?? ''
+        if (body.length > 20) {
+          results.push({ rating: 5, text: body })
+        }
+      }
+
+      console.log(`[SEO Scraper] Page ${page} — ${reviews.length} reviews (total: ${results.length})`)
+
+      if (!data?.pagination?.has_next_page) break
+    } catch (e: any) {
+      console.warn(`[SEO Scraper] Rainforest page ${page} error:`, e?.message ?? e)
+      break
+    }
+  }
+
+  console.log(`[SEO Scraper] Done — ${results.length} five-star reviews for keyword extraction`)
+  return results
 }
