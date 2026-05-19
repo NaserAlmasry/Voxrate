@@ -45,6 +45,7 @@ import {
 import { extractPatterns, buildSmartSample } from '@/app/lib/pattern-extractor'
 import { calculateSeoScore } from '@/app/lib/seo-scorer'
 import { sendReportComplete, sendReportFailed } from '@/app/lib/email'
+import { callWithFallback, callMistral2411 } from '@/app/lib/mistral-fallback'
 import { extractJson } from '@/app/lib/extract-json'
 import { sanitizeReview } from '@/app/lib/sanitize-review'
 import { getComplaintCountGuidance } from '@/app/lib/complaint-guidance'
@@ -179,68 +180,37 @@ async function callGroq70b(
   messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
   maxTokens: number,
 ): Promise<string> {
-  let lastError: unknown
-
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      const response = await groq.chat.completions.create({
-        model:       MODEL_70B,
-        max_tokens:  maxTokens,
-        temperature: 0.1,
-        messages,
-      })
-      const usage = response.usage
-      if (usage) {
-        console.log(`[Groq-70b] prompt: ${usage.prompt_tokens}, completion: ${usage.completion_tokens}, total: ${usage.total_tokens}`)
-      }
-      return response.choices[0].message.content || ''
-    } catch (error: any) {
-      lastError = error
-      const limitInfo = getGroqRateLimitInfo(error)
-      const parsedMs  = limitInfo.retryAfterSeconds ? limitInfo.retryAfterSeconds * 1000 : 35_000
-      const retryMs   = Math.min(parsedMs, MAX_GROQ_RETRY_WAIT_MS)
-      const canRetry  = limitInfo.isRateLimit
-      if (!canRetry || attempt === 2) break
-      console.warn(`[Groq-70b] Rate limit hit. Retrying in ${retryMs}ms...`)
-      await sleep(retryMs + 1000)
-    }
+  const groqFn = async () => {
+    const response = await groq.chat.completions.create({
+      model: MODEL_70B, max_tokens: maxTokens, temperature: 0.1, messages,
+    })
+    const usage = response.usage
+    if (usage) console.log(`[CSV-Groq-70b] prompt:${usage.prompt_tokens} completion:${usage.completion_tokens}`)
+    return response.choices[0].message.content || ''
   }
-
-  throw lastError
+  const { result } = await callWithFallback(groqFn, messages, maxTokens)
+  return result
 }
 
 async function callGroq8b(
   messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
   maxTokens: number,
 ): Promise<string> {
-  let lastError: unknown
-
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      const response = await groq.chat.completions.create({
-        model:       MODEL_8B,
-        max_tokens:  maxTokens,
-        temperature: 0.1,
-        messages,
-      })
-      const usage = response.usage
-      if (usage) {
-        console.log(`[Groq-8b] prompt: ${usage.prompt_tokens}, completion: ${usage.completion_tokens}, total: ${usage.total_tokens}`)
-      }
-      return response.choices[0].message.content || ''
-    } catch (error: any) {
-      lastError = error
-      const limitInfo = getGroqRateLimitInfo(error)
-      const parsedMs  = limitInfo.retryAfterSeconds ? limitInfo.retryAfterSeconds * 1000 : 5_000
-      const retryMs   = Math.min(parsedMs, MAX_GROQ_RETRY_WAIT_MS)
-      const canRetry  = limitInfo.isRateLimit
-      if (!canRetry || attempt === 2) break
-      console.warn(`[Groq-8b] Rate limit hit. Retrying in ${retryMs}ms...`)
-      await sleep(retryMs + 1000)
-    }
+  const groqFn = async () => {
+    const response = await groq.chat.completions.create({
+      model: MODEL_8B, max_tokens: maxTokens, temperature: 0.1, messages,
+    })
+    const usage = response.usage
+    if (usage) console.log(`[CSV-Groq-8b] prompt:${usage.prompt_tokens} completion:${usage.completion_tokens}`)
+    return response.choices[0].message.content || ''
   }
-
-  throw lastError
+  // 8b falls back to Mistral 2411 (200B/month) — same model tier, lighter tasks
+  try {
+    const { result } = await callWithFallback(groqFn, messages, maxTokens)
+    return result
+  } catch {
+    return callMistral2411(messages, maxTokens)
+  }
 }
 
 // ── Output guardrails ─────────────────────────────────────────
