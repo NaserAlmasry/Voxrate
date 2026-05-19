@@ -41,7 +41,7 @@ async function callMistral(messages: Message[], maxTokens: number, model: string
   if (!key) throw new Error('MISTRAL_API_KEY not set')
 
   const controller = new AbortController()
-  const timeoutId  = setTimeout(() => controller.abort(), 30_000)
+  const timeoutId  = setTimeout(() => controller.abort(), 55_000)
   try {
     const res = await fetch(MISTRAL_API_URL, {
       method:  'POST',

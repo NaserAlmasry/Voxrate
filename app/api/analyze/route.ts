@@ -786,14 +786,14 @@ export async function POST(request: NextRequest) {
 
       if (plan === 'growth' || plan === 'pro') {
         const limit = plan === 'pro' ? 10 : 3
-        const usageQuery = supabase
+        let usageQuery = supabase
           .from('competitor_usage')
           .select('id', { count: 'exact', head: true })
           .eq('user_id', user.id)
           .gte('created_at', monthStart)
 
         // Per-product limit when ownReportId is provided; global monthly limit as fallback
-        if (ownReportId) usageQuery.eq('own_report_id', ownReportId)
+        if (ownReportId) usageQuery = usageQuery.eq('own_report_id', ownReportId)
 
         const { count } = await usageQuery
         if ((count ?? 0) >= limit) {
