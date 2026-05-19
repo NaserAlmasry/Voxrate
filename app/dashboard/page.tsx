@@ -245,7 +245,7 @@ function DashboardHomeInner() {
           if (dismissed !== thisWeek) {
             const { data: monData } = await supabase
               .from('monitored_listings')
-              .select('product_name, last_score, initial_score, top_complaint')
+              .select('product_name, last_score')
               .eq('user_id', user.id)
               .eq('is_active', true)
               .order('last_checked_at', { ascending: false })
@@ -255,8 +255,8 @@ function DashboardHomeInner() {
               setWeeklyDigest({
                 productName: m.product_name || 'your listing',
                 score: m.last_score ?? 0,
-                prevScore: m.initial_score ?? null,
-                topComplaint: m.top_complaint ?? null,
+                prevScore: null,
+                topComplaint: null,
               })
             }
           }
