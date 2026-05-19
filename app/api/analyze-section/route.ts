@@ -12,7 +12,7 @@
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server'
-import { callMistral2411, type Message } from '@/app/lib/mistral-fallback'
+import { callMistralLatest, type Message } from '@/app/lib/mistral-fallback'
 import { createClient } from '@/app/lib/supabase/server'
 import { applyHardOverrides, validateSemanticConstraints } from '@/app/lib/health-score'
 import { enforceRateLimit, checkRateLimit } from '@/app/lib/rate-limit'
@@ -160,7 +160,7 @@ export async function POST(request: NextRequest) {
     // ── Call 2: STRENGTHS + IMPROVEMENTS ────────────────────
     if (section === 'strengths') {
       console.log(`[Section:strengths] Starting for report ${reportId}`)
-      const raw = await callMistral2411([
+      const raw = await callMistralLatest([
         { role: 'system', content: SYSTEM_PROMPT },
         {
           role: 'user',
@@ -230,7 +230,7 @@ Return ONLY this JSON — start with { immediately:
     // ── Call 3: SEO + MARKETING COPY ────────────────────────
     if (section === 'seo') {
       console.log(`[Section:seo] Starting for report ${reportId}`)
-      const raw = await callMistral2411([
+      const raw = await callMistralLatest([
         { role: 'system', content: SYSTEM_PROMPT },
         {
           role: 'user',
@@ -337,7 +337,7 @@ Return ONLY this JSON — start with { immediately:
           )
           if (violations.length > 2) {
             console.warn('[Section:seo] marketingCopy likely paraphrased — running correction...')
-            const fixRaw = await callMistral2411([
+            const fixRaw = await callMistralLatest([
               { role: 'system', content: SYSTEM_PROMPT },
               { role: 'user', content: `REVIEWS:\n<reviews>\n${reviewText.slice(0, 2000)}\n</reviews>\n\nPick 5 verbatim sentences from 5★ reviews above. Return only: { "marketingCopy": ["...", "...", "...", "...", "..."] }` },
             ], 600)
@@ -362,7 +362,7 @@ Return ONLY this JSON — start with { immediately:
       console.log(`[Section:summary] Starting for report ${reportId}`)
       const topStrengthTitle = updatedReport.strengths?.[0]?.title || fullReport.strengths?.[0]?.title || 'product quality'
 
-      const raw = await callMistral2411([
+      const raw = await callMistralLatest([
         { role: 'system', content: SYSTEM_PROMPT },
         {
           role: 'user',
