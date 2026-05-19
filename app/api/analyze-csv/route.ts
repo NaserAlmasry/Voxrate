@@ -45,74 +45,9 @@ import {
   type ProductInfo,
 } from '@/app/lib/csv-analysis'
 import { getQStashClient, getWorkerUrl } from '@/app/lib/qstash'
+import { parseCSV } from '@/app/lib/parse-csv'
 
 export const maxDuration = 60
-
-// ── CSV parser ────────────────────────────────────────────────
-
-function parseCSV(
-  csvText: string,
-): Array<{ rating: number; text: string; date: string }> {
-  const lines = csvText.trim().replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
-  if (lines.length < 2) throw new Error('CSV file is empty or has no reviews')
-
-  const header = lines[0].toLowerCase().replace(/"/g, '').replace(/\r/g, '')
-  const cols   = header.split(',').map((c) => c.trim())
-
-  const ratingIdx = cols.findIndex(
-    (c) => c.includes('rating') || c.includes('stars') || c.includes('score'),
-  )
-  const reviewIdx = cols.findIndex(
-    (c) =>
-      c.includes('review') ||
-      c.includes('text')   ||
-      c.includes('comment')||
-      c.includes('body')   ||
-      c.includes('content'),
-  )
-  const dateIdx = cols.findIndex(
-    (c) => c.includes('date') || c.includes('time') || c.includes('created'),
-  )
-
-  if (reviewIdx === -1) {
-    throw new Error('CSV must have a column named "review", "text", "comment", or "body"')
-  }
-
-  const reviews: Array<{ rating: number; text: string; date: string }> = []
-
-  for (let i = 1; i < lines.length; i++) {
-    const line = lines[i].trim()
-    if (!line) continue
-
-    const fields: string[] = []
-    let current  = ''
-    let inQuotes = false
-    for (const char of line) {
-      if (char === '"') { inQuotes = !inQuotes; continue }
-      if (char === ',' && !inQuotes) { fields.push(current.trim()); current = ''; continue }
-      current += char
-    }
-    fields.push(current.trim())
-
-    let reviewText = fields[reviewIdx]?.replace(/^"|"$/g, '').trim()
-    if (!reviewText || reviewText.length < 5) continue
-    // Defuse CSV formula injection — strip leading formula chars
-    if (/^[=+\-@\t\r]/.test(reviewText)) reviewText = reviewText.replace(/^[=+\-@\t\r]+/, '')
-
-    const ratingRaw = ratingIdx !== -1
-      ? fields[ratingIdx]?.replace(/^"|"$/g, '').trim()
-      : '5'
-    const rating = Math.min(5, Math.max(1, parseInt(ratingRaw) || 5))
-    const date   = dateIdx !== -1
-      ? fields[dateIdx]?.replace(/^"|"$/g, '').trim()
-      : ''
-
-    reviews.push({ rating, text: reviewText, date })
-  }
-
-  if (reviews.length === 0) throw new Error('No valid reviews found in CSV')
-  return reviews
-}
 
 // ── Main handler ──────────────────────────────────────────────
 
@@ -164,14 +99,13 @@ export async function POST(request: NextRequest) {
 
     const plan = userData?.plan || 'free'
 
-    // Free plan limit: in queue mode, increment happens in the worker after success.
-    // In direct mode, increment happens after the analysis succeeds (below).
-    // Here we only check+increment for the direct/non-queue path pre-flight.
-    // Determine queue mode early so we can skip here if queued.
+    // Pre-claim the free plan slot before doing any work (both queue and direct mode).
+    // This prevents the race where multiple simultaneous submissions bypass the 3/month limit.
+    // On analysis failure the slot is consumed — this is acceptable (prevents abuse).
     const qstashEarly = getQStashClient()
     const isQueueMode = !!(qstashEarly && process.env.NODE_ENV === 'production')
 
-    if (!isAdminUser && plan === 'free' && !isQueueMode) {
+    if (!isAdminUser && plan === 'free') {
       const { data: incremented } = await supabase.rpc('try_increment_analyses_count', {
         p_user_id: user.id,
         p_limit:   3,
@@ -339,18 +273,8 @@ export async function POST(request: NextRequest) {
         last_analyzed_at:       new Date().toISOString(),
       }).eq('id', reportId)
 
-      // Increment analysis count after success
-      if (!isAdminUser && plan === 'free') {
-        // In direct mode free users: increment here after success (slot was not claimed at gate)
-        const { data: incremented } = await supabase.rpc('try_increment_analyses_count', {
-          p_user_id: user.id,
-          p_limit:   3,
-        })
-        if (!incremented) {
-          // Slot was claimed by concurrent request — still return success since analysis completed
-          console.warn('[CSV] try_increment_analyses_count failed after direct-mode success — concurrent limit hit')
-        }
-      } else if (!isAdminUser) {
+      // Increment analysis count for non-free plans (free slot was already claimed above)
+      if (!isAdminUser && plan !== 'free') {
         const { error: countError } = await supabase.rpc('increment_analyses_count', { user_id: user.id })
         if (countError) console.error('[CSV] increment_analyses_count failed:', countError.message)
       }

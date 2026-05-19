@@ -123,11 +123,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true })
     }
 
-    // Increment analysis count after success
-    if (!isAdminUser && plan === 'free') {
-      // Free plan: try_increment atomically checks+increments; limit 3
-      await supabase.rpc('try_increment_analyses_count', { p_user_id: userId, p_limit: 3 })
-    } else if (!isAdminUser) {
+    // Free plan slot already claimed in the submission handler — only increment for paid plans
+    if (!isAdminUser && plan !== 'free') {
       await supabase.rpc('increment_analyses_count', { user_id: userId })
     }
 

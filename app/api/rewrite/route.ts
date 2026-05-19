@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { callMistral2411, type Message } from '@/app/lib/mistral-fallback'
+import { callMistralLatest, type Message } from '@/app/lib/mistral-fallback'
 import { escapePromptInput, SECURITY_SYSTEM_PROMPT } from '@/app/lib/escape-prompt'
 import { createClient } from '@/app/lib/supabase/server'
 import { enforceRateLimit } from '@/app/lib/rate-limit'
@@ -84,7 +84,7 @@ Return ONLY valid JSON:
       { role: 'system', content: SECURITY_SYSTEM_PROMPT },
       { role: 'user', content: prompt }
     ]
-    const raw = await callMistral2411(messages, 1000)
+    const raw = await callMistralLatest(messages, 1000)
 
     let parsed: any
     try {

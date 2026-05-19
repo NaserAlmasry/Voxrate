@@ -202,10 +202,15 @@ export async function POST(request: NextRequest) {
         const subscription = await stripe.subscriptions.retrieve(subscriptionId)
         const userId  = subscription.metadata?.user_id
         const plan    = subscription.metadata?.plan
-        const credits = parseInt(subscription.metadata?.credits || '0', 10)
 
         if (!userId || !plan) break
         if (!['starter', 'growth', 'pro'].includes(plan)) break
+
+        const PLAN_CREDITS: Record<string, number> = { starter: 300, growth: 800, pro: 2000 }
+        const metaCredits = parseInt(subscription.metadata?.credits || '0', 10)
+        // Fall back to plan default if metadata.credits is missing or 0 — prevents users
+        // keeping stale credits from the previous period when metadata is absent.
+        const credits = metaCredits > 0 ? metaCredits : (PLAN_CREDITS[plan] ?? 0)
 
         const periodEnd = (subscription as any).current_period_end ?? null
         console.log(`[Webhook] Monthly renewal for user ${userId} — adding ${credits} credits`)
