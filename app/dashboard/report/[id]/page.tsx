@@ -529,7 +529,7 @@ export default function ReportPage() {
         return
       }
       console.log('[Report] status:', data.status)
-      if (data.status === 'pending') {
+      if (data.status === 'pending' || data.status === 'queued' || data.status === 'processing') {
         if (retries >= 100) { setError('Analysis is taking too long. Please try again.'); setLoading(false); return }
         setPollCount(retries + 1)
         setTimeout(() => loadReport(retries + 1), 3000)
