@@ -73,6 +73,7 @@ export async function POST(request: NextRequest) {
   const plan        = pending._plan          as string
   const isAdminUser = pending._isAdminUser   as boolean
   const userEmail   = pending._userEmail     as string | null
+  const creditCost: number = pending._creditCost ?? 20
 
   if (!reviews?.length || !productInfo) {
     console.error('[Worker] Missing pending data for report:', reportId)
@@ -116,14 +117,17 @@ export async function POST(request: NextRequest) {
 
     if (updateError) {
       console.error('[Worker] Report update failed — refunding:', updateError.message)
-      await supabase.rpc('add_credits', { p_user_id: userId, p_amount: 20 })
+      await supabase.rpc('add_credits', { p_user_id: userId, p_amount: creditCost })
       await supabase.from('reports').update({ status: 'failed' }).eq('id', reportId)
       if (userEmail) sendReportFailed({ to: userEmail, productName: productInfo.name }).catch(() => {})
       return NextResponse.json({ ok: true })
     }
 
-    // Increment analysis count for non-free plans
-    if (!isAdminUser && plan !== 'free') {
+    // Increment analysis count after success
+    if (!isAdminUser && plan === 'free') {
+      // Free plan: try_increment atomically checks+increments; limit 3
+      await supabase.rpc('try_increment_analyses_count', { p_user_id: userId, p_limit: 3 })
+    } else if (!isAdminUser) {
       await supabase.rpc('increment_analyses_count', { user_id: userId })
     }
 
@@ -141,7 +145,7 @@ export async function POST(request: NextRequest) {
 
   } catch (err: any) {
     console.error('[Worker] Analysis failed:', err.message)
-    await supabase.rpc('add_credits', { p_user_id: userId, p_amount: 20 })
+    await supabase.rpc('add_credits', { p_user_id: userId, p_amount: creditCost })
     await supabase.from('reports').update({ status: 'failed' }).eq('id', reportId)
     if (userEmail) sendReportFailed({ to: userEmail, productName: productInfo.name }).catch(() => {})
     // Always return 200 — we handle errors internally, don't want QStash to retry

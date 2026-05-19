@@ -4,6 +4,7 @@ import { createClient } from '@/app/lib/supabase/server'
 import { enforceRateLimit } from '@/app/lib/rate-limit'
 import { checkCsrf } from '@/app/lib/csrf'
 import { getClientIp } from '@/app/lib/ip'
+import { extractJson } from '@/app/lib/extract-json'
 
 export async function POST(request: NextRequest) {
   const csrfError = checkCsrf(request)
@@ -73,8 +74,7 @@ Return ONLY valid JSON:
   const raw = await callMistral2411(messages, 900)
   let parsed: any
   try {
-    const match = raw.match(/\{[\s\S]*\}/)
-    parsed = match ? JSON.parse(match[0]) : null
+    parsed = extractJson(raw)
   } catch {
     parsed = null
   }

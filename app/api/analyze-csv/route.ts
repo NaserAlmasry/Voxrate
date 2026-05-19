@@ -122,10 +122,34 @@ export async function POST(request: NextRequest) {
 
   const ip = getClientIp(request)
 
+  // Hoisted outside try so refundCsvCredits is accessible in outer catch
+  let csvCreditsDeducted  = false
+  let csvCreditsRefunded  = false
+  const csvCreditCost     = 20
+  let _refundSupabase: any = null
+  let _refundUserId: string | null = null
+  const refundCsvCredits  = async () => {
+    if (!csvCreditsDeducted || csvCreditsRefunded || !_refundSupabase || !_refundUserId) return
+    csvCreditsRefunded = true
+    try {
+      const { error } = await _refundSupabase.rpc('add_credits', { p_user_id: _refundUserId, p_amount: csvCreditCost })
+      if (error) {
+        console.error('[CSV] Credit refund RPC failed — MANUAL REVIEW NEEDED:', { userId: _refundUserId, amount: csvCreditCost, error: error.message })
+      } else {
+        console.log(`[CSV] Refunded ${csvCreditCost} credits to ${_refundUserId}`)
+      }
+    } catch (e: any) {
+      console.error('[CSV] Credit refund threw — MANUAL REVIEW NEEDED:', { userId: _refundUserId, amount: csvCreditCost, error: e?.message })
+    }
+  }
+
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Please log in first' }, { status: 401 })
+
+    _refundSupabase = supabase
+    _refundUserId   = user.id
 
     const { data: userData } = await supabase.from('users').select('plan, is_admin').eq('id', user.id).single()
     const isAdminUser = userData?.is_admin === true
@@ -140,7 +164,14 @@ export async function POST(request: NextRequest) {
 
     const plan = userData?.plan || 'free'
 
-    if (!isAdminUser && plan === 'free') {
+    // Free plan limit: in queue mode, increment happens in the worker after success.
+    // In direct mode, increment happens after the analysis succeeds (below).
+    // Here we only check+increment for the direct/non-queue path pre-flight.
+    // Determine queue mode early so we can skip here if queued.
+    const qstashEarly = getQStashClient()
+    const isQueueMode = !!(qstashEarly && process.env.NODE_ENV === 'production')
+
+    if (!isAdminUser && plan === 'free' && !isQueueMode) {
       const { data: incremented } = await supabase.rpc('try_increment_analyses_count', {
         p_user_id: user.id,
         p_limit:   3,
@@ -157,24 +188,6 @@ export async function POST(request: NextRequest) {
       })
       if (!allowed) {
         return NextResponse.json({ error: 'Starter plan limit reached. Please try again next month or upgrade to Pro.', upgradeRequired: true }, { status: 403 })
-      }
-    }
-
-    let csvCreditsDeducted  = false
-    let csvCreditsRefunded  = false
-    const csvCreditCost     = 20
-    const refundCsvCredits  = async () => {
-      if (!csvCreditsDeducted || csvCreditsRefunded) return
-      csvCreditsRefunded = true
-      try {
-        const { error } = await supabase.rpc('add_credits', { p_user_id: user.id, p_amount: csvCreditCost })
-        if (error) {
-          console.error('[CSV] Credit refund RPC failed — MANUAL REVIEW NEEDED:', { userId: user.id, amount: csvCreditCost, error: error.message })
-        } else {
-          console.log(`[CSV] Refunded ${csvCreditCost} credits to ${user.id}`)
-        }
-      } catch (e: any) {
-        console.error('[CSV] Credit refund threw — MANUAL REVIEW NEEDED:', { userId: user.id, amount: csvCreditCost, error: e?.message })
       }
     }
 
@@ -272,9 +285,9 @@ export async function POST(request: NextRequest) {
     const reviewInput = reviews.map(({ rating, text }) => ({ rating, text }))
 
     // ── Queue mode (production + QStash configured) ───────────
-    const qstash = getQStashClient()
+    const qstash = qstashEarly
 
-    if (qstash && process.env.NODE_ENV === 'production') {
+    if (isQueueMode) {
       await supabase.from('reports').update({
         full_report: {
           _pendingReviews: reviewInput,
@@ -282,11 +295,12 @@ export async function POST(request: NextRequest) {
           _plan:           plan,
           _isAdminUser:    isAdminUser,
           _userEmail:      user.email ?? null,
+          _creditCost:     csvCreditCost,
         },
         status: 'queued',
       }).eq('id', reportId)
 
-      await qstash.publishJSON({
+      await qstash!.publishJSON({
         url:     getWorkerUrl(),
         body:    { reportId, userId: user.id },
         retries: 0, // we handle retries internally
@@ -325,8 +339,18 @@ export async function POST(request: NextRequest) {
         last_analyzed_at:       new Date().toISOString(),
       }).eq('id', reportId)
 
-      // Only increment for plans that didn't already increment at the gate (free uses try_increment_analyses_count above)
-      if (!isAdminUser && plan !== 'free') {
+      // Increment analysis count after success
+      if (!isAdminUser && plan === 'free') {
+        // In direct mode free users: increment here after success (slot was not claimed at gate)
+        const { data: incremented } = await supabase.rpc('try_increment_analyses_count', {
+          p_user_id: user.id,
+          p_limit:   3,
+        })
+        if (!incremented) {
+          // Slot was claimed by concurrent request — still return success since analysis completed
+          console.warn('[CSV] try_increment_analyses_count failed after direct-mode success — concurrent limit hit')
+        }
+      } else if (!isAdminUser) {
         const { error: countError } = await supabase.rpc('increment_analyses_count', { user_id: user.id })
         if (countError) console.error('[CSV] increment_analyses_count failed:', countError.message)
       }
@@ -362,6 +386,7 @@ export async function POST(request: NextRequest) {
     }
   } catch (error: any) {
     console.error('[CSV Analyze] Unhandled error:', error instanceof Error ? error.message : String(error))
+    await refundCsvCredits()
     const limitInfo = getGroqRateLimitInfo(error)
     if (limitInfo.isRateLimit) {
       return NextResponse.json({ error: friendlyGroqLimitMessage(limitInfo.retryAfterSeconds), retryAfterSeconds: limitInfo.retryAfterSeconds }, { status: 429 })

@@ -623,11 +623,12 @@ export async function POST(request: NextRequest) {
   } else {
     // Replay-prevention: cron caller must include a fresh x-cron-ts timestamp
     const cronTs = request.headers.get('x-cron-ts')
-    if (cronTs) {
-      const tsAge = Date.now() - parseInt(cronTs, 10)
-      if (!Number.isFinite(tsAge) || tsAge > 5 * 60 * 1000) {
-        return NextResponse.json({ error: 'Cron token expired' }, { status: 401 })
-      }
+    if (!cronTs) {
+      return NextResponse.json({ error: 'Missing x-cron-ts header' }, { status: 401 })
+    }
+    const tsAge = Date.now() - parseInt(cronTs, 10)
+    if (!Number.isFinite(tsAge) || tsAge > 5 * 60 * 1000) {
+      return NextResponse.json({ error: 'Cron token expired' }, { status: 401 })
     }
   }
 

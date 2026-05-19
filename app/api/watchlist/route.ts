@@ -149,6 +149,16 @@ export async function PATCH(request: NextRequest) {
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   if (!id || !UUID_RE.test(id)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 })
 
+  if (reportId !== undefined) {
+    const { data: reportCheck } = await supabase
+      .from('reports')
+      .select('id')
+      .eq('id', reportId)
+      .eq('user_id', user.id)
+      .maybeSingle()
+    if (!reportCheck) return NextResponse.json({ error: 'Report not found or access denied' }, { status: 403 })
+  }
+
   const updates: Record<string, any> = {}
   if (note     !== undefined) updates.note             = note
   if (reportId !== undefined) updates.report_id        = reportId

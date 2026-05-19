@@ -64,6 +64,11 @@ Return ONLY valid JSON:
   "seoTips": ["tip 1", "tip 2", "tip 3"]
 }`
 
+  // Increment BEFORE the LLM call to prevent concurrent bypass on free plan
+  if (plan === 'free') {
+    await supabase.rpc('increment_ai_listing_uses', { p_user_id: user.id, p_limit: 1 })
+  }
+
   const messages: Message[] = [{ role: 'user', content: systemPrompt }]
   const raw = await callMistralLatest(messages, 1200)
   let parsed: any
@@ -76,10 +81,6 @@ Return ONLY valid JSON:
 
   if (!parsed?.titles || !parsed?.tags || !parsed?.description) {
     return NextResponse.json({ error: 'Failed to generate listing. Please try again.' }, { status: 500 })
-  }
-
-  if (plan === 'free') {
-    await supabase.rpc('increment_ai_listing_uses', { p_user_id: user.id, p_limit: 1 })
   }
 
   return NextResponse.json(parsed)

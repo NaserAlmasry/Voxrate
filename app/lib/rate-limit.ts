@@ -65,10 +65,7 @@ export async function checkRateLimit(
 
   // Upstash path (production)
   if (redis) {
-    const count = await redis.incr(key)
-    if (count === 1) {
-      await redis.expire(key, WINDOW_SECONDS)
-    }
+    const [count] = await redis.pipeline().incr(key).expire(key, WINDOW_SECONDS).exec() as [number, number]
     return {
       allowed:   count <= MAX_REQUESTS,
       remaining: Math.max(0, MAX_REQUESTS - count),

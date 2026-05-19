@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
     // Load the report — verify ownership
     const { data: report, error: reportError } = await supabase
       .from('reports')
-      .select('id, user_id, status, full_report, product_name, created_at')
+      .select('id, user_id, status, full_report, product_name, updated_at')
       .eq('id', reportId)
       .single()
 
@@ -128,8 +128,8 @@ export async function POST(request: NextRequest) {
     // C3: If the report has been stuck in 'partial' for > 15 minutes, mark it failed
     // so the report page can surface a retry button instead of spinning forever.
     if (report.status === 'partial') {
-      const createdAt = new Date((report as any).created_at ?? 0).getTime()
-      if (Date.now() - createdAt > 15 * 60 * 1000) {
+      const updatedAt = new Date((report as any).updated_at ?? 0).getTime()
+      if (Date.now() - updatedAt > 15 * 60 * 1000) {
         await supabase.from('reports').update({ status: 'failed' }).eq('id', reportId)
         return NextResponse.json({ error: 'Analysis timed out — please retry from the dashboard.' }, { status: 504 })
       }

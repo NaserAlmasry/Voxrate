@@ -87,7 +87,8 @@
       "Bash(npx next *)",
       "Bash(sed -i '1s/^/export const dynamic = '\"'\"'force-dynamic'\"'\"'\\\\n\\\\n/' C:/Users/Naser/voxrate/app/api/stripe/checkout/route.ts)",
       "Bash(sed -i '1s/^/export const dynamic = '\"'\"'force-dynamic'\"'\"'\\\\n\\\\n/' C:/Users/Naser/voxrate/app/api/stripe/portal/route.ts)",
-      "Bash(sed -i '1s/^/export const dynamic = '\"'\"'force-dynamic'\"'\"'\\\\n\\\\n/' C:/Users/Naser/voxrate/app/api/account/delete/route.ts)"
+      "Bash(sed -i '1s/^/export const dynamic = '\"'\"'force-dynamic'\"'\"'\\\\n\\\\n/' C:/Users/Naser/voxrate/app/api/account/delete/route.ts)",
+      "Bash(vercel env *)"
     ]
   }
 }

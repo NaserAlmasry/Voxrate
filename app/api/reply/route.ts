@@ -5,6 +5,7 @@ import { enforceRateLimit } from '@/app/lib/rate-limit'
 import { checkCsrf } from '@/app/lib/csrf'
 import { looksLikeNonsense } from '@/app/lib/text-validation'
 import { getClientIp } from '@/app/lib/ip'
+import { extractJson } from '@/app/lib/extract-json'
 
 export async function POST(request: NextRequest) {
   const csrfError = checkCsrf(request)
@@ -68,8 +69,7 @@ Return ONLY valid JSON in this exact format:
 
     let parsed: any
     try {
-      const jsonMatch = raw.match(/\{[\s\S]*\}/)
-      parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : null
+      parsed = extractJson(raw)
     } catch {
       parsed = null
     }

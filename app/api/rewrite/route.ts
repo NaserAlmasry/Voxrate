@@ -4,6 +4,7 @@ import { createClient } from '@/app/lib/supabase/server'
 import { enforceRateLimit } from '@/app/lib/rate-limit'
 import { checkCsrf } from '@/app/lib/csrf'
 import { getClientIp } from '@/app/lib/ip'
+import { extractJson } from '@/app/lib/extract-json'
 
 export async function POST(request: NextRequest) {
   const csrfError = checkCsrf(request)
@@ -39,7 +40,7 @@ export async function POST(request: NextRequest) {
 
     if (report && report.user_id === user.id) {
       const fr = report.full_report || {}
-      keywords   = (fr.seo?.keywords || []).slice(0, 10).map((k: any) => typeof k === 'string' ? k : k.keyword).filter(Boolean)
+      keywords   = (fr.seo?.magicKeywords || []).slice(0, 10).map((k: any) => typeof k === 'string' ? k : k.keyword).filter(Boolean)
       complaints = (fr.complaints || []).slice(0, 5).map((c: any) => c.title).filter(Boolean)
       strengths  = (fr.strengths  || []).slice(0, 3).map((s: any) => s.title).filter(Boolean)
     }
@@ -79,8 +80,7 @@ Return ONLY valid JSON:
 
   let parsed: any
   try {
-    const jsonMatch = raw.match(/\{[\s\S]*\}/)
-    parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : null
+    parsed = extractJson(raw)
   } catch {
     parsed = null
   }

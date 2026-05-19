@@ -142,7 +142,15 @@ export async function POST(request: NextRequest) {
             break
           }
 
-          console.log(`[Webhook] Upgrading user ${userId} to ${plan} + ${credits} credits`)
+          const PLAN_CREDITS: Record<string, number> = {
+            starter: 10,
+            growth:  35,
+            pro:     120,
+          }
+          const newPlan = plan
+          const resolvedCredits = credits === 0 ? (PLAN_CREDITS[newPlan] ?? 0) : credits
+
+          console.log(`[Webhook] Upgrading user ${userId} to ${plan} + ${resolvedCredits} credits`)
 
           // Fetch subscription to get billing period end date
           let periodEnd: number | null = null
@@ -166,15 +174,15 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Plan update failed' }, { status: 500 })
           }
 
-          if (credits > 0 && credits <= MAX_SUB_CREDITS) {
-            const { error: rpcError } = await supabase.rpc('add_credits', { p_user_id: userId, p_amount: credits })
+          if (resolvedCredits > 0 && resolvedCredits <= MAX_SUB_CREDITS) {
+            const { error: rpcError } = await supabase.rpc('add_credits', { p_user_id: userId, p_amount: resolvedCredits })
             if (rpcError) {
               console.error(`[Webhook] add_credits RPC failed on subscription:`, rpcError.message)
               await supabase.from('processed_webhook_events').delete().eq('stripe_event_id', event.id)
               return NextResponse.json({ error: 'Credit update failed' }, { status: 500 })
             }
-          } else if (credits > MAX_SUB_CREDITS) {
-            console.error(`[Webhook] Suspicious subscription credit amount ${credits} — rejected`)
+          } else if (resolvedCredits > MAX_SUB_CREDITS) {
+            console.error(`[Webhook] Suspicious subscription credit amount ${resolvedCredits} — rejected`)
           }
 
           console.log(`[Webhook] ✅ User ${userId} upgraded to ${plan}`)
@@ -255,8 +263,16 @@ export async function POST(request: NextRequest) {
         const subscriptionId = obj.id
         if (!subscriptionId) break
 
-        const subscription = await stripe.subscriptions.retrieve(subscriptionId)
-        const userId = subscription.metadata?.user_id
+        // Use metadata from the event object directly; only retrieve from Stripe as fallback
+        let userId = obj.metadata?.user_id as string | undefined
+        if (!userId) {
+          try {
+            const subscription = await stripe.subscriptions.retrieve(subscriptionId)
+            userId = subscription.metadata?.user_id
+          } catch (retrieveErr: any) {
+            console.error('[Webhook] Could not retrieve subscription for deleted event:', retrieveErr.message)
+          }
+        }
         if (!userId) break
 
         console.log(`[Webhook] Subscription cancelled for user ${userId} — downgrading to free, preserving pack credits`)
