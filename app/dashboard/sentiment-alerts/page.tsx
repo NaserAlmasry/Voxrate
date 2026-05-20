@@ -58,6 +58,7 @@ export default function SentimentAlertsPage() {
   const [marketplace, setMarketplace] = useState('amazon.com')
   const [frequency, setFrequency]     = useState<Frequency>('weekly')
   const [submitting, setSubmitting]   = useState(false)
+  const [userReports, setUserReports] = useState<{ asin: string; product_name: string }[]>([])
 
   const router   = useRouter()
   const supabase = createClient()
@@ -66,13 +67,18 @@ export default function SentimentAlertsPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/'); return }
 
-    const [{ data: userData }, alertsRes] = await Promise.all([
+    const [{ data: userData }, alertsRes, { data: reports }] = await Promise.all([
       supabase.from('users').select('plan').eq('id', user.id).single(),
       fetch('/api/sentiment-alerts', { headers: { 'X-Requested-With': 'XMLHttpRequest' } }).then(r => r.json()),
+      supabase.from('reports').select('asin, product_name').eq('user_id', user.id).eq('status', 'completed').or('report_type.eq.own,report_type.is.null').order('created_at', { ascending: false }).limit(30),
     ])
 
     setPlan(userData?.plan || 'free')
     setAlerts(alertsRes.alerts || [])
+    // deduplicate by asin
+    const seen = new Set<string>()
+    const unique = (reports || []).filter((r: any) => r.asin && !seen.has(r.asin) && seen.add(r.asin))
+    setUserReports(unique)
     setLoading(false)
   }
 
@@ -269,6 +275,25 @@ export default function SentimentAlertsPage() {
             </div>
 
             <div className="space-y-3">
+              {userReports.length > 0 && (
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-600 mb-1">Pick from your products</label>
+                  <select
+                    className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-xl bg-white outline-none focus:border-orange-400"
+                    value=""
+                    onChange={e => {
+                      const r = userReports.find(r => r.asin === e.target.value)
+                      if (r) { setAsin(r.asin); setProductName(r.product_name || '') }
+                    }}
+                  >
+                    <option value="">— select a product —</option>
+                    {userReports.map(r => (
+                      <option key={r.asin} value={r.asin}>{r.product_name || r.asin}</option>
+                    ))}
+                  </select>
+                  <p className="text-[10px] text-neutral-400 mt-1">Or type an ASIN manually below</p>
+                </div>
+              )}
               <div>
                 <label className="block text-xs font-semibold text-neutral-600 mb-1">ASIN</label>
                 <input

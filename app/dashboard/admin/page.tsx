@@ -142,6 +142,7 @@ export default function AdminPage() {
       </div>
 
       {/* Tabs */}
+      <div className="flex items-center justify-between gap-4 flex-wrap">
       <div className="flex gap-1 bg-neutral-100 p-1 rounded-xl w-fit">
         {(['overview', 'users', 'ratings'] as const).map(t => (
           <button
@@ -153,6 +154,14 @@ export default function AdminPage() {
             {t === 'overview' ? 'Recent activity' : t}
           </button>
         ))}
+      </div>
+      <a
+        href="/dashboard/admin/blog"
+        className="flex items-center gap-1.5 px-4 py-1.5 bg-black text-white text-xs font-semibold rounded-xl hover:bg-neutral-800 transition-colors"
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        Manage blog
+      </a>
       </div>
 
       {/* Tab: Recent activity */}
