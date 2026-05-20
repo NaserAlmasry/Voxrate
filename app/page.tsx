@@ -484,6 +484,32 @@ export default function LandingPage() {
   const [calcFrequency, setCalcFrequency] = useState<'monthly' | 'quarterly'>('monthly')
   const nlDropdownRef = useRef<HTMLDivElement>(null)
   const [supabase] = useState(() => createClient())
+  const [showVerifiedBanner, setShowVerifiedBanner] = useState(false)
+
+  // Capture ?ref=CODE so we can credit the referrer after this visitor signs up
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search)
+      const ref = params.get('ref')
+      if (ref && /^[A-Za-z0-9_-]{1,32}$/.test(ref)) {
+        localStorage.setItem('voxrate_ref_code', ref)
+      }
+    } catch {}
+  }, [])
+
+  // Show "account verified" banner if redirected here with ?verified=true
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('verified') === 'true') {
+      setShowVerifiedBanner(true)
+      // Clean the param from the URL without a page reload
+      const cleanUrl = window.location.pathname + (window.location.hash || '')
+      window.history.replaceState(null, '', cleanUrl)
+      // Auto-dismiss after 6 seconds
+      const t = setTimeout(() => setShowVerifiedBanner(false), 6000)
+      return () => clearTimeout(t)
+    }
+  }, [])
 
   const saveNewsletter = async (email: string) => {
     try { await supabase.from('newsletter_emails').insert({ email }) } catch {}
@@ -608,6 +634,17 @@ export default function LandingPage() {
           initialStep={authModalMode.step}
           initialAuthMode={authModalMode.authMode}
         />
+      )}
+
+      {/* ── Email verified banner ── */}
+      {showVerifiedBanner && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[200] flex items-center gap-3 px-5 py-3.5 bg-green-600 text-white text-sm font-medium rounded-2xl shadow-xl">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          Your account has been verified. You can now sign in.
+          <button onClick={() => setShowVerifiedBanner(false)} className="ml-2 opacity-70 hover:opacity-100 transition-opacity" aria-label="Dismiss">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
       )}
       <style>{`
         html { scroll-behavior: smooth; }

@@ -7,7 +7,7 @@
 import { useState, useEffect, useRef, Suspense } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/app/lib/supabase/client'
-import { PenLine, LayoutTemplate, Activity, MessageSquare, Crosshair, Eye, Bell, Home, LayoutGrid, Clock, Settings, Shield, Users, LogOut, ChevronLeft, ChevronRight, Menu, X } from 'lucide-react'
+import { PenLine, LayoutTemplate, Activity, MessageSquare, Crosshair, Eye, Bell, BellRing, Home, LayoutGrid, Clock, Settings, Shield, Users, LogOut, ChevronLeft, ChevronRight, Menu, X, Gift } from 'lucide-react'
 import CheckoutRedirectHandler from '@/app/components/CheckoutRedirectHandler'
 import OnboardingModal from '@/app/components/OnboardingModal'
 import ErrorBoundary from '@/app/components/ErrorBoundary'
@@ -59,6 +59,11 @@ const NAV_GROUPS: NavGroup[] = [
         href: '/dashboard/monitor',
         icon: <Bell size={18} />,
       },
+      {
+        label: 'Sentiment Alerts',
+        href: '/dashboard/sentiment-alerts',
+        icon: <BellRing size={18} />,
+      },
     ],
   },
   {
@@ -83,6 +88,11 @@ const NAV_GROUPS: NavGroup[] = [
   },
   {
     items: [
+      {
+        label: 'Referral Program',
+        href: '/dashboard/referral',
+        icon: <Gift size={18} />,
+      },
       {
         label: 'Settings',
         href: '/dashboard/settings',

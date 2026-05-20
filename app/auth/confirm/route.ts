@@ -19,5 +19,16 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${origin}/auth/reset-password`)
   }
 
+  // Email signup confirmation (token_hash + type === 'signup' or 'email')
+  if (tokenHash && (type === 'signup' || type === 'email')) {
+    const supabase = await createClient()
+    const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: type as 'signup' | 'email' })
+    if (error) {
+      console.error('[Auth Confirm] Email verification failed:', error.message)
+      return NextResponse.redirect(`${origin}/?error=verify_failed`)
+    }
+    return NextResponse.redirect(`${origin}/dashboard?verified=true`)
+  }
+
   return NextResponse.redirect(`${origin}/`)
 }

@@ -73,6 +73,7 @@ function DashboardHomeInner() {
 
   const [weeklyDigest, setWeeklyDigest] = useState<{ productName: string; score: number; topComplaint: string | null; prevScore: number | null } | null>(null)
   const [digestDismissed, setDigestDismissed] = useState(false)
+  const [showVerifiedBanner, setShowVerifiedBanner] = useState(false)
 
   // ── Product info modal (CSV upload) ──────────────────────
   const [showProductModal, setShowProductModal] = useState(false)
@@ -111,6 +112,38 @@ function DashboardHomeInner() {
   }
 
   // ── Effects ──────────────────────────────────────────────
+
+  // Show "account verified" toast when landing here with ?verified=true
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('verified') === 'true') {
+      setShowVerifiedBanner(true)
+      // Clean param from URL without reload
+      const cleanSearch = params.toString().replace(/[&?]?verified=true/, '').replace(/^&/, '')
+      const cleanUrl = window.location.pathname + (cleanSearch ? `?${cleanSearch}` : '') + (window.location.hash || '')
+      window.history.replaceState(null, '', cleanUrl)
+      const t = setTimeout(() => setShowVerifiedBanner(false), 6000)
+      return () => clearTimeout(t)
+    }
+  }, [])
+
+  // Referral attribution — if this user landed via /?ref=CODE before signup,
+  // associate them with the referrer now (idempotent server-side).
+  useEffect(() => {
+    try {
+      const refCode = localStorage.getItem('voxrate_ref_code')
+      if (!refCode) return
+      fetch('/api/referral/track', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        body: JSON.stringify({ referral_code: refCode }),
+      })
+        .catch(() => {})
+        .finally(() => {
+          try { localStorage.removeItem('voxrate_ref_code') } catch {}
+        })
+    } catch {}
+  }, [])
 
   useEffect(() => {
     const saved = localStorage.getItem(SIMULATE_USER_KEY)
@@ -415,6 +448,17 @@ function DashboardHomeInner() {
 
   return (
     <div style={{ fontFamily: "'DM Sans', sans-serif" }} className="max-w-2xl mx-auto pb-20 space-y-5">
+
+      {/* ── Account verified toast ── */}
+      {showVerifiedBanner && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[200] flex items-center gap-3 px-5 py-3.5 bg-green-600 text-white text-sm font-medium rounded-2xl shadow-xl">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          Account verified! Welcome to Voxrate.
+          <button onClick={() => setShowVerifiedBanner(false)} className="ml-2 opacity-70 hover:opacity-100 transition-opacity" aria-label="Dismiss">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+      )}
 
       {/* ── Admin Toggle ── */}
       {isAdminUser && (

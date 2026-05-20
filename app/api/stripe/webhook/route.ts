@@ -186,6 +186,33 @@ export async function POST(request: NextRequest) {
           }
 
           console.log(`[Webhook] ✅ User ${userId} upgraded to ${plan}`)
+
+          // ── Referral conversion ──────────────────────────────
+          // If this user was referred, mark the referral converted and bump
+          // the referrer's counter. First paid checkout only.
+          try {
+            const { data: referral } = await supabase
+              .from('referrals')
+              .select('referrer_id, converted')
+              .eq('referred_user_id', userId)
+              .maybeSingle()
+
+            if (referral && !referral.converted) {
+              await supabase
+                .from('referrals')
+                .update({ converted: true, converted_at: new Date().toISOString() })
+                .eq('referred_user_id', userId)
+              const { error: rpcErr } = await supabase.rpc('increment_referral_count', { uid: referral.referrer_id })
+              if (rpcErr) {
+                console.error('[Webhook] increment_referral_count failed:', rpcErr.message)
+              } else {
+                console.log(`[Webhook] ✅ Referral converted — referrer ${referral.referrer_id} counter +1`)
+              }
+            }
+          } catch (refErr: any) {
+            // Non-fatal — never block the checkout flow because of referral bookkeeping
+            console.warn('[Webhook] Referral conversion side-effect failed:', refErr?.message ?? refErr)
+          }
         }
         break
       }

@@ -206,6 +206,83 @@ export async function sendReportFailed({
   })
 }
 
+export async function sendSentimentAlert({
+  to,
+  productName,
+  asin,
+  marketplace,
+  reviews,
+  frequency,
+  creditsCharged,
+}: {
+  to: string
+  productName: string
+  asin: string
+  marketplace: string
+  reviews: { rating: number; title: string; body: string }[]
+  frequency: string
+  creditsCharged: number
+}) {
+  if (!resend) {
+    console.warn('[Email] RESEND_API_KEY not set — skipping sentiment alert')
+    return
+  }
+
+  const SITE_URL  = process.env.NEXT_PUBLIC_SITE_URL || 'https://voxrate.app'
+  const safeName  = productName.replace(/[^\w\s\-.,!?']/g, '') || asin
+  const count     = reviews.length
+  const productHref = `https://www.${marketplace.replace(/^amazon\./, 'amazon.')}/dp/${asin}`
+
+  const reviewsHtml = reviews.slice(0, 20).map(r => {
+    const stars  = '★'.repeat(r.rating) + '☆'.repeat(5 - r.rating)
+    const color  = r.rating === 1 ? '#dc2626' : '#f05a1e'
+    const snippet = (r.body || '').slice(0, 280)
+    return `
+      <div style="border:1px solid #fecaca;background:#fff5f5;border-radius:10px;padding:12px 14px;margin-bottom:8px;">
+        <p style="margin:0 0 4px;font-size:12px;font-weight:700;color:${color};letter-spacing:1px;">${stars} <span style="color:#6b7280;font-weight:500;letter-spacing:0;margin-left:6px;">${r.rating}-star</span></p>
+        ${r.title ? `<p style="margin:0 0 4px;font-size:12px;font-weight:700;color:#111;">${h(r.title)}</p>` : ''}
+        <p style="margin:0;font-size:12px;color:#374151;line-height:1.5;">${h(snippet)}${snippet.length >= 280 ? '…' : ''}</p>
+      </div>`
+  }).join('')
+
+  await resend.emails.send({
+    from:    'Voxrate <alerts@voxrate.app>',
+    to,
+    subject: `New negative reviews for ${safeName} — ${count} review${count === 1 ? '' : 's'}`,
+    html: `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f9fafb;margin:0;padding:24px;">
+  <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:16px;border:1px solid #e5e7eb;overflow:hidden;">
+    <div style="background:#111;padding:20px 24px;">
+      <span style="font-size:18px;font-weight:900;color:#fff;">Voxrate</span>
+      <span style="display:block;font-size:11px;color:#6b7280;margin-top:2px;">Sentiment alert · ${frequency}</span>
+    </div>
+    <div style="padding:24px;">
+      <h1 style="font-size:16px;font-weight:700;color:#111;margin:0 0 4px;">${h(productName)}</h1>
+      <p style="font-size:12px;color:#6b7280;margin:0 0 18px;">
+        ${count} new 1★/2★ review${count === 1 ? '' : 's'} detected · ASIN <a href="${productHref}" style="color:#6b7280;text-decoration:underline;">${h(asin)}</a>
+      </p>
+      ${count === 0
+        ? `<div style="padding:18px;text-align:center;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;"><p style="margin:0;font-size:13px;color:#15803d;font-weight:600;">No new negative reviews this period.</p></div>`
+        : reviewsHtml}
+      <a href="${SITE_URL}/dashboard/sentiment-alerts" style="display:block;text-align:center;padding:14px;background:#f05a1e;color:#fff;text-decoration:none;border-radius:10px;font-size:13px;font-weight:700;margin-top:16px;">
+        Manage alerts →
+      </a>
+      <p style="font-size:11px;color:#9ca3af;margin:14px 0 0;text-align:center;">${creditsCharged} credit${creditsCharged === 1 ? '' : 's'} used for this scan.</p>
+    </div>
+    <div style="padding:16px 24px;border-top:1px solid #f3f4f6;text-align:center;">
+      <p style="font-size:11px;color:#9ca3af;margin:0;">
+        <a href="${SITE_URL}" style="color:#f05a1e;text-decoration:none;">Voxrate</a> — Amazon review intelligence
+      </p>
+    </div>
+  </div>
+</body>
+</html>`,
+  })
+}
+
 export async function sendMonitorAlert({
   to,
   productName,

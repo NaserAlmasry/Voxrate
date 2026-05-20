@@ -790,7 +790,19 @@ export default function ReportPage() {
     marketingCopy:   Array.isArray(rawReport.marketingCopy)   ? rawReport.marketingCopy   : [],
     reviewTemplates: Array.isArray(rawReport.reviewTemplates) ? rawReport.reviewTemplates : [],
     topActions:      Array.isArray(rawReport.topActions)      ? rawReport.topActions      : [],
-  }), [rawReport])
+    fakeReviewFlag:
+      typeof rawReport.fakeReviewFlag === 'boolean' ? rawReport.fakeReviewFlag
+      : typeof rawReport.fake_review_flag === 'boolean' ? rawReport.fake_review_flag
+      : typeof report?.fakeReviewFlag === 'boolean' ? report.fakeReviewFlag
+      : typeof report?.fake_review_flag === 'boolean' ? report.fake_review_flag
+      : null,
+    verifiedHealthScore:
+      typeof rawReport.verifiedHealthScore === 'number' ? rawReport.verifiedHealthScore
+      : typeof rawReport.verified_health_score === 'number' ? rawReport.verified_health_score
+      : typeof report?.verifiedHealthScore === 'number' ? report.verifiedHealthScore
+      : typeof report?.verified_health_score === 'number' ? report.verified_health_score
+      : null,
+  }), [rawReport, report])
 
   const fr = useMemo(() => {
     if (effectiveAdmin)              return { ...normalised, _isLimited: false }
@@ -830,6 +842,50 @@ export default function ReportPage() {
     printWindow.document.close()
     printWindow.focus()
     printWindow.onload = () => { printWindow.print(); printWindow.close() }
+  }, [report, fr])
+
+  const handleExportCSV = useCallback(() => {
+    if (!report || !fr) return
+    const esc = (v: any): string => {
+      const s = v == null ? '' : String(v)
+      return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+    }
+    const row = (cols: any[]) => cols.map(esc).join(',')
+    const lines: string[] = []
+    lines.push('VOXRATE REPORT EXPORT')
+    lines.push(`Product:,${esc(report.product_name || '')}`)
+    lines.push(`Date:,${esc(new Date().toLocaleDateString())}`)
+    lines.push('')
+    lines.push('COMPLAINTS')
+    lines.push('Title,Severity,Affected Segment,Root Cause,Review Count')
+    for (const c of safeArray(fr.complaints)) {
+      lines.push(row([c?.title, c?.severity, c?.affectedSegment, c?.rootCause, c?.reviewCount]))
+    }
+    lines.push('')
+    lines.push('SEO KEYWORDS')
+    lines.push('Keyword,Usage Suggestion')
+    const kws = safeArray(fr.seo?.keywords)
+    for (const k of kws) {
+      if (typeof k === 'string') lines.push(row([k, '']))
+      else lines.push(row([k?.keyword, k?.usage]))
+    }
+    lines.push('')
+    lines.push('TOP ACTIONS')
+    lines.push('Action,Detail,Segment')
+    for (const a of safeArray(fr.topActions)) {
+      lines.push(row([a?.action, a?.detail, a?.segment]))
+    }
+    const csv = '﻿' + lines.join('\r\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    const safeName = String(report.product_name || 'voxrate-report').replace(/[^a-z0-9-_]+/gi, '-').slice(0, 60)
+    a.href = url
+    a.download = `${safeName}-voxrate.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
   }, [report, fr])
 
   const toggleCard = (i: number) => {
@@ -1007,6 +1063,21 @@ export default function ReportPage() {
             </button>
           </div>
 
+          {effectivePlan !== 'free' && (
+            <button
+              onClick={handleExportCSV}
+              className="px-3 py-2 text-xs font-medium border border-neutral-200 rounded-xl hover:bg-neutral-50 transition-colors flex items-center gap-1.5"
+              title="Export complaints, SEO keywords, and top actions as CSV"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              Export CSV
+            </button>
+          )}
+
           {!isLimited && (
             <div className="relative">
               <button
@@ -1138,6 +1209,50 @@ export default function ReportPage() {
           <ProgressChart history={scoreHistory} />
         </div>
       )}
+
+      {/* Review Authenticity — Growth+/Pro/Admin only */}
+      {(effectiveAdmin || effectivePlan === 'growth' || effectivePlan === 'pro') && (fr.fakeReviewFlag !== null || typeof fr.verifiedHealthScore === 'number') && (() => {
+        const flagged = fr.fakeReviewFlag === true
+        const score   = typeof fr.verifiedHealthScore === 'number' ? fr.verifiedHealthScore : null
+        const healthy = !flagged && score !== null && score >= 80
+        const palette = flagged
+          ? { bg: 'bg-amber-50', border: 'border-amber-300', icon: '#d97706', title: 'text-amber-900', body: 'text-amber-800', score: 'text-amber-900' }
+          : healthy
+          ? { bg: 'bg-green-50', border: 'border-green-300', icon: '#16a34a', title: 'text-green-900', body: 'text-green-800', score: 'text-green-900' }
+          : { bg: 'bg-neutral-50', border: 'border-neutral-200', icon: '#525252', title: 'text-neutral-900', body: 'text-neutral-600', score: 'text-neutral-900' }
+        const title = flagged ? 'Review Authenticity Alert' : 'Review Authenticity'
+        const body  = flagged
+          ? 'A higher-than-normal ratio of unverified negative reviews was detected. This may indicate review manipulation by competitors.'
+          : healthy
+          ? 'Review authenticity looks healthy.'
+          : 'Some reviews could not be verified. Monitor for unusual patterns.'
+        return (
+          <div className={`rounded-2xl border p-5 flex items-start gap-4 ${palette.bg} ${palette.border}`}>
+            <div className="flex-shrink-0 mt-0.5">
+              {flagged ? (
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={palette.icon} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                  <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+              ) : (
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={palette.icon} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                  <polyline points="9 12 11 14 15 10"/>
+                </svg>
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className={`text-sm font-semibold ${palette.title}`}>{title}</p>
+              <p className={`text-xs mt-1 leading-relaxed ${palette.body}`}>{body}</p>
+              {score !== null && (
+                <p className={`text-xs mt-2 font-medium ${palette.score}`}>
+                  Verified Review Score: <span className="font-bold">{score}/100</span>
+                </p>
+              )}
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Quick Win — paid only */}
       {!isLimited && fr.quickWin && (
