@@ -17,6 +17,7 @@ type Post = {
   excerpt: string | null
   cover_image: string | null
   published_at: string | null
+  views: number
 }
 
 function formatDate(iso: string | null): string {
@@ -32,7 +33,7 @@ export default async function BlogIndexPage() {
   const supabase = await createClient()
   const { data } = await supabase
     .from('blog_posts')
-    .select('id, title, slug, excerpt, cover_image, published_at')
+    .select('id, title, slug, excerpt, cover_image, published_at, views')
     .eq('published', true)
     .order('published_at', { ascending: false })
 
@@ -89,7 +90,15 @@ export default async function BlogIndexPage() {
                   {p.excerpt && (
                     <p className="text-sm text-neutral-600 leading-relaxed line-clamp-3 mb-4">{p.excerpt}</p>
                   )}
-                  <span className="mt-auto text-sm text-orange-600 font-medium">Read more →</span>
+                  <div className="mt-auto flex items-center justify-between">
+                    <span className="text-sm text-orange-600 font-medium">Read more →</span>
+                    {p.views > 0 && (
+                      <span className="text-xs text-neutral-400 flex items-center gap-1">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        {p.views.toLocaleString()}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </Link>
             ))}

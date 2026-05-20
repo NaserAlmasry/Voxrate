@@ -19,6 +19,7 @@ type Post = {
   published: boolean
   published_at: string | null
   updated_at: string | null
+  views: number
 }
 
 async function fetchPost(slug: string): Promise<Post | null> {
@@ -29,7 +30,10 @@ async function fetchPost(slug: string): Promise<Post | null> {
     .eq('slug', slug)
     .eq('published', true)
     .maybeSingle()
-  return (data as Post | null) || null
+  if (!data) return null
+  // increment view count fire-and-forget
+  supabase.rpc('increment_blog_views', { post_slug: slug }).then(() => {})
+  return (data as Post) || null
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
@@ -91,7 +95,18 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
         </Link>
 
         <header className="mb-10">
-          <p className="text-xs text-neutral-400 mb-3">{formatDate(post.published_at)}</p>
+          <div className="flex items-center gap-3 text-xs text-neutral-400 mb-3">
+            <span>{formatDate(post.published_at)}</span>
+            {post.views > 0 && (
+              <>
+                <span>·</span>
+                <span className="flex items-center gap-1">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  {post.views.toLocaleString()} views
+                </span>
+              </>
+            )}
+          </div>
           <h1 className="text-4xl md:text-5xl font-bold tracking-tight leading-tight mb-4">{post.title}</h1>
           {post.excerpt && (
             <p className="text-lg text-neutral-600 leading-relaxed">{post.excerpt}</p>
