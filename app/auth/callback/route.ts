@@ -35,7 +35,7 @@ export async function GET(request: Request) {
       return NextResponse.redirect(`${origin}/?error=auth_failed`)
     }
     // Supabase sets the AMR claim to 'otp' for email link sign-ins (signup confirmation)
-    const amr = data?.session?.user?.amr ?? (data?.session as any)?.amr
+    const amr = (data?.session?.user as any)?.amr ?? (data?.session as any)?.amr
     const verifiedViaLink = Array.isArray(amr)
       ? amr.some((a: any) => a.method === 'otp')
       : false
