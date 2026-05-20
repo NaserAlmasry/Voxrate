@@ -110,8 +110,8 @@ export async function POST(request: NextRequest) {
       product_name,
       marketplace,
       frequency,
-      active:       true,
-      next_run_at:  computeNextRun(frequency, now),
+      active:       false,
+      next_run_at:  null,
     })
     .select()
     .single()
