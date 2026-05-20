@@ -4,27 +4,21 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/app/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 
-type Frequency = 'weekly' | 'biweekly' | 'triweekly' | 'monthly'
+type Frequency = 'biweekly' | 'monthly'
 
 const FREQ_LABEL: Record<Frequency, string> = {
-  weekly:    'Weekly',
-  biweekly:  'Every 2 weeks',
-  triweekly: 'Every 3 weeks',
-  monthly:   'Monthly',
+  biweekly: 'Every 2 weeks',
+  monthly:  'Monthly',
 }
 
 const FREQ_CREDITS: Record<Frequency, number> = {
-  weekly:    5,
-  biweekly:  10,
-  triweekly: 12,
-  monthly:   15,
+  biweekly: 10,
+  monthly:  15,
 }
 
 const FREQ_PER_LABEL: Record<Frequency, string> = {
-  weekly:    'week',
-  biweekly:  '2 weeks',
-  triweekly: '3 weeks',
-  monthly:   'month',
+  biweekly: '2 weeks',
+  monthly:  'month',
 }
 
 interface Alert {
@@ -56,9 +50,10 @@ export default function SentimentAlertsPage() {
   const [asin, setAsin]               = useState('')
   const [productName, setProductName] = useState('')
   const [marketplace, setMarketplace] = useState('amazon.com')
-  const [frequency, setFrequency]     = useState<Frequency>('weekly')
-  const [submitting, setSubmitting]   = useState(false)
-  const [userReports, setUserReports] = useState<{ asin: string; product_name: string }[]>([])
+  const [frequency, setFrequency]     = useState<Frequency>('biweekly')
+  const [submitting, setSubmitting]     = useState(false)
+  const [userReports, setUserReports]   = useState<{ asin: string; product_name: string }[]>([])
+  const [manualAsin, setManualAsin]     = useState(false)
 
   const router   = useRouter()
   const supabase = createClient()
@@ -87,7 +82,7 @@ export default function SentimentAlertsPage() {
   const isEligible = plan === 'growth' || plan === 'pro'
 
   const resetForm = () => {
-    setAsin(''); setProductName(''); setMarketplace('amazon.com'); setFrequency('weekly'); setError('')
+    setAsin(''); setProductName(''); setMarketplace('amazon.com'); setFrequency('biweekly'); setError(''); setManualAsin(false)
   }
 
   const submit = async () => {
@@ -152,7 +147,7 @@ export default function SentimentAlertsPage() {
         <div>
           <h1 className="text-xl font-semibold">Sentiment alerts</h1>
           <p className="text-xs text-neutral-400 mt-1">
-            Get an email digest of new 1★ and 2★ reviews for your ASINs, on the schedule you choose.
+            Get an email digest of new 1★ and 2★ reviews for your products, every 2 weeks or monthly.
           </p>
         </div>
         {isEligible && (
@@ -185,7 +180,7 @@ export default function SentimentAlertsPage() {
         <div className="bg-white rounded-2xl border border-neutral-200 p-10 text-center">
           <h2 className="text-base font-semibold mb-2">No alerts set up yet</h2>
           <p className="text-sm text-neutral-500 mb-6">
-            Add an ASIN and choose how often Voxrate should scan for new negative reviews.
+            Choose a product and how often Voxrate should scan for new negative reviews.
           </p>
           <button
             onClick={() => setShowModal(true)}
@@ -275,47 +270,50 @@ export default function SentimentAlertsPage() {
             </div>
 
             <div className="space-y-3">
-              {userReports.length > 0 && (
-                <div>
-                  <label className="block text-xs font-semibold text-neutral-600 mb-1">Pick from your products</label>
-                  <select
-                    className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-xl bg-white outline-none focus:border-orange-400"
-                    value=""
-                    onChange={e => {
-                      const r = userReports.find(r => r.asin === e.target.value)
-                      if (r) { setAsin(r.asin); setProductName(r.product_name || '') }
-                    }}
-                  >
-                    <option value="">— select a product —</option>
-                    {userReports.map(r => (
-                      <option key={r.asin} value={r.asin}>{r.product_name || r.asin}</option>
-                    ))}
-                  </select>
-                  <p className="text-[10px] text-neutral-400 mt-1">Or type an ASIN manually below</p>
-                </div>
-              )}
               <div>
-                <label className="block text-xs font-semibold text-neutral-600 mb-1">ASIN</label>
-                <input
-                  type="text"
-                  value={asin}
-                  onChange={e => setAsin(e.target.value)}
-                  placeholder="B0XXXXXXXX"
-                  maxLength={10}
-                  className="w-full px-3 py-2 text-sm font-mono border border-neutral-200 rounded-xl focus:outline-none focus:border-black uppercase"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-neutral-600 mb-1">Product name (optional)</label>
-                <input
-                  type="text"
-                  value={productName}
-                  onChange={e => setProductName(e.target.value)}
-                  placeholder="So it's easy to recognize"
-                  maxLength={200}
-                  className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-xl focus:outline-none focus:border-black"
-                />
+                <label className="block text-xs font-semibold text-neutral-600 mb-1">Product</label>
+                {userReports.length > 0 && !manualAsin ? (
+                  <>
+                    <select
+                      className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-xl bg-white outline-none focus:border-orange-400"
+                      value={asin}
+                      onChange={e => {
+                        const r = userReports.find(r => r.asin === e.target.value)
+                        if (r) { setAsin(r.asin); setProductName(r.product_name || '') }
+                        else { setAsin(''); setProductName('') }
+                      }}
+                    >
+                      <option value="">— select a product —</option>
+                      {userReports.map(r => (
+                        <option key={r.asin} value={r.asin}>{r.product_name || r.asin} ({r.asin})</option>
+                      ))}
+                    </select>
+                    <p className="text-[10px] text-neutral-400 mt-1">
+                      Don't see your product?{' '}
+                      <button type="button" className="text-orange-500 underline" onClick={() => { setManualAsin(true); setAsin(''); setProductName('') }}>
+                        Enter ASIN manually
+                      </button>
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <input
+                      type="text"
+                      value={asin}
+                      onChange={e => setAsin(e.target.value)}
+                      placeholder="B0XXXXXXXX"
+                      maxLength={10}
+                      className="w-full px-3 py-2 text-sm font-mono border border-neutral-200 rounded-xl focus:outline-none focus:border-black uppercase"
+                    />
+                    {userReports.length > 0 && (
+                      <p className="text-[10px] text-neutral-400 mt-1">
+                        <button type="button" className="text-orange-500 underline" onClick={() => { setManualAsin(false); setAsin(''); setProductName('') }}>
+                          ← Back to product list
+                        </button>
+                      </p>
+                    )}
+                  </>
+                )}
               </div>
 
               <div>
@@ -339,7 +337,7 @@ export default function SentimentAlertsPage() {
               <div>
                 <label className="block text-xs font-semibold text-neutral-600 mb-2">Frequency</label>
                 <div className="grid grid-cols-2 gap-2">
-                  {(['weekly', 'biweekly', 'triweekly', 'monthly'] as Frequency[]).map(f => (
+                  {(['biweekly', 'monthly'] as Frequency[]).map(f => (
                     <button
                       key={f}
                       type="button"
