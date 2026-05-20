@@ -485,6 +485,7 @@ export default function LandingPage() {
   const nlDropdownRef = useRef<HTMLDivElement>(null)
   const [supabase] = useState(() => createClient())
   const [showVerifiedBanner, setShowVerifiedBanner] = useState(false)
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
 
   // Capture ?ref=CODE so we can credit the referrer after this visitor signs up
   useEffect(() => {
@@ -495,6 +496,13 @@ export default function LandingPage() {
         localStorage.setItem('voxrate_ref_code', ref)
       }
     } catch {}
+  }, [])
+
+  // Check if user is already logged in to show dashboard button
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) setIsLoggedIn(true)
+    })
   }, [])
 
   // Show "account verified" banner if redirected here with ?verified=true
@@ -693,12 +701,20 @@ export default function LandingPage() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <button onClick={() => { setAuthModalMode({ step: 'auth', authMode: 'login' }); setShowAuthModal(true) }}
-              className="text-sm text-neutral-600 hover:text-black transition-colors bg-transparent border-none cursor-pointer p-0">Login</button>
-            <button onClick={() => setShowAuthModal(true)}
-              className="glow-orange btn-press px-5 py-2.5 text-sm font-semibold rounded-full bg-orange-500 text-white hover:bg-orange-600 shadow-sm">
-              Start free →
-            </button>
+            {isLoggedIn ? (
+              <a href="/dashboard" className="glow-orange btn-press px-5 py-2.5 text-sm font-semibold rounded-full bg-orange-500 text-white hover:bg-orange-600 shadow-sm">
+                Go to dashboard →
+              </a>
+            ) : (
+              <>
+                <button onClick={() => { setAuthModalMode({ step: 'auth', authMode: 'login' }); setShowAuthModal(true) }}
+                  className="text-sm text-neutral-600 hover:text-black transition-colors bg-transparent border-none cursor-pointer p-0">Login</button>
+                <button onClick={() => setShowAuthModal(true)}
+                  className="glow-orange btn-press px-5 py-2.5 text-sm font-semibold rounded-full bg-orange-500 text-white hover:bg-orange-600 shadow-sm">
+                  Start free →
+                </button>
+              </>
+            )}
           </div>
         </div>
       </nav>

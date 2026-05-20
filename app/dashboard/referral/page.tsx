@@ -179,6 +179,35 @@ export default function ReferralPage() {
         </button>
       </div>
 
+      {/* UGC Rewards */}
+      <div className="bg-white rounded-2xl border border-neutral-200 p-6 space-y-3">
+        <h2 className="text-sm font-semibold text-neutral-700">UGC video rewards</h2>
+        <p className="text-xs text-neutral-500">Post a video about Voxrate and tag us — we'll manually apply your reward after reviewing it.</p>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between p-3 bg-neutral-50 rounded-xl border border-neutral-200">
+            <div>
+              <p className="text-xs font-semibold text-neutral-700">20,000+ views</p>
+              <p className="text-xs text-neutral-400">TikTok, Instagram Reels, or YouTube Shorts</p>
+            </div>
+            <span className="text-xs font-bold text-orange-600 bg-orange-50 border border-orange-100 px-2 py-1 rounded-full">20% discount</span>
+          </div>
+          <div className="flex items-center justify-between p-3 bg-neutral-50 rounded-xl border border-neutral-200">
+            <div>
+              <p className="text-xs font-semibold text-neutral-700">100,000+ views</p>
+              <p className="text-xs text-neutral-400">Any platform</p>
+            </div>
+            <span className="text-xs font-bold text-orange-600 bg-orange-50 border border-orange-100 px-2 py-1 rounded-full">1 month Growth free</span>
+          </div>
+        </div>
+        <p className="text-xs text-neutral-400">To claim a UGC reward, email us at <a href="mailto:info@voxrate.app" className="text-orange-500 hover:underline">info@voxrate.app</a> with a link to your video.</p>
+      </div>
+
+      {/* Contact note */}
+      <p className="text-xs text-neutral-400 text-center pb-2">
+        Think there's a mistake with your referral count?{' '}
+        <a href="mailto:info@voxrate.app" className="text-orange-500 hover:underline">Contact us</a> and we'll look into it.
+      </p>
+
       {/* Confirm modal */}
       {showConfirm && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
