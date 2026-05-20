@@ -665,6 +665,7 @@ export default function LandingPage() {
             <a href="#features"    className="hover:text-black transition-colors">Features</a>
             <a href="#how-it-works" className="hover:text-black transition-colors">How it works</a>
             <a href="#pricing"     className="hover:text-black transition-colors">Pricing</a>
+            <a href="/blog"        className="hover:text-black transition-colors">Blog</a>
             <div className="relative" ref={nlDropdownRef}>
               <button onClick={() => setShowNewsletter(v => !v)} className="hover:text-black transition-colors">Newsletter</button>
               {showNewsletter && (
@@ -1810,7 +1811,7 @@ export default function LandingPage() {
             <div>
               <p className="text-xs font-semibold text-neutral-700 uppercase tracking-wider mb-3">Product</p>
               <div className="space-y-2">
-                {[['#features','Features',false],['#how-it-works','How it works',false],['#pricing','Pricing',false],['/faq','FAQ',true],['/privacy','Privacy policy',true],['/terms','Terms of service',true]].map(([h,l,blank]) => (
+                {[['#features','Features',false],['#how-it-works','How it works',false],['#pricing','Pricing',false],['/blog','Blog',true],['/faq','FAQ',true],['/privacy','Privacy policy',true],['/terms','Terms of service',true]].map(([h,l,blank]) => (
                   <a key={String(l)} href={String(h)} target={blank ? '_blank' : undefined} rel={blank ? 'noopener noreferrer' : undefined}
                     className="block text-xs text-neutral-400 hover:text-black transition-colors">{l}</a>
                 ))}

@@ -1,7 +1,8 @@
 import { MetadataRoute } from 'next'
+import { createClient } from '@/app/lib/supabase/server'
 
-export default function sitemap(): MetadataRoute.Sitemap {
-  return [
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const base: MetadataRoute.Sitemap = [
     {
       url: 'https://voxrate.app',
       lastModified: new Date(),
@@ -12,6 +13,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       url: 'https://voxrate.app/faq',
       lastModified: new Date(),
       changeFrequency: 'monthly',
+      priority: 0.8,
+    },
+    {
+      url: 'https://voxrate.app/blog',
+      lastModified: new Date(),
+      changeFrequency: 'weekly',
       priority: 0.8,
     },
     {
@@ -27,4 +34,25 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.3,
     },
   ]
+
+  try {
+    const supabase = await createClient()
+    const { data: posts } = await supabase
+      .from('blog_posts')
+      .select('slug, updated_at')
+      .eq('published', true)
+
+    for (const p of posts || []) {
+      base.push({
+        url: `https://voxrate.app/blog/${p.slug}`,
+        lastModified: p.updated_at ? new Date(p.updated_at) : new Date(),
+        changeFrequency: 'monthly',
+        priority: 0.7,
+      })
+    }
+  } catch {
+    // sitemap should never fail the build — fall through with static entries
+  }
+
+  return base
 }
