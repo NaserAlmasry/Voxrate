@@ -65,7 +65,7 @@ export default function SentimentAlertsPage() {
     const [{ data: userData }, alertsRes, { data: reports }] = await Promise.all([
       supabase.from('users').select('plan').eq('id', user.id).single(),
       fetch('/api/sentiment-alerts', { headers: { 'X-Requested-With': 'XMLHttpRequest' } }).then(r => r.json()),
-      supabase.from('reports').select('asin, product_name').eq('user_id', user.id).eq('status', 'completed').or('report_type.eq.own,report_type.is.null').order('created_at', { ascending: false }).limit(30),
+      supabase.from('reports').select('asin, product_name').eq('user_id', user.id).eq('status', 'completed').order('created_at', { ascending: false }).limit(30),
     ])
 
     setPlan(userData?.plan || 'free')
