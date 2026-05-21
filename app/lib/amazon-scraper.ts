@@ -140,7 +140,7 @@ const DOMAIN_MAP: Record<string, string> = {
   'amazon.pl':     'PL',
 }
 
-export async function scrapeAmazon(input: string): Promise<AmazonScrapeResult> {
+export async function scrapeAmazon(input: string, plan = 'starter'): Promise<AmazonScrapeResult> {
   const { asin, marketplace } = parseInput(input)
   console.log(`[Scraper] ASIN: ${asin} | Marketplace: ${marketplace}`)
 
@@ -186,7 +186,7 @@ export async function scrapeAmazon(input: string): Promise<AmazonScrapeResult> {
   // Try Bright Data first — fetch more for large products, rebalance toward negative
   if (BRIGHTDATA_API_KEY) {
     try {
-      const bdMax = brightDataMaxReviews(productData.ratingBreakdown, productData.totalReviews)
+      const bdMax = brightDataMaxReviews(productData.ratingBreakdown, productData.totalReviews, plan)
       const raw = await fetchReviewsBrightData(asin, marketplace, bdMax)
       allReviews = rebalanceReviews(raw, productData.ratingBreakdown)
       scraperProvider = 'brightdata'
@@ -300,23 +300,15 @@ async function fetchOnePageFiltered(asin: string, domain: string, rating: string
   }
 }
 
-// How many reviews to request from Bright Data based on product size.
-// We need enough negative reviews to rebalance properly.
-// Cap at 500 to control cost ($1.50/1k = $0.75 max per analysis).
+// Per-plan review caps — keeps scraping cost under 30% of plan revenue.
+// Pro: 150 reviews = $0.225 max. Starter/Growth: 120 = $0.18 max.
 function brightDataMaxReviews(
-  breakdown: { one: number; two: number; three: number; four: number; five: number },
+  _breakdown: { one: number; two: number; three: number; four: number; five: number },
   totalReviews: number,
+  plan: string,
 ): number {
-  if (totalReviews < 50)  return totalReviews  // fetch all for small products
-  if (totalReviews < 200) return 100
-  if (totalReviews < 500) return 200
-
-  // For large products, estimate how many to fetch so we get ~45 negative reviews
-  // (30% of our target 150). Amazon surfaces ~10-20% negative in "most relevant".
-  const negPct = (breakdown.one + breakdown.two) / Math.max(totalReviews, 1)
-  if (negPct >= 0.15) return 300  // enough negatives in natural order
-  if (negPct >= 0.05) return 400  // need to fetch more to surface negatives
-  return 500                      // very few negatives — fetch max to find them
+  const cap = plan === 'pro' ? 150 : 120
+  return Math.min(totalReviews, cap)
 }
 
 // Rebalance Bright Data's flat review list to mirror Canopy's star-weighted approach.
