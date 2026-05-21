@@ -1259,6 +1259,24 @@ export default function ReportPage() {
         <QuickWinCard quickWin={fr.quickWin} onCopy={toast} />
       )}
 
+      {/* Top Actions — skeleton while summary section is loading */}
+      {!isLimited && safeArray(fr.topActions).length === 0 && (loadingSection !== null) && (
+        <div className="bg-black text-white rounded-2xl p-5">
+          <p className="text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-3">Top 3 actions to take now</p>
+          <div className="space-y-2">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="border border-orange-900/20 rounded-xl p-3 flex items-center gap-3 animate-pulse">
+                <div className="w-5 h-5 rounded-full bg-orange-900/40 flex-shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3 bg-white/10 rounded w-3/4" />
+                  <div className="h-2 bg-white/5 rounded w-1/3" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Top Actions — paid only */}
       {!isLimited && safeArray(fr.topActions).length > 0 && (
         <div className="bg-black text-white rounded-2xl p-5">
