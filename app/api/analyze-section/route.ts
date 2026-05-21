@@ -93,8 +93,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ section, data: publicReport, status: 'completed' })
     }
 
-    const fullReport: Record<string, unknown> = (report.full_report as Record<string, unknown>) || {}
-    const cache: Record<string, unknown>      = (fullReport._cache as Record<string, unknown>) || {}
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const fullReport: any = report.full_report || {}
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cache: any = fullReport._cache || {}
     const sectionsReady: string[] = fullReport._sectionsReady || ['complaints']
 
     // Skip if this section is already done
