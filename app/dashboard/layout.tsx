@@ -311,7 +311,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             )
           })}
 
-          {/* Admin link — only visible to admins */}
+          {/* Admin links — only visible to admins */}
           {isAdmin && (
             <a
               href="/dashboard/admin"
@@ -327,6 +327,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <Shield size={18} />
               </span>
               {!collapsed && <span className="nav-label">Admin</span>}
+            </a>
+          )}
+          {isAdmin && (
+            <a
+              href="/dashboard/admin/revenue"
+              onClick={() => setMobileOpen(false)}
+              aria-label={collapsed ? 'Revenue' : undefined}
+              className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-colors mt-1 ${
+                pathname === '/dashboard/admin/revenue'
+                  ? 'bg-red-50 text-red-600'
+                  : 'text-red-400 hover:bg-red-50 hover:text-red-600'
+              }`}
+            >
+              <span className="flex-shrink-0">
+                <Shield size={18} />
+              </span>
+              {!collapsed && <span className="nav-label">Revenue</span>}
             </a>
           )}
         </nav>

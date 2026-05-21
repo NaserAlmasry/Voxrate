@@ -91,7 +91,19 @@
       "Bash(vercel env *)",
       "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(list\\(d.get\\('dependencies',{}\\).keys\\(\\)\\)[:30]\\); print\\(list\\(d.get\\('devDependencies',{}\\).keys\\(\\)\\)[:20]\\)\")",
       "Bash(node *)",
-      "Bash(npm uninstall *)"
+      "Bash(npm uninstall *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\Naser\\\\voxrate\" -Recurse -Directory)",
+      "Bash(Select-Object -First 20)",
+      "Bash(npx vitest *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\Naser\\\\voxrate\" -Recurse -File -Name)",
+      "Bash(dir \"C:\\\\Users\\\\Naser\\\\voxrate\" /s /b)",
+      "Bash(Select-String -Pattern \"\\\\.ts$|\\\\.tsx$|\\\\.js$\" -NotMatch \"node_modules\")",
+      "Bash(Select-Object Name, PSIsContainer)",
+      "Bash(grep -i \"price\\\\|\\\\$\\\\|month\")",
+      "Bash(grep -n \"callMistral\\\\|, [0-9]\\\\{3,4\\\\}\" app/api/analyze/route.ts)",
+      "Bash(Select-String \"SUPABASE\")",
+      "PowerShell(New-Item *)",
+      "Bash(npm test *)"
     ]
   }
 }

@@ -160,12 +160,14 @@ export async function scrapeAmazon(input: string): Promise<AmazonScrapeResult> {
       `${qaData.length} Q&A [FROM CACHE]`
     )
     return {
-      product:   productData,
-      reviews:   cachedEarly,
-      qa:        qaData,
-      scrapedAt: new Date().toISOString(),
+      product:          productData,
+      reviews:          cachedEarly,
+      qa:               qaData,
+      scrapedAt:        new Date().toISOString(),
       marketplace,
-      fromCache: true,
+      fromCache:        true,
+      scraperProvider:  'cache',
+      scraperPages:     0,
     }
   }
 
@@ -177,6 +179,7 @@ export async function scrapeAmazon(input: string): Promise<AmazonScrapeResult> {
 
   const pageAlloc = allocatePages(productData.ratingBreakdown)
   console.log(`[Scraper] Page budget: 1★×${pageAlloc[1]} 2★×${pageAlloc[2]} 3★×${pageAlloc[3]} 4★×${pageAlloc[4]} 5★×${pageAlloc[5]}`)
+  const totalAllocatedPages = (Object.values(pageAlloc) as number[]).reduce((a, b) => a + b, 0)
   let allReviews = await fetchAllReviews(asin, domain, pageAlloc)
   let fromCache  = false
 
@@ -195,12 +198,14 @@ export async function scrapeAmazon(input: string): Promise<AmazonScrapeResult> {
   )
 
   return {
-    product:   productData,
-    reviews:   allReviews,
-    qa:        qaData,
-    scrapedAt: new Date().toISOString(),
+    product:          productData,
+    reviews:          allReviews,
+    qa:               qaData,
+    scrapedAt:        new Date().toISOString(),
     marketplace,
     fromCache,
+    scraperProvider:  'canopy',
+    scraperPages:     totalAllocatedPages,
   }
 }
 
@@ -218,11 +223,14 @@ export async function scrapeAmazonFree(input: string): Promise<AmazonScrapeResul
   console.log(`[Scraper:free] "${productData.title.slice(0, 50)}" | ${reviews.length} reviews (1 page)`)
 
   return {
-    product:   productData,
+    product:         productData,
     reviews,
-    qa:        [],
-    scrapedAt: new Date().toISOString(),
+    qa:              [],
+    scrapedAt:       new Date().toISOString(),
     marketplace,
+    fromCache:       false,
+    scraperProvider: 'canopy',
+    scraperPages:    1,
   }
 }
 

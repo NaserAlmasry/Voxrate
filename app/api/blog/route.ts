@@ -2,6 +2,7 @@
 // Public GETs for fetching posts; admin-gated POST/PUT/DELETE.
 
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import { createClient } from '@/app/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 
@@ -112,6 +113,8 @@ export async function POST(request: NextRequest) {
     .select()
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  revalidatePath('/blog')
+  if (data?.slug) revalidatePath(`/blog/${data.slug}`)
   return NextResponse.json({ post: data })
 }
 
@@ -151,6 +154,8 @@ export async function PUT(request: NextRequest) {
     .select()
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  revalidatePath('/blog')
+  if (data?.slug) revalidatePath(`/blog/${data.slug}`)
   return NextResponse.json({ post: data })
 }
 

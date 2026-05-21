@@ -1,36 +1,59 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Voxrate
 
-## Getting Started
+AI-powered Amazon review analysis for sellers. Paste a product URL or ASIN and get a full health report — complaints, strengths, SEO keywords, listing grade, and actionable fixes.
 
-First, run the development server:
+**Live:** https://voxrate.app
+
+---
+
+## Quick Start
 
 ```bash
+git clone https://github.com/NaserAlmasry/Voxrate
+cd voxrate
+npm install
+cp .env.example .env.local   # fill in your keys
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Scripts
 
-## Learn More
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start dev server |
+| `npm run build` | Production build |
+| `npm run lint` | Run ESLint |
+| `npm test` | Run Vitest unit tests |
+| `npx tsc --noEmit` | TypeScript type check |
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Environment Variables
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Copy `.env.example` to `.env.local` and fill in all values. See `.env.example` for descriptions of each variable.
 
-## Deploy on Vercel
+Required services:
+- [Supabase](https://supabase.com) — database + auth
+- [Mistral](https://mistral.ai) — primary AI
+- [Groq](https://groq.com) — AI fallback
+- [Canopy](https://canopyapi.co) — primary Amazon scraper
+- [Stripe](https://stripe.com) — payments
+- [Upstash](https://upstash.com) — Redis (rate limiting) + QStash (async jobs)
+- [Resend](https://resend.com) — transactional email
+- [Sentry](https://sentry.io) — error tracking
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Project Docs
+
+See [PROJECT.md](./PROJECT.md) for full architecture, database schema, feature list, and payment flow.
+
+---
+
+## Deploy
+
+Push to `main` — Vercel auto-deploys. Set all environment variables in the Vercel dashboard before deploying.

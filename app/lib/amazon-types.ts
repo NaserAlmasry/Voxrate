@@ -55,4 +55,6 @@ export interface AmazonScrapeResult {
   scrapedAt: string
   marketplace: string
   fromCache?: boolean
+  scraperProvider?: string
+  scraperPages?: number
 }
