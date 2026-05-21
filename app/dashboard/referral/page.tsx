@@ -15,6 +15,7 @@ type ReferralInfo = {
 
 const STARTER_THRESHOLD = 3
 const GROWTH_THRESHOLD  = 5
+const PRO_THRESHOLD     = 15
 
 export default function ReferralPage() {
   const [info, setInfo] = useState<ReferralInfo | null>(null)
@@ -73,14 +74,16 @@ export default function ReferralPage() {
   }
 
   const count = info?.referral_count ?? 0
-  const nextThreshold = count >= GROWTH_THRESHOLD ? GROWTH_THRESHOLD : count >= STARTER_THRESHOLD ? GROWTH_THRESHOLD : STARTER_THRESHOLD
+  const nextThreshold = count >= PRO_THRESHOLD ? PRO_THRESHOLD : count >= GROWTH_THRESHOLD ? PRO_THRESHOLD : count >= STARTER_THRESHOLD ? GROWTH_THRESHOLD : STARTER_THRESHOLD
   const progressPct = Math.min(100, Math.round((count / nextThreshold) * 100))
   const canClaim = count >= STARTER_THRESHOLD
-  const tierLabel = count >= GROWTH_THRESHOLD
-    ? 'Growth plan — 1 month free'
-    : count >= STARTER_THRESHOLD
-      ? 'Starter plan — 1 month free (or refer ' + (GROWTH_THRESHOLD - count) + ' more for Growth)'
-      : `Refer ${STARTER_THRESHOLD - count} more paid user${STARTER_THRESHOLD - count === 1 ? '' : 's'} to unlock Starter`
+  const tierLabel = count >= PRO_THRESHOLD
+    ? 'Pro plan — 1 month free'
+    : count >= GROWTH_THRESHOLD
+      ? `Growth plan — 1 month free (or refer ${PRO_THRESHOLD - count} more for Pro)`
+      : count >= STARTER_THRESHOLD
+        ? `Starter plan — 1 month free (or refer ${GROWTH_THRESHOLD - count} more for Growth)`
+        : `Refer ${STARTER_THRESHOLD - count} more paid user${STARTER_THRESHOLD - count === 1 ? '' : 's'} to unlock Starter`
 
   return (
     <div className="max-w-2xl mx-auto space-y-4" style={{ fontFamily: "'DM Sans', sans-serif" }}>
@@ -115,7 +118,7 @@ export default function ReferralPage() {
         <ul className="space-y-2 text-xs text-neutral-600">
           <li className="flex gap-2"><span className="text-orange-500 font-bold">1.</span> Share your unique referral link below.</li>
           <li className="flex gap-2"><span className="text-orange-500 font-bold">2.</span> When someone signs up and upgrades to a paid plan, your counter goes up by 1.</li>
-          <li className="flex gap-2"><span className="text-orange-500 font-bold">3.</span> Reach {STARTER_THRESHOLD} paid referrals → claim 1 free month of Starter. Reach {GROWTH_THRESHOLD} → claim 1 free month of Growth.</li>
+          <li className="flex gap-2"><span className="text-orange-500 font-bold">3.</span> Reach {STARTER_THRESHOLD} → 1 free month of Starter. Reach {GROWTH_THRESHOLD} → Growth. Reach {PRO_THRESHOLD} → Pro.</li>
           <li className="flex gap-2"><span className="text-orange-500 font-bold">4.</span> Claiming resets your count to 0. You keep referring and earn again.</li>
         </ul>
       </div>
@@ -163,6 +166,7 @@ export default function ReferralPage() {
             <span>0</span>
             <span>{STARTER_THRESHOLD} → Starter</span>
             <span>{GROWTH_THRESHOLD} → Growth</span>
+            <span>{PRO_THRESHOLD} → Pro</span>
           </div>
         </div>
 
@@ -174,32 +178,9 @@ export default function ReferralPage() {
           className="w-full py-3 bg-orange-500 text-white text-sm font-semibold rounded-xl hover:bg-orange-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {canClaim
-            ? `Claim ${count >= GROWTH_THRESHOLD ? 'Growth' : 'Starter'} — 1 month free`
+            ? `Claim ${count >= PRO_THRESHOLD ? 'Pro' : count >= GROWTH_THRESHOLD ? 'Growth' : 'Starter'} — 1 month free`
             : `Need ${STARTER_THRESHOLD - count} more paid referral${STARTER_THRESHOLD - count === 1 ? '' : 's'}`}
         </button>
-      </div>
-
-      {/* UGC Rewards */}
-      <div className="bg-white rounded-2xl border border-neutral-200 p-6 space-y-3">
-        <h2 className="text-sm font-semibold text-neutral-700">UGC video rewards</h2>
-        <p className="text-xs text-neutral-500">Post a video about Voxrate and tag us — we'll manually apply your reward after reviewing it.</p>
-        <div className="space-y-2">
-          <div className="flex items-center justify-between p-3 bg-neutral-50 rounded-xl border border-neutral-200">
-            <div>
-              <p className="text-xs font-semibold text-neutral-700">20,000+ views</p>
-              <p className="text-xs text-neutral-400">TikTok, Instagram Reels, or YouTube Shorts</p>
-            </div>
-            <span className="text-xs font-bold text-orange-600 bg-orange-50 border border-orange-100 px-2 py-1 rounded-full">20% discount</span>
-          </div>
-          <div className="flex items-center justify-between p-3 bg-neutral-50 rounded-xl border border-neutral-200">
-            <div>
-              <p className="text-xs font-semibold text-neutral-700">100,000+ views</p>
-              <p className="text-xs text-neutral-400">Any platform</p>
-            </div>
-            <span className="text-xs font-bold text-orange-600 bg-orange-50 border border-orange-100 px-2 py-1 rounded-full">1 month Growth free</span>
-          </div>
-        </div>
-        <p className="text-xs text-neutral-400">To claim a UGC reward, email us at <a href="mailto:info@voxrate.app" className="text-orange-500 hover:underline">info@voxrate.app</a> with a link to your video.</p>
       </div>
 
       {/* Contact note */}
