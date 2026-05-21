@@ -1015,8 +1015,15 @@ export default function ReportPage() {
             ← Back to dashboard
           </button>
           <h1 className="text-lg font-semibold leading-tight truncate">{safeStr(report.product_name, 'Amazon Product')}</h1>
-          <p className="text-xs text-neutral-400 mt-0.5">
-            {report.total_reviews_analyzed} reviews analyzed · {new Date(report.created_at).toLocaleDateString()}
+          <p className="text-xs text-neutral-400 mt-0.5 flex items-center gap-1">
+            {report.total_reviews_analyzed} reviews sampled
+            <span className="relative group cursor-help">
+              <span className="w-3.5 h-3.5 rounded-full bg-neutral-700 text-neutral-300 text-[9px] font-bold flex items-center justify-center leading-none select-none">?</span>
+              <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 bg-neutral-900 border border-neutral-700 text-neutral-200 text-[11px] leading-relaxed rounded-lg px-3 py-2 shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
+                We sample the most relevant written reviews — prioritizing negative feedback and recent complaints. A focused sample of real written reviews surfaces patterns more accurately than scanning thousands of star-only ratings.
+              </span>
+            </span>
+            · {new Date(report.created_at).toLocaleDateString()}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
