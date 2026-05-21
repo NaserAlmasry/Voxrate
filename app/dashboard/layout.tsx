@@ -7,7 +7,7 @@
 import { useState, useEffect, useRef, Suspense } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/app/lib/supabase/client'
-import { PenLine, LayoutTemplate, Activity, MessageSquare, Crosshair, Eye, BellRing, Home, LayoutGrid, Clock, Settings, Shield, Users, LogOut, ChevronLeft, ChevronRight, Menu, X, Gift } from 'lucide-react'
+import { PenLine, LayoutTemplate, Activity, MessageSquare, Crosshair, Eye, BellRing, Home, LayoutGrid, Clock, Settings, Shield, Users, LogOut, ChevronLeft, ChevronRight, Menu, X, Gift, Search } from 'lucide-react'
 import CheckoutRedirectHandler from '@/app/components/CheckoutRedirectHandler'
 import OnboardingModal from '@/app/components/OnboardingModal'
 import ErrorBoundary from '@/app/components/ErrorBoundary'
@@ -262,6 +262,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
 
         <nav className="flex-1 py-3 px-2 overflow-y-auto">
+          {/* Analyze CTA — always visible at the top */}
+          <a
+            href="/dashboard"
+            onClick={() => setMobileOpen(false)}
+            aria-label={collapsed ? 'Analyze' : undefined}
+            className={`flex items-center gap-2.5 px-3 py-2.5 mb-3 rounded-xl text-sm font-semibold transition-colors ${
+              pathname === '/dashboard'
+                ? 'bg-orange-500 text-white'
+                : 'bg-orange-50 text-orange-600 hover:bg-orange-500 hover:text-white'
+            }`}
+          >
+            <span className="flex-shrink-0"><Search size={17} /></span>
+            {!collapsed && <span>Analyze product</span>}
+          </a>
+
           {NAV_GROUPS.map((group, gi) => {
             return (
               <div key={gi} className={gi > 0 ? 'mt-1' : ''}>
