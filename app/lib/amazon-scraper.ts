@@ -313,6 +313,9 @@ function rebalanceReviews(
   }
 
   const total = reviews.length || 1
+  // Too few reviews to rebalance — just send everything
+  if (total < 20) return reviews
+
   // Weight toward negative: 1★ and 2★ get priority
   const targets: Record<number, number> = {
     1: Math.round(total * 0.30),
