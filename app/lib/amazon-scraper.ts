@@ -183,10 +183,11 @@ export async function scrapeAmazon(input: string): Promise<AmazonScrapeResult> {
   let scraperProvider = 'canopy'
   let totalAllocatedPages = 0
 
-  // Try Bright Data first — cheaper, no per-star pagination needed
+  // Try Bright Data first — fetch 150 then rebalance toward negative reviews
   if (BRIGHTDATA_API_KEY) {
     try {
-      allReviews = await fetchReviewsBrightData(asin, marketplace)
+      const raw = await fetchReviewsBrightData(asin, marketplace, 150)
+      allReviews = rebalanceReviews(raw, productData.ratingBreakdown)
       scraperProvider = 'brightdata'
     } catch (err: any) {
       console.warn(`[Scraper] BrightData failed (${err.message}) — falling back to Canopy`)
@@ -296,6 +297,51 @@ async function fetchOnePageFiltered(asin: string, domain: string, rating: string
     console.warn('[Scraper:free] fetchOnePageFiltered exception:', e)
     return []
   }
+}
+
+// Rebalance Bright Data's flat review list to mirror Canopy's star-weighted approach.
+// Target: 1★ 30%, 2★ 20%, 3★ 10%, 4★ 10%, 5★ 30% — heavily negative-weighted.
+// Falls back gracefully if a star tier has fewer reviews than the target.
+function rebalanceReviews(
+  reviews: AmazonReview[],
+  breakdown: { one: number; two: number; three: number; four: number; five: number },
+): AmazonReview[] {
+  const bystar: Record<number, AmazonReview[]> = { 1: [], 2: [], 3: [], 4: [], 5: [] }
+  for (const r of reviews) {
+    const s = r.rating >= 1 && r.rating <= 5 ? r.rating : 0
+    if (s > 0) bystar[s].push(r)
+  }
+
+  const total = reviews.length || 1
+  // Weight toward negative: 1★ and 2★ get priority
+  const targets: Record<number, number> = {
+    1: Math.round(total * 0.30),
+    2: Math.round(total * 0.20),
+    3: Math.round(total * 0.10),
+    4: Math.round(total * 0.10),
+    5: Math.round(total * 0.30),
+  }
+
+  // If a product has very few negative reviews (high-rated), respect that
+  const totalNeg = breakdown.one + breakdown.two
+  const totalAll = breakdown.one + breakdown.two + breakdown.three + breakdown.four + breakdown.five
+  if (totalAll > 0 && totalNeg / totalAll < 0.05) {
+    // < 5% negative — don't over-weight negatives, use natural distribution
+    return reviews
+  }
+
+  const result: AmazonReview[] = []
+  for (const star of [1, 2, 3, 4, 5] as const) {
+    result.push(...bystar[star].slice(0, targets[star]))
+  }
+
+  // Fill remaining slots with whatever is left (sorted by helpfulness)
+  const used = new Set(result.map(r => r.id))
+  const leftover = reviews.filter(r => !used.has(r.id)).sort((a, b) => b.helpful - a.helpful)
+  result.push(...leftover.slice(0, total - result.length))
+
+  console.log(`[BrightData] Rebalanced: 1★${bystar[1].length}→${Math.min(bystar[1].length, targets[1])} 2★${bystar[2].length}→${Math.min(bystar[2].length, targets[2])} 3★${bystar[3].length}→${Math.min(bystar[3].length, targets[3])} 4★${bystar[4].length}→${Math.min(bystar[4].length, targets[4])} 5★${bystar[5].length}→${Math.min(bystar[5].length, targets[5])}`)
+  return result
 }
 
 // Bright Data — synchronous real-time Amazon Reviews scraper
