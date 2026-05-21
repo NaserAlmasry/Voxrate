@@ -103,7 +103,10 @@
       "Bash(grep -n \"callMistral\\\\|, [0-9]\\\\{3,4\\\\}\" app/api/analyze/route.ts)",
       "Bash(Select-String \"SUPABASE\")",
       "PowerShell(New-Item *)",
-      "Bash(npm test *)"
+      "Bash(npm test *)",
+      "PowerShell(Set-Location C:\\\\Users\\\\Naser\\\\voxrate; npx eslint app/components/sections/ app/components/AuthModal.tsx app/auth/ --max-warnings 100 --format compact 2>&1 | Where-Object { $_ -match \"error\" })",
+      "PowerShell(Out-File *)",
+      "PowerShell(Set-Location C:\\\\Users\\\\Naser\\\\voxrate; npx eslint app/dashboard/page.tsx --format json 2>$null | ConvertFrom-Json | ForEach-Object { $_.messages } | Where-Object { $_.severity -eq 2 } | Select-Object ruleId -Unique)"
     ]
   }
 }

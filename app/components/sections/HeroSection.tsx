@@ -79,7 +79,7 @@ function HeroDashboardMockup() {
         {/* Quick win */}
         <div className="mx-4 mt-3 bg-gradient-to-r from-orange-500 to-amber-500 rounded-xl p-3">
           <p className="text-[9px] font-semibold text-orange-100 uppercase tracking-wider mb-1">⚡ Quick Win</p>
-          <p className="text-xs font-semibold text-white leading-snug">Add "leak-proof lid" to your title — fixes 43% of 1-star reviews</p>
+          <p className="text-xs font-semibold text-white leading-snug">Add &ldquo;leak-proof lid&rdquo; to your title — fixes 43% of 1-star reviews</p>
         </div>
         {/* Complaints */}
         <div className="px-4 pt-3 pb-4 space-y-2">

@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { RefObject } from 'react'
 
 type Props = {
@@ -26,18 +27,18 @@ export default function Navbar({
   return (
     <nav className="fixed top-0 inset-x-0 z-50 bg-[#FAF9F6]/85 backdrop-blur-lg border-b border-neutral-200/60">
       <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-        <a href="/"><img src="/logo.png" alt="Voxrate" height={36} style={{ objectFit: 'contain', maxWidth: 160 }} /></a>
+        <Link href="/"><img src="/logo.png" alt="Voxrate" height={36} style={{ objectFit: 'contain', maxWidth: 160 }} /></Link>
         <div className="hidden md:flex items-center gap-7 text-sm text-neutral-600">
           <a href="#features"    className="hover:text-black transition-colors">Features</a>
           <a href="#how-it-works" className="hover:text-black transition-colors">How it works</a>
           <a href="#pricing"     className="hover:text-black transition-colors">Pricing</a>
-          <a href="/blog"        className="hover:text-black transition-colors">Blog</a>
+          <Link href="/blog"     className="hover:text-black transition-colors">Blog</Link>
           <div className="relative" ref={nlDropdownRef}>
             <button onClick={() => setShowNewsletter(v => !v)} className="hover:text-black transition-colors">Newsletter</button>
             {showNewsletter && (
               <div className="ndrop absolute top-9 left-1/2 -translate-x-1/2 w-72 bg-white border border-neutral-200 rounded-2xl p-4 shadow-xl z-10">
                 {nlSubmitted ? (
-                  <p className="text-sm text-green-600 font-medium text-center py-2">Thanks! We'll be in touch.</p>
+                  <p className="text-sm text-green-600 font-medium text-center py-2">Thanks! We&apos;ll be in touch.</p>
                 ) : (
                   <>
                     <p className="text-xs text-neutral-500 mb-3">Get notified about new features and exclusive discounts</p>

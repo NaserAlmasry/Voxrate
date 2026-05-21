@@ -230,7 +230,7 @@ export default function PricingSection({
         {/* ── CREDIT CALCULATOR ── */}
         <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-6 scroll-fade">
           <p className="text-sm font-semibold mb-1">Not sure which plan? Use the calculator</p>
-          <p className="text-xs text-neutral-500 mb-5">Tell us about your shop and we'll recommend the best option</p>
+          <p className="text-xs text-neutral-500 mb-5">Tell us about your shop and we&apos;ll recommend the best option</p>
 
           <div className="space-y-5">
             <div>
@@ -253,7 +253,7 @@ export default function PricingSection({
                     <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-neutral-900 rotate-45" />
                     <p className="font-semibold mb-1.5">Monthly vs Quarterly</p>
                     <p className="text-neutral-300 mb-1.5"><strong className="text-white">Monthly:</strong> re-analyze each listing once a month — best for active shops updating listings regularly.</p>
-                    <p className="text-neutral-300"><strong className="text-white">Quarterly:</strong> re-analyze every 3 months — good for stable shops that don't change listings often.</p>
+                    <p className="text-neutral-300"><strong className="text-white">Quarterly:</strong> re-analyze every 3 months — good for stable shops that don&apos;t change listings often.</p>
                   </div>
                 </div>
               </div>

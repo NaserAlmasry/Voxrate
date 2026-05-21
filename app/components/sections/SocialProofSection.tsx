@@ -69,14 +69,14 @@ export default function SocialProofSection() {
               },
             ].map((q, i) => (
               <div key={i} className="bg-neutral-800/50 rounded-xl p-4 border border-neutral-700/50">
-                <p className="text-sm text-neutral-200 leading-relaxed mb-3 italic">"{q.quote}"</p>
+                <p className="text-sm text-neutral-200 leading-relaxed mb-3 italic">&ldquo;{q.quote}&rdquo;</p>
                 <p className="text-[10px] text-neutral-500">{q.attribution}</p>
               </div>
             ))}
           </div>
           <div className="mt-6 pt-5 border-t border-neutral-800 text-center">
             <p className="text-sm text-neutral-300 mb-1">Voxrate is built to solve exactly this — automatically, in under 2 minutes.</p>
-            <p className="text-xs text-neutral-500">Paste your Amazon URL and get a full breakdown of what's hurting your score and how to fix it.</p>
+            <p className="text-xs text-neutral-500">Paste your Amazon URL and get a full breakdown of what&apos;s hurting your score and how to fix it.</p>
           </div>
         </div>
       </div>

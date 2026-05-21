@@ -180,8 +180,8 @@ export async function scrapeAmazon(input: string): Promise<AmazonScrapeResult> {
   const pageAlloc = allocatePages(productData.ratingBreakdown)
   console.log(`[Scraper] Page budget: 1★×${pageAlloc[1]} 2★×${pageAlloc[2]} 3★×${pageAlloc[3]} 4★×${pageAlloc[4]} 5★×${pageAlloc[5]}`)
   const totalAllocatedPages = (Object.values(pageAlloc) as number[]).reduce((a, b) => a + b, 0)
-  let allReviews = await fetchAllReviews(asin, domain, pageAlloc)
-  let fromCache  = false
+  const allReviews = await fetchAllReviews(asin, domain, pageAlloc)
+  const fromCache  = false
 
   if (allReviews.length > 0) {
     // Write to cache fire-and-forget — don't block the analysis
