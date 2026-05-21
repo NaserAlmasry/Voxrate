@@ -447,30 +447,38 @@ export function buildSummaryPromptB(args: {
   topStrengthTitle: string
   healthScore: number
   negPct: number
+  complaints?: Array<{ title: string; description: string; reviewCount: number; severity: string }>
 }): string {
-  const { contextBlock, topComplaintTitle, topStrengthTitle, healthScore, negPct } = args
-  return `${contextBlock}
+  const { contextBlock, topComplaintTitle, topStrengthTitle, healthScore, negPct, complaints } = args
 
-TOP COMPLAINT: "${topComplaintTitle}"
+  const complaintsBlock = complaints && complaints.length > 0
+    ? `\nKNOWN COMPLAINTS (use ONLY these — do not invent others):\n` +
+      complaints.slice(0, 3).map((c, i) =>
+        `${i + 1}. [${c.severity}] "${c.title}" — ${c.reviewCount} reviews — ${c.description.slice(0, 200)}`
+      ).join('\n')
+    : `\nTOP COMPLAINT: "${topComplaintTitle}"`
+
+  return `${contextBlock}
+${complaintsBlock}
 TOP STRENGTH: "${topStrengthTitle}"
 HEALTH SCORE: ${healthScore}/100
 UNHAPPY BUYERS: ${negPct}%
 
-Generate exactly 3 top actions a seller should take, grounded in what reviewers described.
+Generate exactly 3 top actions a seller should take, grounded ONLY in the known complaints above.
 
 HARD CONSTRAINTS:
 1. action: 6-10 words using reviewer language — NOT "improve durability", NOT "enhance quality"
-2. detail: 4-5 sentences grounded in what reviewers described — no invented business outcomes
-3. segment: name the specific buyer type from reviews — e.g. "home cooks who prep daily" not "customers"
+2. detail: 4-5 sentences — reference ONLY what the complaints above describe, no invented issues
+3. segment: name the specific buyer type from the complaint context
 4. Each action must address a different complaint or opportunity angle
-5. BANNED: "improve durability", "enhance quality", "better materials", "customers will appreciate", invented percentages
+5. BANNED: invented issues not in the complaints list, invented percentages, "rust", "corrosion", "hardware failure" unless explicitly in a complaint above
 
 Return ONLY this JSON — start with { immediately:
 {
   "topActions": [
     {
       "action": "<6-10 words from reviewer language>",
-      "detail": "<4-5 sentences grounded in reviewer descriptions>",
+      "detail": "<4-5 sentences grounded in the complaints above>",
       "segment": "<specific buyer type from reviews>"
     },
     {
