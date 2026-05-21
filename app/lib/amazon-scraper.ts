@@ -187,8 +187,7 @@ export async function scrapeAmazon(input: string, plan = 'starter'): Promise<Ama
   let scraperProvider = 'canopy'
   let totalAllocatedPages = 0
 
-  // Try Bright Data first — fetch more for large products, rebalance toward negative
-  const BD_MIN_REVIEWS = 60 // supplement with Canopy if BD returns fewer than this
+  // Paid users: Bright Data only — no Canopy fallback
   if (BRIGHTDATA_API_KEY) {
     try {
       const bdMax = brightDataMaxReviews(productData.ratingBreakdown, productData.totalReviews, plan)
@@ -196,29 +195,8 @@ export async function scrapeAmazon(input: string, plan = 'starter'): Promise<Ama
       const validRaw = filterReviews(raw, 'brightdata')
       allReviews = rebalanceReviews(validRaw, productData.ratingBreakdown)
       scraperProvider = 'brightdata'
-      console.log(`[Scraper] BrightData returned ${allReviews.length} reviews`)
     } catch (err: any) {
-      console.warn(`[Scraper] BrightData failed (${err.message}) — falling back to Canopy`)
-    }
-  }
-
-  // Canopy fallback or supplement when BD returned too few reviews
-  if (allReviews.length < BD_MIN_REVIEWS) {
-    const pageAlloc = allocatePages(productData.ratingBreakdown)
-    console.log(`[Scraper] ${allReviews.length < BD_MIN_REVIEWS && allReviews.length > 0 ? `BrightData only got ${allReviews.length} — supplementing with` : 'Using'} Canopy: 1★×${pageAlloc[1]} 2★×${pageAlloc[2]} 3★×${pageAlloc[3]} 4★×${pageAlloc[4]} 5★×${pageAlloc[5]}`)
-    totalAllocatedPages = (Object.values(pageAlloc) as number[]).reduce((a, b) => a + b, 0)
-    const canopyRaw = await fetchAllReviews(asin, domain, pageAlloc)
-    const canopyFiltered = filterReviews(canopyRaw, 'canopy')
-    if (allReviews.length > 0) {
-      // Merge: deduplicate by body text, keep BD reviews + fill with Canopy
-      const existingBodies = new Set(allReviews.map(r => r.body.slice(0, 80)))
-      const newFromCanopy = canopyFiltered.filter(r => !existingBodies.has(r.body.slice(0, 80)))
-      allReviews = [...allReviews, ...newFromCanopy]
-      scraperProvider = 'brightdata+canopy'
-      console.log(`[Scraper] Merged: ${allReviews.length} total reviews after Canopy supplement`)
-    } else {
-      allReviews = canopyFiltered
-      scraperProvider = 'canopy'
+      console.warn(`[Scraper] BrightData failed: ${err.message}`)
     }
   }
 
