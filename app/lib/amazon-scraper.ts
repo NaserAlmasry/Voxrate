@@ -230,7 +230,7 @@ export async function scrapeAmazon(input: string): Promise<AmazonScrapeResult> {
   }
 }
 
-// Free-plan scrape — 1 Canopy request only (unfiltered page 1)
+// Free-plan scrape — 1★ reviews via Canopy (shows real complaints), Bright Data fallback
 export async function scrapeAmazonFree(input: string): Promise<AmazonScrapeResult> {
   const { asin, marketplace } = parseInput(input)
   console.log(`[Scraper:free] ASIN: ${asin} | Marketplace: ${marketplace}`)
@@ -239,9 +239,24 @@ export async function scrapeAmazonFree(input: string): Promise<AmazonScrapeResul
 
   const { product: productData } = await fetchProduct(asin, marketplace)
 
-  const reviews = await fetchOnePage(asin, domain)
+  // Fetch 1★ reviews — user sees real complaints, feels the tool's value, wants to upgrade
+  let reviews = await fetchOnePageFiltered(asin, domain, 'ONE_STAR')
+  let scraperProvider = 'canopy'
 
-  console.log(`[Scraper:free] "${productData.title.slice(0, 50)}" | ${reviews.length} reviews (1 page)`)
+  // Bright Data fallback if Canopy fails
+  if (reviews.length === 0 && BRIGHTDATA_API_KEY) {
+    try {
+      const all = await fetchReviewsBrightData(asin, marketplace, 20)
+      // Pick the most negative reviews available
+      reviews = all.filter(r => r.rating <= 2).slice(0, 10)
+      if (reviews.length === 0) reviews = all.slice(0, 10)
+      scraperProvider = 'brightdata'
+    } catch (err: any) {
+      console.warn(`[Scraper:free] BrightData fallback failed: ${err.message}`)
+    }
+  }
+
+  console.log(`[Scraper:free] "${productData.title.slice(0, 50)}" | ${reviews.length} reviews (1★ filtered) [${scraperProvider}]`)
 
   return {
     product:         productData,
@@ -250,17 +265,17 @@ export async function scrapeAmazonFree(input: string): Promise<AmazonScrapeResul
     scrapedAt:       new Date().toISOString(),
     marketplace,
     fromCache:       false,
-    scraperProvider: 'canopy',
+    scraperProvider,
     scraperPages:    1,
   }
 }
 
-async function fetchOnePage(asin: string, domain: string): Promise<AmazonReview[]> {
+async function fetchOnePageFiltered(asin: string, domain: string, rating: string): Promise<AmazonReview[]> {
   try {
-    const url = `${CANOPY_BASE}?asin=${asin}&domain=${domain}&page=1`
+    const url = `${CANOPY_BASE}?asin=${asin}&domain=${domain}&page=1&rating=${rating}&verified_purchases_only=true&sort_by=RECENT`
     const res = await canopyFetch(url)
     if (!res.ok) {
-      console.warn(`[Scraper:free] Canopy page 1 HTTP ${res.status}`)
+      console.warn(`[Scraper:free] Canopy filtered page HTTP ${res.status}`)
       return []
     }
     const data     = await res.json()
@@ -268,7 +283,7 @@ async function fetchOnePage(asin: string, domain: string): Promise<AmazonReview[
     if (!paginated) return []
     return (paginated.reviews ?? []).map((r: CanopyReview, i: number) => ({
       id:       r.id ?? `${asin}-free-${i}`,
-      rating:   r.rating ?? 3,
+      rating:   r.rating ?? 1,
       title:    r.title ?? '',
       body:     r.body ?? '',
       date:     '',
@@ -278,7 +293,7 @@ async function fetchOnePage(asin: string, domain: string): Promise<AmazonReview[
       country:  domain.toLowerCase(),
     }))
   } catch (e) {
-    console.warn('[Scraper:free] fetchOnePage exception:', e)
+    console.warn('[Scraper:free] fetchOnePageFiltered exception:', e)
     return []
   }
 }
