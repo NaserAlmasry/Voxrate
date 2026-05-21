@@ -13,7 +13,7 @@
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server'
-import { callMistral2411, callMistralLatest, type Message } from '@/app/lib/mistral-fallback'
+import { callMistral2411, callMistralLatest, resetSessionTokens, getSessionTokens, type Message } from '@/app/lib/mistral-fallback'
 import { createClient } from '@/app/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import {
@@ -134,15 +134,19 @@ async function analyzeProduct(
   const reviewsForDomain = reviews.map(r => ({ rating: r.rating, text: r.body, verified: r.verified }))
   const worstReviews     = extractWorstReviews(reviewsForDomain)
   const bestReviews      = extractBestReviews(reviewsForDomain, 15)
-  const domainResult     = await generateDomainAndSeo(
-    product.title, product.category || 'Amazon Product',
-    worstReviews, bestReviews, listingDescription,
-  )
-  const domainKnowledge = domainResult.knowledge
 
-  // Convert for SEO scorer — 5★ reviews now include up to 3 pages from the main scrape
+  // Convert for SEO scorer — run in parallel with domain knowledge (improvement #5)
   const reviewsForSeo = reviews.map(r => ({ rating: r.rating, text: r.body }))
-  const seoAnalysis   = calculateSeoScore(reviewsForSeo, product.title)
+
+  const [domainResult, seoAnalysis] = await Promise.all([
+    generateDomainAndSeo(
+      product.title, product.category || 'Amazon Product',
+      worstReviews, bestReviews, listingDescription,
+    ),
+    Promise.resolve(calculateSeoScore(reviewsForSeo, product.title)),
+  ])
+
+  const domainKnowledge = domainResult.knowledge
   const seoTopPhrases = domainResult.seoThemes.length >= 3
     ? domainResult.seoThemes
     : seoAnalysis.topPhrases
@@ -170,11 +174,24 @@ async function analyzeProduct(
 - Fake review flag: ${ctx.fakeReviewFlag ? 'WARNING: High ratio of unverified negative reviews detected' : 'Clean'}
 - Unanswered buyer questions: ${ctx.unansweredQACount}`
 
+  // Build star breakdown as percentages (improvement #9)
+  const totalRatings = ctx.totalReviewCount || 1
+  const starPctLine = [5, 4, 3, 2, 1]
+    .map(s => `${s}★:${Math.round((ctx.starCounts[s as 1|2|3|4|5] / totalRatings) * 100)}%`)
+    .join(' ')
+
+  const bsrLine = ctx.bsr
+    ? `BSR: #${ctx.bsr.toLocaleString()} in ${ctx.bsrCategory || 'Unknown Category'}`
+    : 'BSR: Not ranked'
+
   const contextBlock = `PRODUCT: <product_title>${product.title}</product_title>
 ASIN: ${product.asin || ''}
 MARKETPLACE: ${product.marketplace || 'amazon.com'}
 PRICE: $${product.price || 'N/A'}
 RATING: ${product.averageRating || product.rating}/5
+TOTAL RATINGS: ${ctx.totalReviewCount.toLocaleString()}
+${bsrLine}
+STAR BREAKDOWN: ${starPctLine}
 REVIEWS ANALYZED: ${reviews.length}${descriptionLine}
 
 ${healthBlock}
@@ -218,6 +235,7 @@ Classify each issue as SHIPPING / PRODUCTION / LISTING / DESIGN / COMPATIBILITY 
 
   if (!complaintsData.complaints || complaintsData.complaints.length === 0) {
     console.warn('[Section:complaints] 0 complaints — retrying on 70b...')
+    await new Promise(r => setTimeout(r, 2000))
     try {
       const retryRaw = await callMistralLatest([
         { role: 'system' as const, content: systemPrompt },
@@ -313,7 +331,7 @@ async function analyzeFreePreview(
   let strengthsData: any  = { strengths: [] }
 
   try {
-    const raw = await callMistral2411([
+    const raw = await callMistralLatest([
       {
         role: 'system' as const,
         content: FREE_PREVIEW_SYSTEM_PROMPT,
@@ -631,6 +649,7 @@ export async function POST(request: NextRequest) {
     const reportId = reportRow.id
 
     try {
+      resetSessionTokens()
       console.log(`[Pipeline] Starting Amazon scrape: ${productUrl} (plan: ${plan})`)
 
       const isFreeUser   = !isAdminUser && plan === 'free'
@@ -729,7 +748,7 @@ export async function POST(request: NextRequest) {
 
       await supabase
         .from('usage_logs')
-        .insert({ user_id: user.id, report_id: reportId, tokens_used: 0 })
+        .insert({ user_id: user.id, report_id: reportId, tokens_used: getSessionTokens() })
 
       // Fire-and-forget cost log — never blocks or fails the analysis
       void Promise.resolve(

@@ -83,7 +83,12 @@ Copy exact verbatim sentences from 5★ reviews. Do not paraphrase. Do not summa
 ━━━ SEO ━━━
 Keywords: copy the pre-calculated phrases verbatim — do not replace them.
 Suggestions: use only phrases from 5★ reviews, never from complaint areas.
-For Amazon: focus on buyer intent phrases, problem-solution language, and material specificity — these drive A10 algorithm ranking.`
+For Amazon: focus on buyer intent phrases, problem-solution language, and material specificity — these drive A10 algorithm ranking.
+
+━━━ METADATA SIGNALS — USE WHEN PRESENT ━━━
+When STAR BREAKDOWN shows 5★ and 1★ both above 30%, this is a polarized product — flag it as high return-rate risk in the riskIfIgnored field.
+When BSR is above #50,000, mention that review issues are actively harming sales rank in the urgency field.
+Reference the PRICE point when sizing the impact of complaints — a $299 product with accuracy complaints carries higher return risk than a $19 product.`
 
 /**
  * System prompt used by the progressive section loader
