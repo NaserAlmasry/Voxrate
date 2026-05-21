@@ -69,6 +69,7 @@ async function canopyFetch(url: string): Promise<Response> {
   for (let i = 0; i < CANOPY_KEYS.length; i++) {
     const res = await fetch(url, {
       headers: { 'API-KEY': CANOPY_KEYS[i], 'accept': 'application/json' },
+      signal: AbortSignal.timeout(10_000),
     })
     if (res.status !== 429 && res.status !== 403) return res
     console.warn(`[Scraper] Canopy key ${i + 1} quota hit (${res.status}) — trying next key`)
@@ -76,6 +77,7 @@ async function canopyFetch(url: string): Promise<Response> {
   // All keys exhausted — return last response
   return fetch(url, {
     headers: { 'API-KEY': CANOPY_KEYS[CANOPY_KEYS.length - 1], 'accept': 'application/json' },
+    signal: AbortSignal.timeout(10_000),
   })
 }
 
@@ -149,6 +151,7 @@ export async function scrapeAmazon(input: string, plan = 'starter'): Promise<Ama
   // Cache-first: return immediately if fresh cache exists (< 7 days)
   const cachedEarly = await readReviewCache(asin, domain)
   if (cachedEarly && cachedEarly.length > 0) {
+    console.log(`[Cache] HIT for ${asin}/${domain} — skipping scrape`)
     console.log(`[Scraper] Cache hit for ${asin}/${domain} — skipping Canopy`)
     const [{ product: productData }, qaData] = await Promise.all([
       fetchProduct(asin, marketplace),
@@ -173,6 +176,7 @@ export async function scrapeAmazon(input: string, plan = 'starter'): Promise<Ama
     }
   }
 
+  console.log(`[Cache] MISS for ${asin}/${domain} — scraping fresh`)
   // Fetch product first so we know the rating breakdown, then allocate pages smartly
   const [{ product: productData }, qaData] = await Promise.all([
     fetchProduct(asin, marketplace),
@@ -188,7 +192,8 @@ export async function scrapeAmazon(input: string, plan = 'starter'): Promise<Ama
     try {
       const bdMax = brightDataMaxReviews(productData.ratingBreakdown, productData.totalReviews, plan)
       const raw = await fetchReviewsBrightData(asin, marketplace, bdMax)
-      allReviews = rebalanceReviews(raw, productData.ratingBreakdown)
+      const validRaw = filterReviews(raw, 'brightdata')
+      allReviews = rebalanceReviews(validRaw, productData.ratingBreakdown)
       scraperProvider = 'brightdata'
     } catch (err: any) {
       console.warn(`[Scraper] BrightData failed (${err.message}) — falling back to Canopy`)
@@ -200,7 +205,8 @@ export async function scrapeAmazon(input: string, plan = 'starter'): Promise<Ama
     const pageAlloc = allocatePages(productData.ratingBreakdown)
     console.log(`[Scraper] Page budget: 1★×${pageAlloc[1]} 2★×${pageAlloc[2]} 3★×${pageAlloc[3]} 4★×${pageAlloc[4]} 5★×${pageAlloc[5]}`)
     totalAllocatedPages = (Object.values(pageAlloc) as number[]).reduce((a, b) => a + b, 0)
-    allReviews = await fetchAllReviews(asin, domain, pageAlloc)
+    const canopyRaw = await fetchAllReviews(asin, domain, pageAlloc)
+    allReviews = filterReviews(canopyRaw, 'canopy')
     scraperProvider = 'canopy'
   }
 
@@ -371,6 +377,7 @@ async function fetchReviewsBrightData(asin: string, marketplace: string, maxRevi
       method:  'POST',
       headers: { 'Authorization': `Bearer ${BRIGHTDATA_API_KEY}`, 'Content-Type': 'application/json' },
       body:    JSON.stringify({ input: [{ url, max_reviews: maxReviews }] }),
+      signal:  AbortSignal.timeout(30_000),
     }
   )
 
@@ -406,6 +413,26 @@ async function fetchReviewsBrightData(asin: string, marketplace: string, maxRevi
 
   console.log(`[BrightData] Fetched ${reviews.length} reviews for ${asin}`)
   return reviews
+}
+
+// ── Review validation (improvement #8) ───────────────────────
+
+function isValidReview(r: AmazonReview): boolean {
+  if (!r.body || r.body.trim().length < 20) return false
+  // Simple non-English detection: if less than 40% of chars are ASCII letters, skip
+  const ascii = (r.body.match(/[a-zA-Z]/g) || []).length
+  const ratio = ascii / r.body.length
+  if (ratio < 0.4) return false
+  return true
+}
+
+function filterReviews(reviews: AmazonReview[], label: string): AmazonReview[] {
+  const before = reviews.length
+  const filtered = reviews.filter(isValidReview)
+  if (filtered.length < before) {
+    console.log(`[Scraper] Filtered ${before - filtered.length} invalid reviews${label ? ` (${label})` : ''}`)
+  }
+  return filtered
 }
 
 // Fetch all 5 star tiers in parallel using pre-allocated page counts
@@ -542,7 +569,7 @@ async function fetchProductScrapingDog(asin: string, marketplace: string): Promi
   const { country, domain } = toScrapingdogParams(marketplace)
   const params = new URLSearchParams({ api_key: SCRAPINGDOG_API_KEY, asin, country, domain })
 
-  const res = await fetch(`${SCRAPINGDOG_BASE}?${params}`)
+  const res = await fetch(`${SCRAPINGDOG_BASE}?${params}`, { signal: AbortSignal.timeout(10_000) })
   if (!res.ok) throw new Error(`ScrapingDog ${res.status}`)
 
   const p = await res.json()
@@ -598,7 +625,7 @@ async function fetchProductScraperAPI(asin: string, marketplace: string): Promis
   const country = marketplace === 'amazon.com' ? 'us' : 'us'
   const params  = new URLSearchParams({ api_key: SCRAPERAPI_KEY, asin, country })
 
-  const res = await fetch(`${SCRAPERAPI_BASE}?${params}`)
+  const res = await fetch(`${SCRAPERAPI_BASE}?${params}`, { signal: AbortSignal.timeout(10_000) })
   if (!res.ok) throw new Error(`ScraperAPI ${res.status}`)
 
   const p = await res.json()

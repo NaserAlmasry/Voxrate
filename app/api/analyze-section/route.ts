@@ -284,6 +284,7 @@ export async function POST(request: NextRequest) {
               topStrengthTitle,
               healthScore: hs,
               negPct,
+              complaints: (updatedReport.complaints || fullReport.complaints || []).slice(0, 3),
             }),
           },
         ], 1500)

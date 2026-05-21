@@ -11,6 +11,11 @@
 
 import Groq from 'groq-sdk'
 
+// ── Session token accumulator (improvement #1) ────────────────
+let _sessionTokens = 0
+export function resetSessionTokens(): void { _sessionTokens = 0 }
+export function getSessionTokens(): number { return _sessionTokens }
+
 const MISTRAL_API_URL      = 'https://api.mistral.ai/v1/chat/completions'
 const MISTRAL_MODEL_LATEST = 'mistral-large-latest'
 const MISTRAL_MODEL_2411   = 'mistral-large-2411'
@@ -60,7 +65,10 @@ async function callMistral(messages: Message[], maxTokens: number, model: string
 
     const json  = await res.json()
     const usage = json.usage
-    if (usage) console.log(`[Mistral:${model}] prompt:${usage.prompt_tokens} completion:${usage.completion_tokens} total:${usage.total_tokens}`)
+    if (usage) {
+      console.log(`[Mistral:${model}] prompt:${usage.prompt_tokens} completion:${usage.completion_tokens} total:${usage.total_tokens}`)
+      _sessionTokens += usage.total_tokens ?? 0
+    }
     return json.choices?.[0]?.message?.content || ''
   } finally {
     clearTimeout(timeoutId)
@@ -76,7 +84,10 @@ async function callGroq(messages: Message[], maxTokens: number): Promise<string>
     messages,
   })
   const usage = res.usage
-  if (usage) console.log(`[Groq:${GROQ_MODEL}] prompt:${usage.prompt_tokens} completion:${usage.completion_tokens} total:${usage.total_tokens}`)
+  if (usage) {
+    console.log(`[Groq:${GROQ_MODEL}] prompt:${usage.prompt_tokens} completion:${usage.completion_tokens} total:${usage.total_tokens}`)
+    _sessionTokens += usage.total_tokens ?? 0
+  }
   return res.choices[0]?.message?.content || ''
 }
 
@@ -137,6 +148,13 @@ export async function callWithFallback(
   // 3. Last resort
   const result = await callMistral(messages, maxTokens, MISTRAL_MODEL_2411)
   return { result, usedFallback: true }
+}
+
+// ── Groq direct (fast, free — good for extraction tasks) ─────
+// Use for domain knowledge, classification, and other simple extraction tasks.
+
+export async function callGroqDirect(messages: Message[], maxTokens: number): Promise<string> {
+  return callGroq(messages, maxTokens)
 }
 
 // ── Groq rate-limit helpers (used in outer catch blocks for error detection) ──

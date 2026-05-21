@@ -32,7 +32,7 @@
 //         8b-instant handles it perfectly, is faster, and uses fewer tokens.
 // ============================================================
 
-import { callMistralLatest } from '@/app/lib/mistral-fallback'
+import { callGroqDirect } from '@/app/lib/mistral-fallback'
 import { sanitizeReview } from '@/app/lib/sanitize-review'
 import { escapePromptInput } from '@/app/lib/escape-prompt'
 
@@ -150,7 +150,7 @@ phrase four
 phrase five`
 
   try {
-    const raw = await callMistralLatest([{ role: 'user', content: prompt }], 300)
+    const raw = await callGroqDirect([{ role: 'user', content: prompt }], 300)
 
     // Split on SEO_THEMES: marker
     const parts          = raw.split('SEO_THEMES:')
@@ -247,7 +247,7 @@ GROUNDING RULES — the main analysis must follow these:
 - A fix should sound like advice from an experienced Amazon seller — practical, specific to what went wrong`
     }
 
-    console.log(`[DomainKnowledge] ${complaintLines.length} complaint patterns for "${productName}" via mistral-large-2411`)
+    console.log(`[DomainKnowledge] ${complaintLines.length} complaint patterns for "${productName}" via groq-direct`)
     console.log(`[DomainKnowledge] SEO themes: ${seoThemes.join(' | ')}`)
     if (qaGapLines.length > 0) console.log(`[DomainKnowledge] QA gaps: ${qaGapLines.join(' | ')}`)
 

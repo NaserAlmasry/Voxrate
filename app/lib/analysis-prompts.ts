@@ -83,7 +83,12 @@ Copy exact verbatim sentences from 5★ reviews. Do not paraphrase. Do not summa
 ━━━ SEO ━━━
 Keywords: copy the pre-calculated phrases verbatim — do not replace them.
 Suggestions: use only phrases from 5★ reviews, never from complaint areas.
-For Amazon: focus on buyer intent phrases, problem-solution language, and material specificity — these drive A10 algorithm ranking.`
+For Amazon: focus on buyer intent phrases, problem-solution language, and material specificity — these drive A10 algorithm ranking.
+
+━━━ METADATA SIGNALS — USE WHEN PRESENT ━━━
+When STAR BREAKDOWN shows 5★ and 1★ both above 30%, this is a polarized product — flag it as high return-rate risk in the riskIfIgnored field.
+When BSR is above #50,000, mention that review issues are actively harming sales rank in the urgency field.
+Reference the PRICE point when sizing the impact of complaints — a $299 product with accuracy complaints carries higher return risk than a $19 product.`
 
 /**
  * System prompt used by the progressive section loader
@@ -447,30 +452,38 @@ export function buildSummaryPromptB(args: {
   topStrengthTitle: string
   healthScore: number
   negPct: number
+  complaints?: Array<{ title: string; description: string; reviewCount: number; severity: string }>
 }): string {
-  const { contextBlock, topComplaintTitle, topStrengthTitle, healthScore, negPct } = args
-  return `${contextBlock}
+  const { contextBlock, topComplaintTitle, topStrengthTitle, healthScore, negPct, complaints } = args
 
-TOP COMPLAINT: "${topComplaintTitle}"
+  const complaintsBlock = complaints && complaints.length > 0
+    ? `\nKNOWN COMPLAINTS (use ONLY these — do not invent others):\n` +
+      complaints.slice(0, 3).map((c, i) =>
+        `${i + 1}. [${c.severity}] "${c.title}" — ${c.reviewCount} reviews — ${c.description.slice(0, 200)}`
+      ).join('\n')
+    : `\nTOP COMPLAINT: "${topComplaintTitle}"`
+
+  return `${contextBlock}
+${complaintsBlock}
 TOP STRENGTH: "${topStrengthTitle}"
 HEALTH SCORE: ${healthScore}/100
 UNHAPPY BUYERS: ${negPct}%
 
-Generate exactly 3 top actions a seller should take, grounded in what reviewers described.
+Generate exactly 3 top actions a seller should take, grounded ONLY in the known complaints above.
 
 HARD CONSTRAINTS:
 1. action: 6-10 words using reviewer language — NOT "improve durability", NOT "enhance quality"
-2. detail: 4-5 sentences grounded in what reviewers described — no invented business outcomes
-3. segment: name the specific buyer type from reviews — e.g. "home cooks who prep daily" not "customers"
+2. detail: 4-5 sentences — reference ONLY what the complaints above describe, no invented issues
+3. segment: name the specific buyer type from the complaint context
 4. Each action must address a different complaint or opportunity angle
-5. BANNED: "improve durability", "enhance quality", "better materials", "customers will appreciate", invented percentages
+5. BANNED: invented issues not in the complaints list, invented percentages, "rust", "corrosion", "hardware failure" unless explicitly in a complaint above
 
 Return ONLY this JSON — start with { immediately:
 {
   "topActions": [
     {
       "action": "<6-10 words from reviewer language>",
-      "detail": "<4-5 sentences grounded in reviewer descriptions>",
+      "detail": "<4-5 sentences grounded in the complaints above>",
       "segment": "<specific buyer type from reviews>"
     },
     {
