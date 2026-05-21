@@ -1,7 +1,12 @@
 // app/blog/page.tsx — public blog index (server component)
 
 import Link from 'next/link'
-import { createClient } from '@/app/lib/supabase/server'
+import { createClient } from '@supabase/supabase-js'
+
+const supabasePublic = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+)
 
 export const metadata = {
   title: 'Blog – Amazon Seller Tips & Strategies | Voxrate',
@@ -30,8 +35,7 @@ function formatDate(iso: string | null): string {
 }
 
 export default async function BlogIndexPage() {
-  const supabase = await createClient()
-  const { data } = await supabase
+  const { data } = await supabasePublic
     .from('blog_posts')
     .select('id, title, slug, excerpt, cover_image, published_at, views')
     .eq('published', true)
