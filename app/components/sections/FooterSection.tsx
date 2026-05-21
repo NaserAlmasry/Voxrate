@@ -30,7 +30,7 @@ export default function FooterSection({ footerNlEmail, setFooterNlEmail, footerN
             <p className="text-xs font-semibold text-neutral-700 uppercase tracking-wider mb-3">Stay in the loop</p>
             <p className="text-xs text-neutral-500 mb-3">New features, tips, and exclusive discounts for Amazon sellers.</p>
             {footerNlSubmitted ? (
-              <p className="text-xs text-green-600 font-medium">Thanks! We'll be in touch.</p>
+              <p className="text-xs text-green-600 font-medium">Thanks! We&apos;ll be in touch.</p>
             ) : (
               <div className="flex gap-2">
                 <input type="email" value={footerNlEmail} onChange={e => setFooterNlEmail(e.target.value)}

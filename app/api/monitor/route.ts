@@ -18,7 +18,7 @@ export async function GET() {
   const items = data || []
 
   // Fetch score history per listing
-  let historyMap: Record<string, number[]> = {}
+  const historyMap: Record<string, number[]> = {}
   try {
     const { data: history } = await supabase
       .from('monitor_history')

@@ -48,7 +48,7 @@ export default function ComparisonSection() {
             </div>
           ))}
         </div>
-        <p className="text-xs text-neutral-400 text-center mt-3">"Typical Amazon tools" refers to general keyword/SEO research tools. Comparison based on publicly available features as of 2026.</p>
+        <p className="text-xs text-neutral-400 text-center mt-3">&ldquo;Typical Amazon tools&rdquo; refers to general keyword/SEO research tools. Comparison based on publicly available features as of 2026.</p>
       </div>
     </section>
   )

@@ -17,7 +17,7 @@ export async function GET() {
   const items = data || []
 
   // Fetch score history (gracefully skip if table doesn't exist)
-  let historyMap: Record<string, number[]> = {}
+  const historyMap: Record<string, number[]> = {}
   try {
     const { data: history } = await supabase
       .from('watchlist_history')

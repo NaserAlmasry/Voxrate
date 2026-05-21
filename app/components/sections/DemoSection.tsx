@@ -126,7 +126,7 @@ export default function DemoSection({ activeTab, setActiveTab, expandedComplaint
           <div className="flex justify-center mb-3">
             <div className="relative inline-block text-left">
               <svg width="48" height="48" viewBox="0 0 48 48" fill="none" className="absolute -top-4 -left-6 opacity-20" style={{ color: '#f05a1e' }}>
-                <text x="0" y="48" fontSize="64" fill="#f05a1e" fontFamily="Georgia, serif">"</text>
+                <text x="0" y="48" fontSize="64" fill="#f05a1e" fontFamily="Georgia, serif">&ldquo;</text>
               </svg>
               <h2 className="text-3xl md:text-4xl font-bold italic text-neutral-900 pl-6" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
                 1,000 reviews.<br />Decisions in one page.
@@ -287,7 +287,7 @@ export default function DemoSection({ activeTab, setActiveTab, expandedComplaint
                           <span className="text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded-full ml-2 flex-shrink-0">{s.frequency}</span>
                         </div>
                         <p className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full inline-block mb-2">{s.segment}</p>
-                        <p className="text-xs text-neutral-600 italic mb-3 border-l-2 border-green-200 pl-2">"{s.quote}"</p>
+                        <p className="text-xs text-neutral-600 italic mb-3 border-l-2 border-green-200 pl-2">&ldquo;{s.quote}&rdquo;</p>
                         <div className="p-3 bg-neutral-50 rounded-xl mb-2">
                           <p className="text-xs font-medium text-neutral-600 mb-1">Why this matters</p>
                           <p className="text-xs text-neutral-700 leading-relaxed">{s.summary}</p>

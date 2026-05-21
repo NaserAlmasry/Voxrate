@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/app/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 
@@ -29,9 +30,9 @@ export default function ResetPasswordPage() {
     <div className="min-h-screen bg-[#FAF9F6] flex items-center justify-center p-4" style={{ fontFamily: "'DM Sans', sans-serif" }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap');`}</style>
       <div className="bg-white rounded-2xl border border-neutral-200 shadow-xl w-full max-w-sm p-8">
-        <a href="/" className="flex justify-center mb-6">
+        <Link href="/" className="flex justify-center mb-6">
           <img src="/logo.png" alt="Voxrate" height={24} style={{ objectFit: 'contain', maxWidth: 110 }} />
-        </a>
+        </Link>
 
         {done ? (
           <div className="text-center">

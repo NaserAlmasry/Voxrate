@@ -247,7 +247,7 @@ export default function AuthModal({ onClose, initialStep = 'plan', initialAuthMo
               <h2 className="text-base font-bold text-neutral-900 mb-2">Check your inbox</h2>
               <p className="text-sm text-neutral-500 mb-1">We sent a confirmation link to</p>
               <p className="text-sm font-semibold text-neutral-800 mb-4">{email}</p>
-              <p className="text-xs text-neutral-400">Click the link in the email to activate your account. Check your spam folder if you don't see it.</p>
+              <p className="text-xs text-neutral-400">Click the link in the email to activate your account. Check your spam folder if you don&apos;t see it.</p>
             </div>
           )}
 
