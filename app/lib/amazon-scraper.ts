@@ -187,7 +187,7 @@ export async function scrapeAmazon(input: string, plan = 'starter'): Promise<Ama
   let scraperProvider = 'canopy'
   let totalAllocatedPages = 0
 
-  // Try Bright Data first — fetch more for large products, rebalance toward negative
+  // Paid users: Bright Data only — no Canopy fallback
   if (BRIGHTDATA_API_KEY) {
     try {
       const bdMax = brightDataMaxReviews(productData.ratingBreakdown, productData.totalReviews, plan)
@@ -196,18 +196,8 @@ export async function scrapeAmazon(input: string, plan = 'starter'): Promise<Ama
       allReviews = rebalanceReviews(validRaw, productData.ratingBreakdown)
       scraperProvider = 'brightdata'
     } catch (err: any) {
-      console.warn(`[Scraper] BrightData failed (${err.message}) — falling back to Canopy`)
+      console.warn(`[Scraper] BrightData failed: ${err.message}`)
     }
-  }
-
-  // Canopy fallback
-  if (allReviews.length === 0) {
-    const pageAlloc = allocatePages(productData.ratingBreakdown)
-    console.log(`[Scraper] Page budget: 1★×${pageAlloc[1]} 2★×${pageAlloc[2]} 3★×${pageAlloc[3]} 4★×${pageAlloc[4]} 5★×${pageAlloc[5]}`)
-    totalAllocatedPages = (Object.values(pageAlloc) as number[]).reduce((a, b) => a + b, 0)
-    const canopyRaw = await fetchAllReviews(asin, domain, pageAlloc)
-    allReviews = filterReviews(canopyRaw, 'canopy')
-    scraperProvider = 'canopy'
   }
 
   const fromCache = false
