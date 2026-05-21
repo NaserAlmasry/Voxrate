@@ -16,7 +16,7 @@ const eslintConfig = defineConfig([
   {
     rules: {
       // catch (e: any) is standard — unknown requires casting on every access
-      "@typescript-eslint/no-explicit-any": "warn",
+      "@typescript-eslint/no-explicit-any": "off",
       // unescaped entities are cosmetic — not a runtime bug
       "react/no-unescaped-entities": "warn",
       // <a> vs <Link> is best-practice, not blocking
