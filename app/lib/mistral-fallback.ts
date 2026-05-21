@@ -28,11 +28,14 @@ function isQuotaError(err: any): boolean {
   const message = String(err?.message || err || '')
   return (
     status === 429 ||
+    message.includes('429') ||
     message.includes('rate_limit_exceeded') ||
     message.includes('Rate limit reached') ||
     message.includes('rate limit') ||
     message.includes('quota') ||
-    message.includes('insufficient_quota')
+    message.includes('insufficient_quota') ||
+    message.includes('capacity exceeded') ||
+    message.includes('service_tier_capacity')
   )
 }
 

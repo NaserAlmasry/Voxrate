@@ -32,7 +32,7 @@
 //         8b-instant handles it perfectly, is faster, and uses fewer tokens.
 // ============================================================
 
-import { callMistral2411 } from '@/app/lib/mistral-fallback'
+import { callMistralLatest } from '@/app/lib/mistral-fallback'
 import { sanitizeReview } from '@/app/lib/sanitize-review'
 import { escapePromptInput } from '@/app/lib/escape-prompt'
 
@@ -150,7 +150,7 @@ phrase four
 phrase five`
 
   try {
-    const raw = await callMistral2411([{ role: 'user', content: prompt }], 300)
+    const raw = await callMistralLatest([{ role: 'user', content: prompt }], 300)
 
     // Split on SEO_THEMES: marker
     const parts          = raw.split('SEO_THEMES:')
