@@ -12,12 +12,11 @@
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server'
-import { callMistralLatest, type Message } from '@/app/lib/mistral-fallback'
+import { callMistralLatest } from '@/app/lib/mistral-fallback'
 import { createClient } from '@/app/lib/supabase/server'
-import { applyHardOverrides, validateSemanticConstraints } from '@/app/lib/health-score'
-import { enforceRateLimit, checkRateLimit } from '@/app/lib/rate-limit'
+import { applyHardOverrides } from '@/app/lib/health-score'
+import { checkRateLimit } from '@/app/lib/rate-limit'
 import { checkCsrf } from '@/app/lib/csrf'
-import { getClientIp } from '@/app/lib/ip'
 import { extractJson } from '@/app/lib/extract-json'
 import {
   SECTION_SYSTEM_PROMPT as SYSTEM_PROMPT,
@@ -67,7 +66,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Rate limit — admins bypass; section namespace is separate from /api/analyze
-    const ip = getClientIp(request)
     if (!isAdminUser) {
       const limit = await checkRateLimit(`section:${user.id}`, 'user')
       if (!limit.allowed) {
@@ -90,12 +88,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
     }
     if (report.status === 'completed') {
-      const { _cache, ...publicReport } = report.full_report || {}
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { _cache: _stripped, ...publicReport } = report.full_report || {}
       return NextResponse.json({ section, data: publicReport, status: 'completed' })
     }
 
-    const fullReport: any = report.full_report || {}
-    const cache: any      = fullReport._cache   || {}
+    const fullReport: Record<string, unknown> = (report.full_report as Record<string, unknown>) || {}
+    const cache: Record<string, unknown>      = (fullReport._cache as Record<string, unknown>) || {}
     const sectionsReady: string[] = fullReport._sectionsReady || ['complaints']
 
     // Skip if this section is already done
@@ -105,7 +104,6 @@ export async function POST(request: NextRequest) {
 
     const {
       contextBlock    = '',
-      negReviewText   = '',
       posReviewText   = '',
       fiveStarText    = '',
       reviewText      = '',
@@ -122,8 +120,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Section data unavailable. Please re-run the analysis.' }, { status: 409 })
     }
 
-    let updatedReport = { ...fullReport }
-    let newSectionsReady = [...sectionsReady]
+    const updatedReport = { ...fullReport }
+    const newSectionsReady = [...sectionsReady]
 
     // ── Call 2: STRENGTHS + IMPROVEMENTS ────────────────────
     if (section === 'strengths') {
@@ -366,7 +364,8 @@ export async function POST(request: NextRequest) {
 
     // Strip internal cache from the response — raw review text and prompt
     // data must never be sent to the client browser.
-    const { _cache, ...publicReport } = finalReport
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { _cache: _strippedCache, ...publicReport } = finalReport
 
     return NextResponse.json({
       section,

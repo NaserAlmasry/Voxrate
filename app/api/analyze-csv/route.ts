@@ -27,8 +27,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/app/lib/supabase/server'
 import {
   calculateHealthScore,
-  applyHardOverrides,
-  validateSemanticConstraints,
 } from '@/app/lib/health-score'
 import { enforceRateLimit } from '@/app/lib/rate-limit'
 import { checkCsrf } from '@/app/lib/csrf'
@@ -38,8 +36,6 @@ import { applyPlanLimits } from '@/app/lib/plan-limits'
 import {
   analyzeFreeReviews,
   analyzeReviews,
-  applyOutputGuardrails,
-  applyDeterministicNarrative,
   getGroqRateLimitInfo,
   friendlyGroqLimitMessage,
   type ProductInfo,
