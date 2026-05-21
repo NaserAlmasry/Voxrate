@@ -8,7 +8,7 @@ export const metadata = {
   description: 'Amazon seller tips, listing optimization strategies, and review analysis guides from the Voxrate team.',
 }
 
-export const revalidate = 300
+export const revalidate = 60
 
 type Post = {
   id: string
@@ -36,6 +36,7 @@ export default async function BlogIndexPage() {
     .select('id, title, slug, excerpt, cover_image, published_at, views')
     .eq('published', true)
     .order('published_at', { ascending: false })
+    .limit(50)
 
   const posts: Post[] = (data as Post[] | null) || []
 
