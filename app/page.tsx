@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/app/lib/supabase/client'
 import CheckoutButton from '@/app/components/CheckoutButton'
 import AuthModal from '@/app/components/AuthModal'
-import { Coffee, Search, Crosshair, Zap, PenLine, MessageCircle, Layers, BarChart2, Bell, Puzzle, RefreshCw, Gift, HelpCircle, AlertCircle, Sparkles, Wrench, TrendingUp, Megaphone, Star } from 'lucide-react'
+import { Coffee, Search, Crosshair, Zap, PenLine, MessageCircle, Layers, BarChart2, BellRing, RefreshCw, Gift, HelpCircle, AlertCircle, Sparkles, Wrench, TrendingUp, Megaphone, Star } from 'lucide-react'
 
 // ── helpers ────────────────────────────────────────────────────
 function scoreColor(n: number) {
@@ -623,8 +623,7 @@ export default function LandingPage() {
     { icon: <MessageCircle className="text-orange-500" size={18} />, title: 'Review Reply Generator', desc: '3 ready-to-paste reply options for any review — empathetic, professional, or personal tone.', badge: 'Free tool' },
     { icon: <Layers className="text-orange-500" size={18} />, title: 'AI Listing Builder', desc: 'Generate a complete listing from scratch — title options, 13 SEO tags, and full description from a short prompt.', badge: 'Free tool' },
     { icon: <BarChart2 className="text-orange-500" size={18} />, title: 'Shop Health Score', desc: "See your entire shop's health at a glance — aggregated score, top recurring complaints, and 3 priority actions.", badge: 'Free' },
-    { icon: <Bell className="text-orange-500" size={18} />, title: 'Review Monitoring', desc: 'Automatic weekly re-analysis. Get alerts the moment your score drops or new complaints appear.', badge: 'Coming soon', soon: true },
-    { icon: <Puzzle className="text-orange-500" size={18} />, title: 'Chrome Extension', desc: 'Analyze any Amazon listing instantly while browsing — without leaving the page. One-click access to full reports.', badge: 'Coming soon', soon: true },
+    { icon: <BellRing className="text-orange-500" size={18} />, title: 'Sentiment Alerts', desc: 'Get an email digest of new 1★ and 2★ reviews on your schedule — every 2 weeks or monthly. Catch problems before they cost you sales.', badge: 'Growth & Pro' },
   ]
 
   const creditItems: { action: string; cost: string; icon: React.ReactNode; free?: boolean }[] = [
@@ -1230,15 +1229,6 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* Coming soon — small teaser */}
-          <div className="flex flex-wrap gap-3 justify-center scroll-fade">
-            {featureItems.slice(7).map((f) => (
-              <div key={f.title} className="inline-flex items-center gap-2 px-4 py-2 bg-neutral-50 border border-neutral-200 rounded-full text-xs text-neutral-500">
-                <span className="w-1.5 h-1.5 rounded-full bg-orange-400" />
-                {f.title} — coming soon
-              </div>
-            ))}
-          </div>
         </div>
       </section>
 
