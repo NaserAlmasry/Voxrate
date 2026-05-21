@@ -260,7 +260,7 @@ export async function POST(request: NextRequest) {
               negPct,
             }),
           },
-        ], 1200)
+        ], 600)
 
         const parsedA: any = extractJson(rawA)
         updatedReport.freeSummary = parsedA.freeSummary || updatedReport.freeSummary
