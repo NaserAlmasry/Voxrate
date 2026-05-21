@@ -52,6 +52,8 @@ async function readReviewCache(asin: string, domain: string): Promise<AmazonRevi
 
 const SCRAPINGDOG_API_KEY  = process.env.SCRAPINGDOG_API_KEY!
 const SCRAPERAPI_KEY       = process.env.SCRAPERAPI_KEY!
+const BRIGHTDATA_API_KEY   = process.env.BRIGHTDATA_API_KEY!
+const BRIGHTDATA_DATASET   = 'gd_le8e811kzy4ggddlq'
 
 // Canopy keys — auto-rotates to next key when current hits quota (429/403)
 // Add CANOPY_API_KEY_2, _3, _4... in Vercel for more free-tier capacity
@@ -177,11 +179,30 @@ export async function scrapeAmazon(input: string): Promise<AmazonScrapeResult> {
     fetchQA(asin, marketplace),
   ])
 
-  const pageAlloc = allocatePages(productData.ratingBreakdown)
-  console.log(`[Scraper] Page budget: 1★×${pageAlloc[1]} 2★×${pageAlloc[2]} 3★×${pageAlloc[3]} 4★×${pageAlloc[4]} 5★×${pageAlloc[5]}`)
-  const totalAllocatedPages = (Object.values(pageAlloc) as number[]).reduce((a, b) => a + b, 0)
-  const allReviews = await fetchAllReviews(asin, domain, pageAlloc)
-  const fromCache  = false
+  let allReviews: AmazonReview[] = []
+  let scraperProvider = 'canopy'
+  let totalAllocatedPages = 0
+
+  // Try Bright Data first — cheaper, no per-star pagination needed
+  if (BRIGHTDATA_API_KEY) {
+    try {
+      allReviews = await fetchReviewsBrightData(asin, marketplace)
+      scraperProvider = 'brightdata'
+    } catch (err: any) {
+      console.warn(`[Scraper] BrightData failed (${err.message}) — falling back to Canopy`)
+    }
+  }
+
+  // Canopy fallback
+  if (allReviews.length === 0) {
+    const pageAlloc = allocatePages(productData.ratingBreakdown)
+    console.log(`[Scraper] Page budget: 1★×${pageAlloc[1]} 2★×${pageAlloc[2]} 3★×${pageAlloc[3]} 4★×${pageAlloc[4]} 5★×${pageAlloc[5]}`)
+    totalAllocatedPages = (Object.values(pageAlloc) as number[]).reduce((a, b) => a + b, 0)
+    allReviews = await fetchAllReviews(asin, domain, pageAlloc)
+    scraperProvider = 'canopy'
+  }
+
+  const fromCache = false
 
   if (allReviews.length > 0) {
     // Write to cache fire-and-forget — don't block the analysis
@@ -204,7 +225,7 @@ export async function scrapeAmazon(input: string): Promise<AmazonScrapeResult> {
     scrapedAt:        new Date().toISOString(),
     marketplace,
     fromCache,
-    scraperProvider:  'canopy',
+    scraperProvider:  scraperProvider,
     scraperPages:     totalAllocatedPages,
   }
 }
@@ -260,6 +281,55 @@ async function fetchOnePage(asin: string, domain: string): Promise<AmazonReview[
     console.warn('[Scraper:free] fetchOnePage exception:', e)
     return []
   }
+}
+
+// Bright Data — synchronous real-time Amazon Reviews scraper
+async function fetchReviewsBrightData(asin: string, marketplace: string, maxReviews = 150): Promise<AmazonReview[]> {
+  if (!BRIGHTDATA_API_KEY) throw new Error('BRIGHTDATA_API_KEY not set')
+  const domain = marketplace.replace('amazon.', '')
+  const url = `https://www.amazon.${domain}/dp/${asin}`
+
+  const res = await fetch(
+    `https://api.brightdata.com/datasets/v3/scrape?dataset_id=${BRIGHTDATA_DATASET}&notify=false&include_errors=true`,
+    {
+      method:  'POST',
+      headers: { 'Authorization': `Bearer ${BRIGHTDATA_API_KEY}`, 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ input: [{ url, max_reviews: maxReviews }] }),
+    }
+  )
+
+  if (!res.ok) throw new Error(`BrightData HTTP ${res.status}`)
+
+  const text = await res.text()
+  const lines = text.trim().split('\n').filter(Boolean)
+  const reviews: AmazonReview[] = []
+
+  for (let i = 0; i < lines.length; i++) {
+    try {
+      const r = JSON.parse(lines[i])
+      if (r.error) { console.warn('[BrightData] Row error:', r.error); continue }
+      if (!r.review_text) continue
+
+      // rating field: BrightData sometimes returns 0 — try multiple field names
+      const rawRating = r.rating || r.review_rating || r.star_rating || 0
+      const rating = rawRating >= 1 && rawRating <= 5 ? Math.round(rawRating) : 0
+
+      reviews.push({
+        id:       r.review_id ?? `bd-${asin}-${i}`,
+        rating,
+        title:    r.title ?? '',
+        body:     r.review_text ?? '',
+        date:     r.review_posted_date ?? '',
+        verified: r.is_verified ?? r.badge === 'Verified Purchase',
+        vine:     r.is_amazon_vine ?? false,
+        helpful:  r.helpful_count ?? 0,
+        country:  marketplace,
+      })
+    } catch { /* skip malformed line */ }
+  }
+
+  console.log(`[BrightData] Fetched ${reviews.length} reviews for ${asin}`)
+  return reviews
 }
 
 // Fetch all 5 star tiers in parallel using pre-allocated page counts
