@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { AmazonScrapeResult, AmazonProduct, AmazonReview, AmazonQA } from './amazon-types'
 
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000 // 24 hours
+const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
 
 function getAdminClient() {
   return createClient(
@@ -93,8 +93,8 @@ const STAR_FILTER_MAP: Record<1 | 2 | 3 | 4 | 5, string> = {
 
 // Base pages per star tier. Each tier can absorb at most 1 extra page from rollover.
 // Excess rollover (beyond 1) keeps flowing to the next tier.
-// Max possible: 3+3+2+2+2 = 12 pages = ~120 reviews
-const BASE_PAGES: Record<1 | 2 | 3 | 4 | 5, number> = { 1: 3, 2: 2, 3: 1, 4: 1, 5: 3 }
+// Max possible: 3+3+3+2+2 = 13 pages = ~130 reviews
+const BASE_PAGES: Record<1 | 2 | 3 | 4 | 5, number> = { 1: 3, 2: 3, 3: 1, 4: 1, 5: 3 }
 const MAX_ROLLOVER_PER_TIER = 1
 
 function allocatePages(ratingBreakdown: { one: number; two: number; three: number; four: number; five: number }): Record<1 | 2 | 3 | 4 | 5, number> {
@@ -113,7 +113,7 @@ function allocatePages(ratingBreakdown: { one: number; two: number; three: numbe
     const usableRollover  = Math.min(MAX_ROLLOVER_PER_TIER, rollover)
     const passedRollover  = rollover - usableRollover           // excess keeps flowing
     const budget          = BASE_PAGES[star] + usableRollover
-    const needed          = (counts[star] < 5 && totalReviews > 100) ? 0 : Math.ceil(counts[star] / REVIEWS_PER_PAGE)
+    const needed          = (counts[star] < 3 && totalReviews > 50) ? 0 : Math.ceil(counts[star] / REVIEWS_PER_PAGE)
     const alloc           = Math.min(budget, needed)
     pages[star]           = alloc
     rollover              = passedRollover + (budget - alloc)   // unused base + passed excess
@@ -144,7 +144,30 @@ export async function scrapeAmazon(input: string): Promise<AmazonScrapeResult> {
 
   const domain = DOMAIN_MAP[marketplace] ?? 'US'
 
-
+  // Cache-first: return immediately if fresh cache exists (< 7 days)
+  const cachedEarly = await readReviewCache(asin, domain)
+  if (cachedEarly && cachedEarly.length > 0) {
+    console.log(`[Scraper] Cache hit for ${asin}/${domain} — skipping Canopy`)
+    const [{ product: productData }, qaData] = await Promise.all([
+      fetchProduct(asin, marketplace),
+      fetchQA(asin, marketplace),
+    ])
+    const bystar = [1, 2, 3, 4, 5].map(s => cachedEarly.filter(r => r.rating === s).length)
+    console.log(
+      `[Scraper] "${productData.title.slice(0, 50)}" | ` +
+      `${productData.totalReviews} total ratings | ` +
+      `${cachedEarly.length} texts (1★:${bystar[0]} 2★:${bystar[1]} 3★:${bystar[2]} 4★:${bystar[3]} 5★:${bystar[4]}) | ` +
+      `${qaData.length} Q&A [FROM CACHE]`
+    )
+    return {
+      product:   productData,
+      reviews:   cachedEarly,
+      qa:        qaData,
+      scrapedAt: new Date().toISOString(),
+      marketplace,
+      fromCache: true,
+    }
+  }
 
   // Fetch product first so we know the rating breakdown, then allocate pages smartly
   const [{ product: productData }, qaData] = await Promise.all([
@@ -160,13 +183,6 @@ export async function scrapeAmazon(input: string): Promise<AmazonScrapeResult> {
   if (allReviews.length > 0) {
     // Write to cache fire-and-forget — don't block the analysis
     writeReviewCache(asin, domain, allReviews).catch(() => {})
-  } else {
-    // Canopy returned nothing — try the cache before giving up
-    const cached = await readReviewCache(asin, domain)
-    if (cached && cached.length > 0) {
-      allReviews = cached
-      fromCache  = true
-    }
   }
 
   const bystar = [1, 2, 3, 4, 5].map(s => allReviews.filter(r => r.rating === s).length)
@@ -243,7 +259,23 @@ async function fetchAllReviews(asin: string, domain: string, pageAlloc: Record<1
   const batches = await Promise.all(
     ([1, 2, 3, 4, 5] as const).map(star => fetchStarReviews(asin, domain, star, pageAlloc[star]))
   )
-  return batches.flat()
+  const flat = batches.flat()
+
+  // Deduplicate by ID (keep first occurrence)
+  const seenIds = new Set<string>()
+  const seenBodies = new Set<string>()
+  const deduped: AmazonReview[] = []
+  for (const review of flat) {
+    const bodyKey = review.body.trim().toLowerCase()
+    if (seenIds.has(review.id) || seenBodies.has(bodyKey)) continue
+    seenIds.add(review.id)
+    if (bodyKey) seenBodies.add(bodyKey)
+    deduped.push(review)
+  }
+  if (deduped.length < flat.length) {
+    console.log(`[Scraper] Deduplication removed ${flat.length - deduped.length} duplicate reviews`)
+  }
+  return deduped
 }
 
 async function fetchStarReviews(
@@ -259,7 +291,7 @@ async function fetchStarReviews(
 
   for (let page = 1; page <= maxPages; page++) {
     try {
-      const url = `${CANOPY_BASE}?asin=${asin}&domain=${domain}&page=${page}&rating=${rating}`
+      const url = `${CANOPY_BASE}?asin=${asin}&domain=${domain}&page=${page}&rating=${rating}&verified_purchases_only=true&sort_by=RECENT`
       const res = await canopyFetch(url)
 
       if (!res.ok) {
