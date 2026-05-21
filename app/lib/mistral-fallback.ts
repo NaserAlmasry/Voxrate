@@ -44,7 +44,7 @@ async function callMistral(messages: Message[], maxTokens: number, model: string
   if (!key) throw new Error('MISTRAL_API_KEY not set')
 
   const controller = new AbortController()
-  const timeoutId  = setTimeout(() => controller.abort(), 55_000)
+  const timeoutId  = setTimeout(() => controller.abort(), 20_000)
   try {
     const res = await fetch(MISTRAL_API_URL, {
       method:  'POST',
@@ -90,24 +90,21 @@ export async function callMistral2411(messages: Message[], maxTokens: number): P
 // Use this for anything users directly read: complaints, strengths, rewrite, reply, listing.
 
 export async function callMistralLatest(messages: Message[], maxTokens: number): Promise<string> {
-  // 1. Try Mistral Large Latest
+  // 1. Try Mistral Large Latest — fall through on any error (quota, timeout, capacity)
   try {
     return await callMistral(messages, maxTokens, MISTRAL_MODEL_LATEST)
   } catch (err: any) {
-    if (!isQuotaError(err)) throw err
-    console.warn('[MistralLatest] Quota hit — falling back to Groq 70b')
+    console.warn('[MistralLatest] Failed, falling back to Groq 70b:', err?.message?.slice(0, 100))
   }
 
-  // 2. Try Groq 70b (stronger than 2411, free)
+  // 2. Try Groq 70b (stronger than 2411, free, fast)
   try {
     return await callGroq(messages, maxTokens)
   } catch (err: any) {
-    if (!isQuotaError(err)) throw err
-    console.warn('[Groq] Quota hit — falling back to Mistral 2411')
+    console.warn('[Groq] Failed, falling back to Mistral 2411:', err?.message?.slice(0, 100))
   }
 
-  // 3. Last resort — Mistral 2411 (200B/month, virtually unlimited)
-  console.warn('[Fallback] Using Mistral 2411 as last resort')
+  // 3. Last resort — Mistral 2411
   return callMistral(messages, maxTokens, MISTRAL_MODEL_2411)
 }
 
