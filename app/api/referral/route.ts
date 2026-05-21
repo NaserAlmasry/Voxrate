@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Not enough referrals yet. You need at least 3 paid referrals to claim a reward.' }, { status: 400 })
     }
 
-    const rewardPlan: 'starter' | 'growth' = count >= 5 ? 'growth' : 'starter'
+    const rewardPlan: 'starter' | 'growth' | 'pro' = count >= 15 ? 'pro' : count >= 5 ? 'growth' : 'starter'
     const periodEndUnix = Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60
 
     const { error: updateErr } = await admin
