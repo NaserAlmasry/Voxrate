@@ -71,11 +71,13 @@ async function listAll(
 }
 
 export async function GET() {
+  try {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: me } = await supabase.from('users').select('is_admin').eq('id', user.id).single()
+  const { data: me, error: meErr } = await supabase.from('users').select('is_admin').eq('id', user.id).single()
+  if (meErr) { console.error('[Revenue] admin check failed:', meErr.message); return NextResponse.json({ error: meErr.message }, { status: 500 }) }
   if (!me?.is_admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const secret = process.env.STRIPE_SECRET_KEY
@@ -90,7 +92,10 @@ export async function GET() {
   const [active, canceled] = await Promise.all([
     listAll(stripe, { status: 'active' }),
     listAll(stripe, { status: 'canceled', created: { gte: Math.floor(monthStart) - 60 * 60 * 24 * 90 } }),
-  ])
+  ]).catch((err: any) => {
+    console.error('[Revenue] Stripe fetch failed:', err?.message ?? err)
+    throw err
+  })
 
   const byPlan: Record<PlanKey, { count: number; mrr: number }> = {
     starter: { count: 0, mrr: 0 },
@@ -127,4 +132,8 @@ export async function GET() {
   }
 
   return NextResponse.json(payload)
+  } catch (err: any) {
+    console.error('[Revenue] Unhandled error:', err?.message ?? err)
+    return NextResponse.json({ error: err?.message ?? 'Internal error' }, { status: 500 })
+  }
 }
