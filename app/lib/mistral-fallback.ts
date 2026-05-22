@@ -112,22 +112,37 @@ export async function callMistral2411(messages: Message[], maxTokens: number): P
 // Use this for anything users directly read: complaints, strengths, rewrite, reply, listing.
 
 export async function callMistralLatest(messages: Message[], maxTokens: number): Promise<string> {
-  // 1. Try Mistral Large Latest — fall through on any error (quota, timeout, capacity)
-  try {
-    return await callMistral(messages, maxTokens, MISTRAL_MODEL_LATEST)
-  } catch (err: any) {
-    console.warn('[MistralLatest] Failed, falling back to Groq 70b:', err?.message?.slice(0, 100))
+  // Retry up to 2 times with 8s delay when all providers are rate-limited simultaneously
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) {
+      console.warn(`[LLM] All providers rate-limited — waiting 8s before retry ${attempt}/2`)
+      await new Promise(r => setTimeout(r, 8_000))
+    }
+
+    // 1. Try Mistral Large Latest
+    try {
+      return await callMistral(messages, maxTokens, MISTRAL_MODEL_LATEST)
+    } catch (err: any) {
+      console.warn('[MistralLatest] Failed, falling back to Groq 70b:', err?.message?.slice(0, 100))
+    }
+
+    // 2. Try Groq 70b
+    try {
+      return await callGroq(messages, maxTokens)
+    } catch (err: any) {
+      console.warn('[Groq] Failed, falling back to Mistral 2411:', err?.message?.slice(0, 100))
+    }
+
+    // 3. Try Mistral 2411
+    try {
+      return await callMistral(messages, maxTokens, MISTRAL_MODEL_2411)
+    } catch (err: any) {
+      console.warn('[Mistral2411] Failed:', err?.message?.slice(0, 100))
+      if (attempt === 2) throw err
+    }
   }
 
-  // 2. Try Groq 70b (stronger than 2411, free, fast)
-  try {
-    return await callGroq(messages, maxTokens)
-  } catch (err: any) {
-    console.warn('[Groq] Failed, falling back to Mistral 2411:', err?.message?.slice(0, 100))
-  }
-
-  // 3. Last resort — Mistral 2411
-  return callMistral(messages, maxTokens, MISTRAL_MODEL_2411)
+  throw new Error('All LLM providers exhausted after 3 attempts')
 }
 
 // ── Legacy export used by csv-analysis.ts (callWithFallback) ──────────────
