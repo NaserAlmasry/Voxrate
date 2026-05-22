@@ -21,7 +21,8 @@ setInterval(evictStaleJobs, 60_000)
 // Shared secret auth — Vercel sends this header on every request
 const SECRET = process.env.SCRAPER_SECRET
 app.addHook('onRequest', async (req, reply) => {
-  if (!SECRET) return  // dev mode: no auth
+  if (!SECRET) return
+  if (req.url === '/health') return  // healthcheck must be public
   if (req.headers['x-scraper-secret'] !== SECRET) {
     reply.code(401).send({ error: 'Unauthorized' })
   }
