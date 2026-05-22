@@ -1,4 +1,4 @@
-import { Impit, Browser } from 'impit'
+import { Impit } from 'impit'
 import { proxyUrl, newSessionId } from './proxy.js'
 import { isBlocked, hasNextPage, parseReviews } from './parser.js'
 import type { ScrapeRequest, Review } from './types.js'
@@ -41,9 +41,8 @@ export async function scrape(req: ScrapeRequest): Promise<Review[]> {
   const proxy     = proxyUrl(sessionId)
 
   const client = new Impit({
-    browser:        Browser.Chrome,
-    proxyUrl:       proxy,
-    // Follow redirects — Amazon redirects to sign-in or captcha pages
+    browser:         'chrome',
+    proxyUrl:        proxy,
     followRedirects: true,
   })
 
@@ -85,9 +84,9 @@ export async function scrape(req: ScrapeRequest): Promise<Review[]> {
       }
 
       // New session = new residential IP from BrightData
-      const newSession = newSessionId()
-      const newProxy   = proxyUrl(newSession)
-      ;(client as any).proxyUrl = newProxy   // impit exposes this for mutation
+      const newSession  = newSessionId()
+      const newProxy    = proxyUrl(newSession)
+      ;(client as any)._proxyUrl = newProxy
 
       page--   // retry the same page with the new IP
       await delay(2000 * captchaStreak)
