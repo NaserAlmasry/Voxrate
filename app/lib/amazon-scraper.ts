@@ -182,16 +182,21 @@ export async function scrapeAmazon(input: string, plan = 'starter'): Promise<Ama
   ])
 
   let allReviews: AmazonReview[] = []
+  let fiveStarReviews: AmazonReview[] | undefined
   let scraperProvider = 'canopy'
   let totalAllocatedPages = 0
 
-  // Paid users: Bright Data only — no Canopy fallback
+  // Paid users: Bright Data half-split — mixed /dp/ for complaints + five_star for strengths/SEO
   if (BRIGHTDATA_API_KEY) {
     try {
-      const bdMax = brightDataMaxReviews(productData.ratingBreakdown, productData.totalReviews, plan)
-      const raw = await fetchReviewsBrightData(asin, marketplace, bdMax)
-      const validRaw = filterReviews(raw, 'brightdata')
-      allReviews = rebalanceReviews(validRaw, productData.ratingBreakdown)
+      const { mixed, fiveStar } = await fetchReviewsBrightDataHalfSplit(asin, marketplace)
+      const validMixed    = filterReviews(mixed,    'brightdata-mixed')
+      const validFiveStar = filterReviews(fiveStar, 'brightdata-fivestar')
+
+      // Mixed reviews: rebalance toward negative for complaint analysis
+      allReviews     = rebalanceReviews(validMixed, productData.ratingBreakdown)
+      // Five-star reviews: stored separately, used only for strengths/SEO/marketing copy
+      fiveStarReviews = validFiveStar.length > 0 ? validFiveStar : undefined
       scraperProvider = 'brightdata'
     } catch (err: any) {
       console.warn(`[Scraper] BrightData failed: ${err.message}`)
@@ -201,22 +206,25 @@ export async function scrapeAmazon(input: string, plan = 'starter'): Promise<Ama
   const fromCache = false
 
   if (allReviews.length > 0) {
-    // Write to cache fire-and-forget — don't block the analysis
-    writeReviewCache(asin, domain, allReviews).catch(() => {})
+    // Cache the combined set — fire-and-forget, don't block analysis
+    const combined = [...allReviews, ...(fiveStarReviews ?? [])]
+    writeReviewCache(asin, domain, combined).catch(() => {})
   }
 
   const bystar = [1, 2, 3, 4, 5].map(s => allReviews.filter(r => r.rating === s).length)
+  const pos5count = fiveStarReviews?.length ?? 0
 
   console.log(
     `[Scraper] "${productData.title.slice(0, 50)}" | ` +
     `${productData.totalReviews} total ratings | ` +
-    `${allReviews.length} texts (1★:${bystar[0]} 2★:${bystar[1]} 3★:${bystar[2]} 4★:${bystar[3]} 5★:${bystar[4]}) | ` +
-    `${qaData.length} Q&A${fromCache ? ' [FROM CACHE]' : ''}`
+    `${allReviews.length} mixed (1★:${bystar[0]} 2★:${bystar[1]} 3★:${bystar[2]} 4★:${bystar[3]} 5★:${bystar[4]}) | ` +
+    `${pos5count} guaranteed 5★ | ${qaData.length} Q&A`
   )
 
   return {
     product:          productData,
     reviews:          allReviews,
+    fiveStarReviews,
     qa:               qaData,
     scrapedAt:        new Date().toISOString(),
     marketplace,
@@ -376,11 +384,19 @@ function rebalanceReviews(
   return result
 }
 
-// Bright Data — synchronous real-time Amazon Reviews scraper
-async function fetchReviewsBrightData(asin: string, marketplace: string, maxReviews = 150): Promise<AmazonReview[]> {
+// ── BrightData core fetcher ───────────────────────────────────
+// Sends one request to BrightData and parses the NDJSON response.
+// label is used for logging only ('mixed' or 'fivestar').
+// Logs which rating field resolved each review so we can confirm
+// in Vercel logs which field BrightData is actually populating.
+
+async function fetchFromBrightData(
+  url: string,
+  maxReviews: number,
+  asin: string,
+  label: string,
+): Promise<AmazonReview[]> {
   if (!BRIGHTDATA_API_KEY) throw new Error('BRIGHTDATA_API_KEY not set')
-  const domain = marketplace.replace('amazon.', '')
-  const url = `https://www.amazon.${domain}/dp/${asin}`
 
   const res = await fetch(
     `https://api.brightdata.com/datasets/v3/scrape?dataset_id=${BRIGHTDATA_DATASET}&notify=false&include_errors=true`,
@@ -394,23 +410,31 @@ async function fetchReviewsBrightData(asin: string, marketplace: string, maxRevi
 
   if (!res.ok) throw new Error(`BrightData HTTP ${res.status}`)
 
-  const text = await res.text()
+  const text  = await res.text()
   const lines = text.trim().split('\n').filter(Boolean)
   const reviews: AmazonReview[] = []
+
+  // Track which field is actually populated — one sample log per fetch
+  const ratingFieldCounts: Record<string, number> = { rating: 0, review_rating: 0, star_rating: 0, none: 0 }
 
   for (let i = 0; i < lines.length; i++) {
     try {
       const r = JSON.parse(lines[i])
-      if (r.error) { console.warn('[BrightData] Row error:', r.error); continue }
+      if (r.error) { console.warn(`[BrightData:${label}] Row error:`, r.error); continue }
       if (!r.review_text) continue
 
-      // rating field: BrightData sometimes returns 0 — try multiple field names
-      const rawRating = r.rating || r.review_rating || r.star_rating || 0
-      const rating = rawRating >= 1 && rawRating <= 5 ? Math.round(rawRating) : 0
+      // Resolve rating with fallback chain — log which field won
+      let rawRating = 0
+      if (r.rating)        { rawRating = r.rating;        ratingFieldCounts.rating++ }
+      else if (r.review_rating) { rawRating = r.review_rating; ratingFieldCounts.review_rating++ }
+      else if (r.star_rating)   { rawRating = r.star_rating;   ratingFieldCounts.star_rating++ }
+      else                      { ratingFieldCounts.none++ }
 
-      if (rating === 0) { console.warn(`[BrightData] Skipping review with unresolvable rating for ${asin}`); continue }
+      const rating = rawRating >= 1 && rawRating <= 5 ? Math.round(rawRating) : 0
+      if (rating === 0) { continue }
+
       reviews.push({
-        id:       r.review_id ?? `bd-${asin}-${i}`,
+        id:       r.review_id ?? `bd-${asin}-${label}-${i}`,
         rating,
         title:    r.title ?? '',
         body:     r.review_text ?? '',
@@ -418,13 +442,52 @@ async function fetchReviewsBrightData(asin: string, marketplace: string, maxRevi
         verified: r.is_verified ?? r.badge === 'Verified Purchase',
         vine:     r.is_amazon_vine ?? false,
         helpful:  r.helpful_count ?? 0,
-        country:  marketplace,
+        country:  asin, // marketplace passed via asin param in legacy — kept for compat
       })
     } catch { /* skip malformed line */ }
   }
 
-  console.log(`[BrightData] Fetched ${reviews.length} reviews for ${asin}`)
+  console.log(
+    `[BrightData:${label}] ${reviews.length} reviews for ${asin} | ` +
+    `rating field: r.rating=${ratingFieldCounts.rating} r.review_rating=${ratingFieldCounts.review_rating} ` +
+    `r.star_rating=${ratingFieldCounts.star_rating} unresolved=${ratingFieldCounts.none}`
+  )
   return reviews
+}
+
+// ── Half-split fetch: /dp/ for mixed + five_star URL for 5★ ──
+// Runs both requests in parallel. If the five_star request fails,
+// falls back gracefully — mixed reviews are still returned.
+// Budget: 100 mixed + 30 five_star = 130 total max.
+
+async function fetchReviewsBrightDataHalfSplit(
+  asin: string,
+  marketplace: string,
+): Promise<{ mixed: AmazonReview[]; fiveStar: AmazonReview[] }> {
+  const domain = marketplace.replace('amazon.', '')
+  const mixedUrl    = `https://www.amazon.${domain}/dp/${asin}`
+  const fiveStarUrl = `https://www.amazon.${domain}/product-reviews/${asin}/ref=cm_cr_dp_d_show_all_btm?filterByStar=five_star&reviewerType=all_reviews`
+
+  const [mixedResult, fiveStarResult] = await Promise.allSettled([
+    fetchFromBrightData(mixedUrl,    100, asin, 'mixed'),
+    fetchFromBrightData(fiveStarUrl,  30, asin, 'fivestar'),
+  ])
+
+  const mixed   = mixedResult.status    === 'fulfilled' ? mixedResult.value    : []
+  const fiveStar = fiveStarResult.status === 'fulfilled' ? fiveStarResult.value : []
+
+  if (mixedResult.status    === 'rejected') console.warn(`[BrightData] Mixed fetch failed: ${mixedResult.reason?.message}`)
+  if (fiveStarResult.status === 'rejected') console.warn(`[BrightData] FiveStar fetch failed: ${fiveStarResult.reason?.message}`)
+
+  console.log(`[BrightData] Half-split total: ${mixed.length} mixed + ${fiveStar.length} five_star = ${mixed.length + fiveStar.length} for ${asin}`)
+  return { mixed, fiveStar }
+}
+
+// Legacy single-request fetcher — used by scrapeAmazonFree fallback only.
+async function fetchReviewsBrightData(asin: string, marketplace: string, maxReviews = 150): Promise<AmazonReview[]> {
+  const domain = marketplace.replace('amazon.', '')
+  const url    = `https://www.amazon.${domain}/dp/${asin}`
+  return fetchFromBrightData(url, maxReviews, asin, 'legacy')
 }
 
 // ── Review validation (improvement #8) ───────────────────────
