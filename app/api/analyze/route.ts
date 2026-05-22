@@ -78,10 +78,11 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 2): Promise<T> {
 // ── Main analysis ─────────────────────────────────────────────
 
 async function analyzeProduct(
-  product:             any,
-  reviews:             AmazonReview[],
-  ctx:                 ReturnType<typeof calculateHealthScore>,
-  listingDescription?: string,
+  product:              any,
+  reviews:              AmazonReview[],
+  ctx:                  ReturnType<typeof calculateHealthScore>,
+  listingDescription?:  string,
+  guaranteedFiveStar?:  AmazonReview[],
 ): Promise<any> {
   // Convert AmazonReview[] to the shape pattern-extractor expects
   const reviewsForPatterns = reviews.map(r => ({
@@ -102,7 +103,15 @@ async function analyzeProduct(
 
   const negativeReviews = sampledReviews.filter(r => r.rating <= 2).slice(0, 50)
   const positiveReviews = sampledReviews.filter(r => r.rating >= 4).slice(0, 50)
-  const fiveStarReviews = sampledReviews.filter(r => r.rating === 5).slice(0, 30)
+  const fiveStarFromMixed = sampledReviews.filter(r => r.rating === 5).slice(0, 30)
+
+  // Convert guaranteed 5★ batch (BrightData half-split) to the same shape
+  const guaranteedFiveStarMapped = (guaranteedFiveStar ?? []).map(r => ({
+    rating:   r.rating,
+    text:     r.body,
+    verified: r.verified,
+    vine:     r.vine,
+  }))
 
   const negReviewText = (negativeReviews.length > 0 ? negativeReviews : sampledReviews.slice(0, 20))
     .map(r =>
@@ -110,13 +119,17 @@ async function analyzeProduct(
       (r.text.length > 200 ? '…' : ''),
     ).join('\n')
 
-  const posReviewText = (positiveReviews.length > 0 ? positiveReviews : sampledReviews.slice(0, 25))
+  // posReviewText: prefer guaranteed 5★ batch if available, else fall back to mixed positives
+  const posSource = guaranteedFiveStarMapped.length > 0 ? guaranteedFiveStarMapped : positiveReviews
+  const posReviewText = (posSource.length > 0 ? posSource : sampledReviews.slice(0, 25))
     .map(r =>
       `[${r.rating}★] ${sanitizeReview(r.text).slice(0, 200).trimEnd()}` +
       (r.text.length > 200 ? '…' : ''),
     ).join('\n')
 
-  const fiveStarText = (fiveStarReviews.length > 0 ? fiveStarReviews : positiveReviews.slice(0, 10))
+  // fiveStarText: prefer guaranteed 5★ batch if available, else fall back to mixed 5★
+  const fiveStarSource = guaranteedFiveStarMapped.length > 0 ? guaranteedFiveStarMapped : fiveStarFromMixed
+  const fiveStarText = (fiveStarSource.length > 0 ? fiveStarSource : positiveReviews.slice(0, 10))
     .map(r =>
       `[5★] ${sanitizeReview(r.text).slice(0, 180).trimEnd()}` +
       (r.text.length > 180 ? '…' : ''),
@@ -124,7 +137,7 @@ async function analyzeProduct(
 
   console.log(
     `[Parallel] Review splits — neg: ${negativeReviews.length}, ` +
-    `pos: ${positiveReviews.length}, 5★: ${fiveStarReviews.length}`,
+    `pos: ${positiveReviews.length}, 5★(mixed): ${fiveStarFromMixed.length}, 5★(guaranteed): ${guaranteedFiveStarMapped.length}`,
   )
 
   const healthBlock    = formatHealthScoreForPrompt(ctx)
@@ -706,7 +719,7 @@ export async function POST(request: NextRequest) {
 
       const analysis = (!isAdminUser && plan === 'free')
         ? await analyzeFreePreview(product, rawReviews, ctx, productDescription)
-        : await analyzeProduct(product, rawReviews, ctx, productDescription)
+        : await analyzeProduct(product, rawReviews, ctx, productDescription, scrapeResult.fiveStarReviews)
 
       const { error: reportUpdateError } = await supabase
         .from('reports')
