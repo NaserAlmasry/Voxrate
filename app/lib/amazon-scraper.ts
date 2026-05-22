@@ -430,8 +430,8 @@ async function fetchFromBrightData(
       else if (r.star_rating)   { rawRating = r.star_rating;   ratingFieldCounts.star_rating++ }
       else                      { ratingFieldCounts.none++ }
 
-      const rating = rawRating >= 1 && rawRating <= 5 ? Math.round(rawRating) : 0
-      if (rating === 0) { continue }
+      // If rating unresolvable, default to 3 — text is still valuable for analysis
+      const rating = rawRating >= 1 && rawRating <= 5 ? Math.round(rawRating) : 3
 
       reviews.push({
         id:       r.review_id ?? `bd-${asin}-${label}-${i}`,
