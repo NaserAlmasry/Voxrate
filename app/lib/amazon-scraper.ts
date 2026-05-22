@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { AmazonScrapeResult, AmazonProduct, AmazonReview, AmazonQA } from './amazon-types'
+import { fetchFromRailway } from './railway-scraper'
 
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
 
@@ -52,8 +53,6 @@ async function readReviewCache(asin: string, domain: string): Promise<AmazonRevi
 
 const SCRAPINGDOG_API_KEY  = process.env.SCRAPINGDOG_API_KEY!
 const SCRAPERAPI_KEY       = process.env.SCRAPERAPI_KEY!
-const BRIGHTDATA_API_KEY   = process.env.BRIGHTDATA_API_KEY!
-const BRIGHTDATA_DATASET   = 'gd_le8e811kzy4ggddlq'
 
 // Canopy keys — auto-rotates to next key when current hits quota (429/403)
 // Add CANOPY_API_KEY_2, _3, _4... in Vercel for more free-tier capacity
@@ -185,22 +184,23 @@ export async function scrapeAmazon(input: string, plan = 'starter'): Promise<Ama
   let scraperProvider = 'canopy'
   let totalAllocatedPages = 0
 
-  // Paid users: BrightData single /dp/ request — full 55s budget
-  if (BRIGHTDATA_API_KEY) {
+  // Paid users: Railway scraper service with BrightData residential proxies
+  if (process.env.RAILWAY_SCRAPER_URL) {
     try {
-      const domain     = marketplace.replace('amazon.', '')
-      const dpUrl      = `https://www.amazon.${domain}/dp/${asin}`
+      const tld        = marketplace.replace('amazon.', '')
       const maxReviews = brightDataMaxReviews(productData.ratingBreakdown, productData.totalReviews, plan)
-      const raw        = await fetchFromBrightData(dpUrl, maxReviews, asin, 'mixed')
-      const valid      = filterReviews(raw, 'brightdata')
+      // Fetch mixed reviews (no star filter) — Railway service paginates directly
+      const reviewUrl  = `https://www.amazon.${tld}/product-reviews/${asin}?reviewerType=all_reviews&sortBy=recent`
+      const raw        = await fetchFromRailway(reviewUrl, maxReviews, asin, marketplace)
+      const valid      = filterReviews(raw, 'railway')
       if (valid.length > 0) {
         allReviews      = rebalanceReviews(valid, productData.ratingBreakdown)
-        scraperProvider = 'brightdata'
+        scraperProvider = 'railway'
       } else {
-        console.warn('[Scraper] BrightData returned 0 valid reviews')
+        console.warn('[Scraper] Railway returned 0 valid reviews')
       }
     } catch (err: any) {
-      console.warn(`[Scraper] BrightData failed: ${err.message}`)
+      console.warn(`[Scraper] Railway failed: ${err.message}`)
     }
   }
 
@@ -263,16 +263,17 @@ export async function scrapeAmazonFree(input: string): Promise<AmazonScrapeResul
   let reviews = await fetchOnePageFiltered(asin, domain, 'ONE_STAR')
   let scraperProvider = 'canopy'
 
-  // Bright Data fallback if Canopy fails
-  if (reviews.length === 0 && BRIGHTDATA_API_KEY) {
+  // Railway fallback if Canopy fails
+  if (reviews.length === 0 && process.env.RAILWAY_SCRAPER_URL) {
     try {
-      const all = await fetchReviewsBrightData(asin, marketplace, 20)
-      // Pick the most negative reviews available
-      reviews = all.filter(r => r.rating <= 2).slice(0, 10)
+      const tld       = marketplace.replace('amazon.', '')
+      const reviewUrl = `https://www.amazon.${tld}/product-reviews/${asin}?filterByStar=critical&reviewerType=all_reviews&sortBy=recent`
+      const all       = await fetchFromRailway(reviewUrl, 20, asin, marketplace)
+      reviews         = all.filter(r => r.rating <= 2).slice(0, 10)
       if (reviews.length === 0) reviews = all.slice(0, 10)
-      scraperProvider = 'brightdata'
+      scraperProvider = 'railway'
     } catch (err: any) {
-      console.warn(`[Scraper:free] BrightData fallback failed: ${err.message}`)
+      console.warn(`[Scraper:free] Railway fallback failed: ${err.message}`)
     }
   }
 
@@ -381,104 +382,6 @@ function rebalanceReviews(
   return result
 }
 
-// ── BrightData core fetcher ───────────────────────────────────
-// Async trigger + poll: POST to trigger the job (returns snapshot_id instantly),
-// then poll every 5s until status=ready, then download NDJSON.
-// Polls for up to 240s — well within Vercel Hobby's 300s function limit.
-
-async function fetchFromBrightData(
-  url: string,
-  maxReviews: number,
-  asin: string,
-  label: string,
-): Promise<AmazonReview[]> {
-  if (!BRIGHTDATA_API_KEY) throw new Error('BRIGHTDATA_API_KEY not set')
-
-  // Step 1 — trigger (returns immediately with snapshot_id)
-  const triggerRes = await fetch(
-    `https://api.brightdata.com/datasets/v3/trigger?dataset_id=${BRIGHTDATA_DATASET}&include_errors=true`,
-    {
-      method:  'POST',
-      headers: { 'Authorization': `Bearer ${BRIGHTDATA_API_KEY}`, 'Content-Type': 'application/json' },
-      body:    JSON.stringify([{ url, max_reviews: maxReviews }]),
-      signal:  AbortSignal.timeout(15_000),
-    }
-  )
-  if (!triggerRes.ok) throw new Error(`BrightData trigger HTTP ${triggerRes.status}`)
-  const { snapshot_id } = await triggerRes.json() as { snapshot_id: string }
-  console.log(`[BrightData:${label}] triggered snapshot ${snapshot_id} for ${asin}`)
-
-  // Step 2 — poll until ready (max 240s, poll every 5s)
-  const POLL_INTERVAL = 5_000
-  const POLL_TIMEOUT  = 240_000
-  const deadline      = Date.now() + POLL_TIMEOUT
-  let   ready         = false
-
-  while (Date.now() < deadline) {
-    await new Promise(r => setTimeout(r, POLL_INTERVAL))
-    const statusRes = await fetch(
-      `https://api.brightdata.com/datasets/v3/snapshot/${snapshot_id}?format=ndjson`,
-      { headers: { 'Authorization': `Bearer ${BRIGHTDATA_API_KEY}` }, signal: AbortSignal.timeout(10_000) }
-    )
-    if (statusRes.status === 202) {
-      console.log(`[BrightData:${label}] snapshot ${snapshot_id} still running...`)
-      continue
-    }
-    if (!statusRes.ok) throw new Error(`BrightData snapshot HTTP ${statusRes.status}`)
-
-    // Step 3 — download NDJSON
-    const text  = statusRes.text ? await statusRes.text() : ''
-    const lines = text.trim().split('\n').filter(Boolean)
-    ready = true
-
-    const reviews: AmazonReview[] = []
-    const ratingFieldCounts: Record<string, number> = { rating: 0, review_rating: 0, star_rating: 0, none: 0 }
-    for (let i = 0; i < lines.length; i++) {
-      try {
-        const r = JSON.parse(lines[i])
-        if (r.error) { console.warn(`[BrightData:${label}] Row error:`, r.error); continue }
-        if (!r.review_text) continue
-
-        let rawRating = 0
-        if (r.rating)             { rawRating = r.rating;        ratingFieldCounts.rating++ }
-        else if (r.review_rating) { rawRating = r.review_rating; ratingFieldCounts.review_rating++ }
-        else if (r.star_rating)   { rawRating = r.star_rating;   ratingFieldCounts.star_rating++ }
-        else                      { ratingFieldCounts.none++ }
-
-        const rating = rawRating >= 1 && rawRating <= 5 ? Math.round(rawRating) : 3
-
-        reviews.push({
-          id:       r.review_id ?? `bd-${asin}-${label}-${i}`,
-          rating,
-          title:    r.title ?? '',
-          body:     r.review_text ?? '',
-          date:     r.review_posted_date ?? '',
-          verified: r.is_verified ?? r.badge === 'Verified Purchase',
-          vine:     r.is_amazon_vine ?? false,
-          helpful:  r.helpful_count ?? 0,
-          country:  url.match(/amazon\.(\S+?)\//)?.[1] ?? 'com',
-        })
-      } catch { /* skip malformed line */ }
-    }
-
-    console.log(
-      `[BrightData:${label}] ${reviews.length} reviews for ${asin} | ` +
-      `rating field: r.rating=${ratingFieldCounts.rating} r.review_rating=${ratingFieldCounts.review_rating} ` +
-      `r.star_rating=${ratingFieldCounts.star_rating} unresolved=${ratingFieldCounts.none}`
-    )
-    return reviews
-  }
-
-  if (!ready) throw new Error(`BrightData snapshot ${snapshot_id} not ready after ${POLL_TIMEOUT / 1000}s`)
-  return []
-}
-
-// Single-request fetcher — used by scrapeAmazonFree fallback only.
-async function fetchReviewsBrightData(asin: string, marketplace: string, maxReviews = 150): Promise<AmazonReview[]> {
-  const domain = marketplace.replace('amazon.', '')
-  const url    = `https://www.amazon.${domain}/dp/${asin}`
-  return fetchFromBrightData(url, maxReviews, asin, 'legacy')
-}
 
 // ── Review validation (improvement #8) ───────────────────────
 
