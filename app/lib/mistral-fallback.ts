@@ -1,10 +1,11 @@
 // ============================================================
 // app/lib/mistral-fallback.ts
 //
-// 3-tier fallback chain for quality LLM calls:
+// 4-tier fallback chain for quality LLM calls:
 //   1. Mistral Large Latest  — primary   (4M tokens/month, best quality)
-//   2. Groq llama-3.3-70b   — fallback 1 (free, fast, stronger than 2411)
-//   3. Mistral Large 2411   — fallback 2 (200B tokens/month, unlimited backup)
+//   2. Groq llama-3.3-70b   — fallback 1 (free, fast)
+//   3. GitHub gpt-4o-mini   — fallback 2 (150 req/day, reliable JSON)
+//   4. Mistral Large 2411   — last resort (200B tokens/month)
 //
 // For extraction/simple tasks: callMistral2411 directly (no fallback needed)
 // ============================================================
@@ -31,6 +32,8 @@ const MISTRAL_API_URL      = 'https://api.mistral.ai/v1/chat/completions'
 const MISTRAL_MODEL_LATEST = 'mistral-large-latest'
 const MISTRAL_MODEL_2411   = 'mistral-large-2411'
 const GROQ_MODEL           = 'llama-3.3-70b-versatile'
+const GITHUB_API_URL       = 'https://models.inference.ai.azure.com/chat/completions'
+const GITHUB_MODEL         = 'gpt-4o-mini'
 
 export type Message = { role: 'system' | 'user' | 'assistant'; content: string }
 
@@ -102,6 +105,29 @@ async function callGroq(messages: Message[], maxTokens: number): Promise<string>
   return res.choices[0]?.message?.content || ''
 }
 
+async function callGitHub(messages: Message[], maxTokens: number): Promise<string> {
+  const key = process.env.GITHUB_TOKEN
+  if (!key) throw new Error('GITHUB_TOKEN not set')
+
+  const res = await fetch(GITHUB_API_URL, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+    body:    JSON.stringify({ model: GITHUB_MODEL, max_tokens: maxTokens, temperature: 0.1, messages }),
+    signal:  AbortSignal.timeout(30_000),
+  })
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(`GitHub Models ${res.status}: ${body.slice(0, 200)}`)
+  }
+  const json  = await res.json()
+  const usage = json.usage
+  if (usage) {
+    console.log(`[GitHub:${GITHUB_MODEL}] prompt:${usage.prompt_tokens} completion:${usage.completion_tokens} total:${usage.total_tokens}`)
+    const _store = _tokenStorage.getStore(); if (_store) _store.count += usage.total_tokens ?? 0
+  }
+  return json.choices?.[0]?.message?.content || ''
+}
+
 // ── Direct Mistral 2411 (extraction/simple tasks — no fallback needed) ──
 
 export async function callMistral2411(messages: Message[], maxTokens: number): Promise<string> {
@@ -130,10 +156,17 @@ export async function callMistralLatest(messages: Message[], maxTokens: number):
     try {
       return await callGroq(messages, maxTokens)
     } catch (err: any) {
-      console.warn('[Groq] Failed, falling back to Mistral 2411:', err?.message?.slice(0, 100))
+      console.warn('[Groq] Failed, falling back to GitHub gpt-4o-mini:', err?.message?.slice(0, 100))
     }
 
-    // 3. Try Mistral 2411
+    // 3. Try GitHub gpt-4o-mini
+    try {
+      return await callGitHub(messages, maxTokens)
+    } catch (err: any) {
+      console.warn('[GitHub] Failed, falling back to Mistral 2411:', err?.message?.slice(0, 100))
+    }
+
+    // 4. Try Mistral 2411
     try {
       return await callMistral(messages, maxTokens, MISTRAL_MODEL_2411)
     } catch (err: any) {
