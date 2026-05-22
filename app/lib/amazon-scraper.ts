@@ -66,19 +66,17 @@ const CANOPY_KEYS = [
 ].filter(Boolean) as string[]
 
 async function canopyFetch(url: string): Promise<Response> {
+  let lastRes: Response | null = null
   for (let i = 0; i < CANOPY_KEYS.length; i++) {
-    const res = await fetch(url, {
+    lastRes = await fetch(url, {
       headers: { 'API-KEY': CANOPY_KEYS[i], 'accept': 'application/json' },
       signal: AbortSignal.timeout(10_000),
     })
-    if (res.status !== 429 && res.status !== 403) return res
-    console.warn(`[Scraper] Canopy key ${i + 1} quota hit (${res.status}) — trying next key`)
+    if (lastRes.status !== 429 && lastRes.status !== 403) return lastRes
+    console.warn(`[Scraper] Canopy key ${i + 1} quota hit (${lastRes.status}) — trying next key`)
   }
-  // All keys exhausted — return last response
-  return fetch(url, {
-    headers: { 'API-KEY': CANOPY_KEYS[CANOPY_KEYS.length - 1], 'accept': 'application/json' },
-    signal: AbortSignal.timeout(10_000),
-  })
+  // All keys exhausted — return last response (already a 429/403)
+  return lastRes!
 }
 
 const SCRAPINGDOG_BASE = 'https://api.scrapingdog.com/amazon/product'
@@ -237,6 +235,25 @@ export async function scrapeAmazonFree(input: string): Promise<AmazonScrapeResul
 
   const { product: productData } = await fetchProduct(asin, marketplace)
 
+  // Cache-first: 1★ reviews cached for 2 days for free users
+  const cachedFree = await readReviewCache(asin, domain)
+  if (cachedFree && cachedFree.length > 0) {
+    const oneStarCached = cachedFree.filter(r => r.rating === 1).slice(0, 10)
+    if (oneStarCached.length > 0) {
+      console.log(`[Scraper:free] Cache hit for ${asin}/${domain} — serving ${oneStarCached.length} 1★ reviews`)
+      return {
+        product: productData,
+        reviews: oneStarCached,
+        qa: [],
+        scrapedAt: new Date().toISOString(),
+        marketplace,
+        fromCache: true,
+        scraperProvider: 'cache',
+        scraperPages: 0,
+      }
+    }
+  }
+
   // Fetch 1★ reviews — user sees real complaints, feels the tool's value, wants to upgrade
   let reviews = await fetchOnePageFiltered(asin, domain, 'ONE_STAR')
   let scraperProvider = 'canopy'
@@ -255,6 +272,10 @@ export async function scrapeAmazonFree(input: string): Promise<AmazonScrapeResul
   }
 
   console.log(`[Scraper:free] "${productData.title.slice(0, 50)}" | ${reviews.length} reviews (1★ filtered) [${scraperProvider}]`)
+
+  if (reviews.length > 0) {
+    writeReviewCache(asin, domain, reviews).catch(() => {})
+  }
 
   return {
     product:         productData,
@@ -387,6 +408,7 @@ async function fetchReviewsBrightData(asin: string, marketplace: string, maxRevi
       const rawRating = r.rating || r.review_rating || r.star_rating || 0
       const rating = rawRating >= 1 && rawRating <= 5 ? Math.round(rawRating) : 0
 
+      if (rating === 0) { console.warn(`[BrightData] Skipping review with unresolvable rating for ${asin}`); continue }
       reviews.push({
         id:       r.review_id ?? `bd-${asin}-${i}`,
         rating,
@@ -408,6 +430,7 @@ async function fetchReviewsBrightData(asin: string, marketplace: string, maxRevi
 // ── Review validation (improvement #8) ───────────────────────
 
 function isValidReview(r: AmazonReview): boolean {
+  if (r.rating < 1 || r.rating > 5) return false
   if (!r.body || r.body.trim().length < 20) return false
   // Simple non-English detection: if less than 40% of chars are ASCII letters, skip
   const ascii = (r.body.match(/[a-zA-Z]/g) || []).length

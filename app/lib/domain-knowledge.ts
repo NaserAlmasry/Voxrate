@@ -32,7 +32,7 @@
 //         8b-instant handles it perfectly, is faster, and uses fewer tokens.
 // ============================================================
 
-import { callGroqDirect } from '@/app/lib/mistral-fallback'
+import { callGroqFast } from '@/app/lib/mistral-fallback'
 import { sanitizeReview } from '@/app/lib/sanitize-review'
 import { escapePromptInput } from '@/app/lib/escape-prompt'
 
@@ -85,7 +85,7 @@ export async function generateDomainAndSeo(
   }
 
   const descriptionBlock = listingDescription
-    ? `SELLER'S LISTING DESCRIPTION (use material names and claims here to ground your analysis):\n${listingDescription.slice(0, 400).trimEnd()}`
+    ? `SELLER'S LISTING DESCRIPTION (use material names and claims here to ground your analysis):\n${escapePromptInput(sanitizeReview(listingDescription.slice(0, 400).trimEnd()))}`
     : ''
 
   const prompt = `You are analyzing Amazon reviews for a seller. Your job is to extract what reviewers ACTUALLY SAID — not to add your own product knowledge.
@@ -150,7 +150,7 @@ phrase four
 phrase five`
 
   try {
-    const raw = await callGroqDirect([{ role: 'user', content: prompt }], 300)
+    const raw = await callGroqFast([{ role: 'user', content: prompt }], 300)
 
     // Split on SEO_THEMES: marker
     const parts          = raw.split('SEO_THEMES:')
@@ -229,7 +229,7 @@ COMPLAINT TYPE RULES:
         : ''
 
       const listingContext = listingDescription
-        ? `\nSELLER'S LISTING DESCRIPTION — use these material names in fixes, do not invent others:\n${listingDescription.slice(0, 400).trimEnd()}\nIf reviewers describe failures that contradict listing claims, flag as EXPECTATION GAP.`
+        ? `\nSELLER'S LISTING DESCRIPTION — use these material names in fixes, do not invent others:\n${escapePromptInput(sanitizeReview(listingDescription.slice(0, 400).trimEnd()))}\nIf reviewers describe failures that contradict listing claims, flag as EXPECTATION GAP.`
         : ''
 
       knowledgeBlock = `COMPLAINT PATTERNS EXTRACTED FROM REVIEWS FOR "${productName}":

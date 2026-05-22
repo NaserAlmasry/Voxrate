@@ -3,6 +3,11 @@ export function getComplaintCountGuidance(reviewCount: number, negCount: number,
   const negNote     = negCount > 0 ? ` with ${negCount} negative reviews (1★–2★)` : ''
   const minFromNeg  = Math.max(2, Math.floor(negCount / 8))
 
+  if (reviewCount < 10) {
+    return `REVIEW COUNT: ${reviewCount}${negNote}.
+Too few reviews for statistical pattern detection. List ONLY distinct problems explicitly stated in the reviews above. Do NOT invent or extrapolate complaints to reach a minimum count. If fewer than 2 distinct issues exist in the reviews, output only what is genuinely present.`
+  }
+
   if (reviewCount >= 500) {
     const min = Math.max(6, minFromNeg)
     return `REVIEW COUNT: ${reviewCount}${sampledNote}${negNote}.

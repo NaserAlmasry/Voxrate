@@ -13,7 +13,7 @@
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server'
-import { callMistral2411, callMistralLatest, resetSessionTokens, getSessionTokens, type Message } from '@/app/lib/mistral-fallback'
+import { callMistral2411, callMistralLatest, resetSessionTokens, getSessionTokens, runWithSessionTokens, type Message } from '@/app/lib/mistral-fallback'
 import { createClient } from '@/app/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import {
@@ -37,6 +37,7 @@ import { scrapeAmazon, scrapeAmazonFree } from '@/app/lib/amazon-scraper'
 import type { AmazonReview } from '@/app/lib/amazon-types'
 import { extractJson } from '@/app/lib/extract-json'
 import { sanitizeReview } from '@/app/lib/sanitize-review'
+import { escapePromptInput } from '@/app/lib/escape-prompt'
 import { getComplaintCountGuidance } from '@/app/lib/complaint-guidance'
 import { CREDIT_COSTS } from '@/app/lib/credit-costs'
 import { sanitizeAmazonInput } from '@/app/lib/amazon-url'
@@ -147,6 +148,7 @@ async function analyzeProduct(
   ])
 
   const domainKnowledge = domainResult.knowledge
+  const domainKnowledgeSafe = escapePromptInput(domainKnowledge)
   const seoTopPhrases = domainResult.seoThemes.length >= 3
     ? domainResult.seoThemes
     : seoAnalysis.topPhrases
@@ -200,7 +202,7 @@ ${listingIntelligence}
 
 ${patterns.promptSummary}
 
-${domainKnowledge}
+${domainKnowledgeSafe}
 
 Classify each issue as SHIPPING / PRODUCTION / LISTING / DESIGN / COMPATIBILITY before writing fixes.`
 
@@ -449,7 +451,7 @@ export async function POST(request: NextRequest) {
     const reportType         = body?.reportType === 'competitor' ? 'competitor' : 'own'
     const ownReportId        = typeof body?.ownReportId === 'string' ? body.ownReportId : null
     const productDescription = typeof body?.productDescription === 'string'
-      ? body.productDescription.trim().slice(0, 500).replace(/[<>]/g, '')
+      ? escapePromptInput(sanitizeReview(body.productDescription.trim().slice(0, 500)))
       : undefined
 
     if (!rawUrl || typeof rawUrl !== 'string') {
@@ -649,7 +651,7 @@ export async function POST(request: NextRequest) {
     const reportId = reportRow.id
 
     try {
-      resetSessionTokens()
+      return await runWithSessionTokens(async () => {
       console.log(`[Pipeline] Starting Amazon scrape: ${productUrl} (plan: ${plan})`)
 
       const isFreeUser   = !isAdminUser && plan === 'free'
@@ -799,6 +801,7 @@ export async function POST(request: NextRequest) {
         isPartial:      !(!isAdminUser && plan === 'free'),
         lowReviewCount: rawReviews.length < 30,
       })
+      }) // end runWithSessionTokens
     } catch (err: any) {
       console.error('[Pipeline] Error:', err.message)
       await supabase.from('reports').update({ status: 'failed' }).eq('id', reportId)

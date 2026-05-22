@@ -14,6 +14,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { callMistralLatest } from '@/app/lib/mistral-fallback'
 import { createClient } from '@/app/lib/supabase/server'
+import { Redis } from '@upstash/redis'
+
+const redis = (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN)
+  ? new Redis({ url: process.env.UPSTASH_REDIS_REST_URL!, token: process.env.UPSTASH_REDIS_REST_TOKEN! })
+  : null
 import { applyHardOverrides } from '@/app/lib/health-score'
 import { checkRateLimit } from '@/app/lib/rate-limit'
 import { checkCsrf } from '@/app/lib/csrf'
@@ -102,6 +107,17 @@ export async function POST(request: NextRequest) {
     // Skip if this section is already done
     if (sectionsReady.includes(section)) {
       return NextResponse.json({ section, data: fullReport, alreadyDone: true })
+    }
+
+    // Acquire mutex — prevents duplicate LLM calls from concurrent section requests
+    let mutexAcquired = false
+    const mutexKey = `section-lock:${reportId}:${section}`
+    if (redis) {
+      const acquired = await redis.set(mutexKey, '1', { nx: true, ex: 120 })
+      mutexAcquired = acquired === 'OK'
+      if (!mutexAcquired) {
+        return NextResponse.json({ error: 'Section already being processed. Please wait a moment and refresh.' }, { status: 409 })
+      }
     }
 
     const {
@@ -362,6 +378,10 @@ export async function POST(request: NextRequest) {
     }
 
     await supabase.from('reports').update(updatePayload).eq('id', reportId)
+
+    if (redis && mutexAcquired) {
+      await redis.del(mutexKey).catch(() => {})
+    }
 
     console.log(`[Section:${section}] Saved. Status: ${newStatus}. Sections ready: ${newSectionsReady.join(', ')}`)
 
