@@ -404,7 +404,7 @@ async function fetchFromBrightData(
       method:  'POST',
       headers: { 'Authorization': `Bearer ${BRIGHTDATA_API_KEY}`, 'Content-Type': 'application/json' },
       body:    JSON.stringify({ input: [{ url, max_reviews: maxReviews }] }),
-      signal:  AbortSignal.timeout(30_000),
+      signal:  AbortSignal.timeout(55_000),
     }
   )
 
