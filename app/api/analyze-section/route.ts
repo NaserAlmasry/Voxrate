@@ -278,6 +278,7 @@ export async function POST(request: NextRequest) {
           },
         ], 600)
 
+        console.log('[Section:summary] Call A raw (first 300):', rawA.slice(0, 300))
         const parsedA: any = extractJson(rawA)
         updatedReport.freeSummary = parsedA.freeSummary || updatedReport.freeSummary
         updatedReport.keyInsight  = parsedA.keyInsight  || ''
