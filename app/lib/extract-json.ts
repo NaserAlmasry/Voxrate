@@ -27,8 +27,27 @@ export function extractJson(content: string): unknown {
     }
   }
 
-  if (candidates.length === 0)
+  if (candidates.length === 0) {
+    // Last resort: try closing unclosed JSON (truncated response)
+    const openIdx = stripped.indexOf('{')
+    if (openIdx !== -1) {
+      let truncated = stripped.slice(openIdx)
+      // Count unclosed braces and close them
+      let open = 0
+      for (const ch of truncated) {
+        if (ch === '{') open++
+        else if (ch === '}') open--
+      }
+      // Remove trailing incomplete key/value then close
+      truncated = truncated.replace(/,?\s*"[^"]*"\s*:\s*"[^"]*$/, '')
+        .replace(/,?\s*"[^"]*"\s*:?\s*$/, '')
+      truncated += '}'.repeat(Math.max(0, open))
+      try {
+        return JSON.parse(truncated)
+      } catch {}
+    }
     throw new Error('No valid JSON object found in model response')
+  }
   candidates.sort((a, b) => b.length - a.length)
   return candidates[0].json
 }

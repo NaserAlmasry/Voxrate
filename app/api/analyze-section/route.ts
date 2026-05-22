@@ -276,7 +276,7 @@ export async function POST(request: NextRequest) {
               negPct,
             }),
           },
-        ], 600)
+        ], 900)
 
         console.log('[Section:summary] Call A raw (first 300):', rawA.slice(0, 300))
         const parsedA: any = extractJson(rawA)
