@@ -458,7 +458,7 @@ async function fetchFromBrightData(
 // ── Half-split fetch: /dp/ for mixed + five_star URL for 5★ ──
 // Runs both requests in parallel. If the five_star request fails,
 // falls back gracefully — mixed reviews are still returned.
-// Budget: 85 mixed + 45 five_star = 130 total max.
+// Budget: 100 mixed + 30 five_star = 130 total max.
 
 async function fetchReviewsBrightDataHalfSplit(
   asin: string,
@@ -469,8 +469,8 @@ async function fetchReviewsBrightDataHalfSplit(
   const fiveStarUrl = `https://www.amazon.${domain}/product-reviews/${asin}/ref=cm_cr_dp_d_show_all_btm?filterByStar=five_star&reviewerType=all_reviews`
 
   const [mixedResult, fiveStarResult] = await Promise.allSettled([
-    fetchFromBrightData(mixedUrl,    85, asin, 'mixed'),
-    fetchFromBrightData(fiveStarUrl, 45, asin, 'fivestar'),
+    fetchFromBrightData(mixedUrl,    100, asin, 'mixed'),
+    fetchFromBrightData(fiveStarUrl,  30, asin, 'fivestar'),
   ])
 
   const mixed   = mixedResult.status    === 'fulfilled' ? mixedResult.value    : []
