@@ -182,7 +182,6 @@ export async function scrapeAmazon(input: string, plan = 'starter'): Promise<Ama
   ])
 
   let allReviews: AmazonReview[] = []
-  let fiveStarReviews: AmazonReview[] | undefined
   let scraperProvider = 'canopy'
   let totalAllocatedPages = 0
 
@@ -208,25 +207,21 @@ export async function scrapeAmazon(input: string, plan = 'starter'): Promise<Ama
   const fromCache = false
 
   if (allReviews.length > 0) {
-    // Cache the combined set — fire-and-forget, don't block analysis
-    const combined = [...allReviews, ...(fiveStarReviews ?? [])]
-    writeReviewCache(asin, domain, combined).catch(() => {})
+    writeReviewCache(asin, domain, allReviews).catch(() => {})
   }
 
   const bystar = [1, 2, 3, 4, 5].map(s => allReviews.filter(r => r.rating === s).length)
-  const pos5count = fiveStarReviews?.length ?? 0
 
   console.log(
     `[Scraper] "${productData.title.slice(0, 50)}" | ` +
     `${productData.totalReviews} total ratings | ` +
-    `${allReviews.length} mixed (1★:${bystar[0]} 2★:${bystar[1]} 3★:${bystar[2]} 4★:${bystar[3]} 5★:${bystar[4]}) | ` +
-    `${pos5count} guaranteed 5★ | ${qaData.length} Q&A`
+    `${allReviews.length} reviews (1★:${bystar[0]} 2★:${bystar[1]} 3★:${bystar[2]} 4★:${bystar[3]} 5★:${bystar[4]}) | ` +
+    `${qaData.length} Q&A`
   )
 
   return {
     product:          productData,
     reviews:          allReviews,
-    fiveStarReviews,
     qa:               qaData,
     scrapedAt:        new Date().toISOString(),
     marketplace,
@@ -461,7 +456,7 @@ async function fetchFromBrightData(
           verified: r.is_verified ?? r.badge === 'Verified Purchase',
           vine:     r.is_amazon_vine ?? false,
           helpful:  r.helpful_count ?? 0,
-          country:  asin,
+          country:  url.match(/amazon\.(\S+?)\//)?.[1] ?? 'com',
         })
       } catch { /* skip malformed line */ }
     }
@@ -478,35 +473,7 @@ async function fetchFromBrightData(
   return []
 }
 
-// ── Half-split fetch: /dp/ for mixed + five_star URL for 5★ ──
-// Runs both requests in parallel. If the five_star request fails,
-// falls back gracefully — mixed reviews are still returned.
-// Budget: 100 mixed + 30 five_star = 130 total max.
-
-async function fetchReviewsBrightDataHalfSplit(
-  asin: string,
-  marketplace: string,
-): Promise<{ mixed: AmazonReview[]; fiveStar: AmazonReview[] }> {
-  const domain = marketplace.replace('amazon.', '')
-  const mixedUrl    = `https://www.amazon.${domain}/dp/${asin}`
-  const fiveStarUrl = `https://www.amazon.${domain}/product-reviews/${asin}/ref=cm_cr_dp_d_show_all_btm?filterByStar=five_star&reviewerType=all_reviews`
-
-  const [mixedResult, fiveStarResult] = await Promise.allSettled([
-    fetchFromBrightData(mixedUrl,    100, asin, 'mixed'),
-    fetchFromBrightData(fiveStarUrl,  30, asin, 'fivestar'),
-  ])
-
-  const mixed   = mixedResult.status    === 'fulfilled' ? mixedResult.value    : []
-  const fiveStar = fiveStarResult.status === 'fulfilled' ? fiveStarResult.value : []
-
-  if (mixedResult.status    === 'rejected') console.warn(`[BrightData] Mixed fetch failed: ${mixedResult.reason?.message}`)
-  if (fiveStarResult.status === 'rejected') console.warn(`[BrightData] FiveStar fetch failed: ${fiveStarResult.reason?.message}`)
-
-  console.log(`[BrightData] Half-split total: ${mixed.length} mixed + ${fiveStar.length} five_star = ${mixed.length + fiveStar.length} for ${asin}`)
-  return { mixed, fiveStar }
-}
-
-// Legacy single-request fetcher — used by scrapeAmazonFree fallback only.
+// Single-request fetcher — used by scrapeAmazonFree fallback only.
 async function fetchReviewsBrightData(asin: string, marketplace: string, maxReviews = 150): Promise<AmazonReview[]> {
   const domain = marketplace.replace('amazon.', '')
   const url    = `https://www.amazon.${domain}/dp/${asin}`
@@ -720,8 +687,21 @@ async function fetchProductScrapingDog(asin: string, marketplace: string): Promi
 }
 
 async function fetchProductScraperAPI(asin: string, marketplace: string): Promise<{ product: AmazonProduct }> {
-  // ScraperAPI only supports amazon.com — fallback only works for US marketplace
-  const country = marketplace === 'amazon.com' ? 'us' : 'us'
+  const scraperApiCountryMap: Record<string, string> = {
+    'amazon.com':    'us',
+    'amazon.co.uk':  'uk',
+    'amazon.de':     'de',
+    'amazon.fr':     'fr',
+    'amazon.it':     'it',
+    'amazon.es':     'es',
+    'amazon.ca':     'ca',
+    'amazon.com.au': 'au',
+    'amazon.co.jp':  'jp',
+    'amazon.in':     'in',
+    'amazon.com.mx': 'mx',
+    'amazon.com.br': 'br',
+  }
+  const country = scraperApiCountryMap[marketplace] ?? 'us'
   const params  = new URLSearchParams({ api_key: SCRAPERAPI_KEY, asin, country })
 
   const res = await fetch(`${SCRAPERAPI_BASE}?${params}`, { signal: AbortSignal.timeout(10_000) })
