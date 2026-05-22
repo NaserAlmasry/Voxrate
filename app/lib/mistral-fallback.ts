@@ -60,7 +60,7 @@ async function callMistral(messages: Message[], maxTokens: number, model: string
   if (!key) throw new Error('MISTRAL_API_KEY not set')
 
   const controller = new AbortController()
-  const timeoutId  = setTimeout(() => controller.abort(), 20_000)
+  const timeoutId  = setTimeout(() => controller.abort(), 35_000)
   try {
     const res = await fetch(MISTRAL_API_URL, {
       method:  'POST',
@@ -115,8 +115,8 @@ export async function callMistralLatest(messages: Message[], maxTokens: number):
   // Retry up to 2 times with 8s delay when all providers are rate-limited simultaneously
   for (let attempt = 0; attempt < 3; attempt++) {
     if (attempt > 0) {
-      console.warn(`[LLM] All providers rate-limited — waiting 8s before retry ${attempt}/2`)
-      await new Promise(r => setTimeout(r, 8_000))
+      console.warn(`[LLM] All providers rate-limited — waiting 25s before retry ${attempt}/2`)
+      await new Promise(r => setTimeout(r, 25_000))
     }
 
     // 1. Try Mistral Large Latest
