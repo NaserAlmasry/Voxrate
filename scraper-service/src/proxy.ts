@@ -15,9 +15,10 @@ export function proxyUrl(sessionId: string): string {
   const customer = process.env.BRIGHTDATA_CUSTOMER_ID!
   const zone     = process.env.BRIGHTDATA_ZONE ?? 'residential_proxy1'
   const password = process.env.BRIGHTDATA_PASSWORD!
-  const user     = `brd-customer-${customer}-zone-${zone}-session-${sessionId}`
-  const port = process.env.BRIGHTDATA_PORT ?? '22225'
-  return `http://${user}:${password}@brd.superproxy.io:${port}`
+  const port     = process.env.BRIGHTDATA_PORT ?? '33335'
+  const user     = encodeURIComponent(`brd-customer-${customer}-zone-${zone}-session-${sessionId}`)
+  const pass     = encodeURIComponent(password)
+  return `http://${user}:${pass}@brd.superproxy.io:${port}`
 }
 
 export function newSessionId(): string {
