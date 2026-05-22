@@ -387,10 +387,9 @@ function rebalanceReviews(
 }
 
 // ── BrightData core fetcher ───────────────────────────────────
-// Sends one request to BrightData and parses the NDJSON response.
-// label is used for logging only ('mixed' or 'fivestar').
-// Logs which rating field resolved each review so we can confirm
-// in Vercel logs which field BrightData is actually populating.
+// Async trigger + poll: POST to trigger the job (returns snapshot_id instantly),
+// then poll every 5s until status=ready, then download NDJSON.
+// Polls for up to 240s — well within Vercel Hobby's 300s function limit.
 
 async function fetchFromBrightData(
   url: string,
@@ -400,61 +399,83 @@ async function fetchFromBrightData(
 ): Promise<AmazonReview[]> {
   if (!BRIGHTDATA_API_KEY) throw new Error('BRIGHTDATA_API_KEY not set')
 
-  const res = await fetch(
-    `https://api.brightdata.com/datasets/v3/scrape?dataset_id=${BRIGHTDATA_DATASET}&notify=false&include_errors=true`,
+  // Step 1 — trigger (returns immediately with snapshot_id)
+  const triggerRes = await fetch(
+    `https://api.brightdata.com/datasets/v3/trigger?dataset_id=${BRIGHTDATA_DATASET}&include_errors=true`,
     {
       method:  'POST',
       headers: { 'Authorization': `Bearer ${BRIGHTDATA_API_KEY}`, 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ input: [{ url, max_reviews: maxReviews }] }),
-      signal:  AbortSignal.timeout(55_000),
+      body:    JSON.stringify([{ url, max_reviews: maxReviews }]),
+      signal:  AbortSignal.timeout(15_000),
     }
   )
+  if (!triggerRes.ok) throw new Error(`BrightData trigger HTTP ${triggerRes.status}`)
+  const { snapshot_id } = await triggerRes.json() as { snapshot_id: string }
+  console.log(`[BrightData:${label}] triggered snapshot ${snapshot_id} for ${asin}`)
 
-  if (!res.ok) throw new Error(`BrightData HTTP ${res.status}`)
+  // Step 2 — poll until ready (max 240s, poll every 5s)
+  const POLL_INTERVAL = 5_000
+  const POLL_TIMEOUT  = 240_000
+  const deadline      = Date.now() + POLL_TIMEOUT
+  let   ready         = false
 
-  const text  = await res.text()
-  const lines = text.trim().split('\n').filter(Boolean)
-  const reviews: AmazonReview[] = []
+  while (Date.now() < deadline) {
+    await new Promise(r => setTimeout(r, POLL_INTERVAL))
+    const statusRes = await fetch(
+      `https://api.brightdata.com/datasets/v3/snapshot/${snapshot_id}?format=ndjson`,
+      { headers: { 'Authorization': `Bearer ${BRIGHTDATA_API_KEY}` }, signal: AbortSignal.timeout(10_000) }
+    )
+    if (statusRes.status === 202) {
+      console.log(`[BrightData:${label}] snapshot ${snapshot_id} still running...`)
+      continue
+    }
+    if (!statusRes.ok) throw new Error(`BrightData snapshot HTTP ${statusRes.status}`)
 
-  // Track which field is actually populated — one sample log per fetch
-  const ratingFieldCounts: Record<string, number> = { rating: 0, review_rating: 0, star_rating: 0, none: 0 }
+    // Step 3 — download NDJSON
+    const text  = statusRes.text ? await statusRes.text() : ''
+    const lines = text.trim().split('\n').filter(Boolean)
+    ready = true
 
-  for (let i = 0; i < lines.length; i++) {
-    try {
-      const r = JSON.parse(lines[i])
-      if (r.error) { console.warn(`[BrightData:${label}] Row error:`, r.error); continue }
-      if (!r.review_text) continue
+    const reviews: AmazonReview[] = []
+    const ratingFieldCounts: Record<string, number> = { rating: 0, review_rating: 0, star_rating: 0, none: 0 }
+    for (let i = 0; i < lines.length; i++) {
+      try {
+        const r = JSON.parse(lines[i])
+        if (r.error) { console.warn(`[BrightData:${label}] Row error:`, r.error); continue }
+        if (!r.review_text) continue
 
-      // Resolve rating with fallback chain — log which field won
-      let rawRating = 0
-      if (r.rating)        { rawRating = r.rating;        ratingFieldCounts.rating++ }
-      else if (r.review_rating) { rawRating = r.review_rating; ratingFieldCounts.review_rating++ }
-      else if (r.star_rating)   { rawRating = r.star_rating;   ratingFieldCounts.star_rating++ }
-      else                      { ratingFieldCounts.none++ }
+        let rawRating = 0
+        if (r.rating)             { rawRating = r.rating;        ratingFieldCounts.rating++ }
+        else if (r.review_rating) { rawRating = r.review_rating; ratingFieldCounts.review_rating++ }
+        else if (r.star_rating)   { rawRating = r.star_rating;   ratingFieldCounts.star_rating++ }
+        else                      { ratingFieldCounts.none++ }
 
-      // If rating unresolvable, default to 3 — text is still valuable for analysis
-      const rating = rawRating >= 1 && rawRating <= 5 ? Math.round(rawRating) : 3
+        const rating = rawRating >= 1 && rawRating <= 5 ? Math.round(rawRating) : 3
 
-      reviews.push({
-        id:       r.review_id ?? `bd-${asin}-${label}-${i}`,
-        rating,
-        title:    r.title ?? '',
-        body:     r.review_text ?? '',
-        date:     r.review_posted_date ?? '',
-        verified: r.is_verified ?? r.badge === 'Verified Purchase',
-        vine:     r.is_amazon_vine ?? false,
-        helpful:  r.helpful_count ?? 0,
-        country:  asin, // marketplace passed via asin param in legacy — kept for compat
-      })
-    } catch { /* skip malformed line */ }
+        reviews.push({
+          id:       r.review_id ?? `bd-${asin}-${label}-${i}`,
+          rating,
+          title:    r.title ?? '',
+          body:     r.review_text ?? '',
+          date:     r.review_posted_date ?? '',
+          verified: r.is_verified ?? r.badge === 'Verified Purchase',
+          vine:     r.is_amazon_vine ?? false,
+          helpful:  r.helpful_count ?? 0,
+          country:  asin,
+        })
+      } catch { /* skip malformed line */ }
+    }
+
+    console.log(
+      `[BrightData:${label}] ${reviews.length} reviews for ${asin} | ` +
+      `rating field: r.rating=${ratingFieldCounts.rating} r.review_rating=${ratingFieldCounts.review_rating} ` +
+      `r.star_rating=${ratingFieldCounts.star_rating} unresolved=${ratingFieldCounts.none}`
+    )
+    return reviews
   }
 
-  console.log(
-    `[BrightData:${label}] ${reviews.length} reviews for ${asin} | ` +
-    `rating field: r.rating=${ratingFieldCounts.rating} r.review_rating=${ratingFieldCounts.review_rating} ` +
-    `r.star_rating=${ratingFieldCounts.star_rating} unresolved=${ratingFieldCounts.none}`
-  )
-  return reviews
+  if (!ready) throw new Error(`BrightData snapshot ${snapshot_id} not ready after ${POLL_TIMEOUT / 1000}s`)
+  return []
 }
 
 // ── Half-split fetch: /dp/ for mixed + five_star URL for 5★ ──
