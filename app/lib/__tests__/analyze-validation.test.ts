@@ -78,8 +78,9 @@ vi.mock('@/app/lib/mistral-fallback', () => ({
   callMistral2411: vi.fn().mockResolvedValue(
     '{"complaints":[{"title":"Preview complaint","description":"desc","fixes":[],"category":"PRODUCTION","count":5,"severity":"medium"}],"strengths":[{"title":"Preview strength","description":"desc"}]}'
   ),
-  resetSessionTokens: vi.fn(),
-  getSessionTokens:   vi.fn().mockReturnValue(0),
+  resetSessionTokens:    vi.fn(),
+  getSessionTokens:      vi.fn().mockReturnValue(0),
+  runWithSessionTokens:  vi.fn().mockImplementation((fn: () => Promise<any>) => fn()),
 }))
 
 // ── Other lib mocks ──────────────────────────────────────────────

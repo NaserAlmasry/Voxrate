@@ -10,11 +10,22 @@
 // ============================================================
 
 import Groq from 'groq-sdk'
+import { AsyncLocalStorage } from 'async_hooks'
 
 // ── Session token accumulator (improvement #1) ────────────────
-let _sessionTokens = 0
-export function resetSessionTokens(): void { _sessionTokens = 0 }
-export function getSessionTokens(): number { return _sessionTokens }
+interface TokenStore { count: number }
+const _tokenStorage = new AsyncLocalStorage<TokenStore>()
+
+export function resetSessionTokens(): void {
+  const store = _tokenStorage.getStore()
+  if (store) store.count = 0
+}
+export function getSessionTokens(): number {
+  return _tokenStorage.getStore()?.count ?? 0
+}
+export function runWithSessionTokens<T>(fn: () => Promise<T>): Promise<T> {
+  return _tokenStorage.run({ count: 0 }, fn)
+}
 
 const MISTRAL_API_URL      = 'https://api.mistral.ai/v1/chat/completions'
 const MISTRAL_MODEL_LATEST = 'mistral-large-latest'
@@ -67,7 +78,7 @@ async function callMistral(messages: Message[], maxTokens: number, model: string
     const usage = json.usage
     if (usage) {
       console.log(`[Mistral:${model}] prompt:${usage.prompt_tokens} completion:${usage.completion_tokens} total:${usage.total_tokens}`)
-      _sessionTokens += usage.total_tokens ?? 0
+      const _store = _tokenStorage.getStore(); if (_store) _store.count += usage.total_tokens ?? 0
     }
     return json.choices?.[0]?.message?.content || ''
   } finally {
@@ -86,7 +97,7 @@ async function callGroq(messages: Message[], maxTokens: number): Promise<string>
   const usage = res.usage
   if (usage) {
     console.log(`[Groq:${GROQ_MODEL}] prompt:${usage.prompt_tokens} completion:${usage.completion_tokens} total:${usage.total_tokens}`)
-    _sessionTokens += usage.total_tokens ?? 0
+    const _store = _tokenStorage.getStore(); if (_store) _store.count += usage.total_tokens ?? 0
   }
   return res.choices[0]?.message?.content || ''
 }
@@ -155,6 +166,24 @@ export async function callWithFallback(
 
 export async function callGroqDirect(messages: Message[], maxTokens: number): Promise<string> {
   return callGroq(messages, maxTokens)
+}
+
+const GROQ_MODEL_FAST = 'llama-3.1-8b-instant'
+
+export async function callGroqFast(messages: Message[], maxTokens: number): Promise<string> {
+  const groq = getGroq()
+  const res = await groq.chat.completions.create({
+    model: GROQ_MODEL_FAST,
+    max_tokens: maxTokens,
+    temperature: 0.1,
+    messages,
+  })
+  const usage = res.usage
+  if (usage) {
+    console.log(`[Groq:${GROQ_MODEL_FAST}] prompt:${usage.prompt_tokens} completion:${usage.completion_tokens} total:${usage.total_tokens}`)
+    const _store = _tokenStorage.getStore(); if (_store) _store.count += usage.total_tokens ?? 0
+  }
+  return res.choices[0]?.message?.content || ''
 }
 
 // ── Groq rate-limit helpers (used in outer catch blocks for error detection) ──

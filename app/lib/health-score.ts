@@ -470,7 +470,7 @@ export function validateSemanticConstraints(
   report: {
     marketingCopy: string[]
     strengths:     Array<{ title: string; summary: string }>
-    complaints:    Array<{ title: string }>
+    complaints:    Array<{ title: string; quote?: string }>
   },
   ctx: ReportContext,
 ): SemanticError[] {
@@ -511,6 +511,18 @@ export function validateSemanticConstraints(
       errors.push({ field: `complaints[${i}].title`, message: `Duplicate title: "${c.title}"` })
     }
     seenComplaints.add(key)
+  })
+
+  // 5. complaint quote verbatim check
+  report.complaints.forEach((c, i) => {
+    if (c.quote && c.quote.trim().length > 10) {
+      if (!isVerbatimFromReviews(c.quote, ctx.reviewTexts)) {
+        errors.push({
+          field:   `complaints[${i}].quote`,
+          message: `Quote not found verbatim in sampled reviews — may be fabricated`,
+        })
+      }
+    }
   })
 
   return errors
