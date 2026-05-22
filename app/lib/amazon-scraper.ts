@@ -186,20 +186,43 @@ export async function scrapeAmazon(input: string, plan = 'starter'): Promise<Ama
   let scraperProvider = 'canopy'
   let totalAllocatedPages = 0
 
-  // Paid users: Bright Data half-split — mixed /dp/ for complaints + five_star for strengths/SEO
+  // Paid users: BrightData single /dp/ request — full 55s budget, no split
   if (BRIGHTDATA_API_KEY) {
     try {
-      const { mixed, fiveStar } = await fetchReviewsBrightDataHalfSplit(asin, marketplace)
-      const validMixed    = filterReviews(mixed,    'brightdata-mixed')
-      const validFiveStar = filterReviews(fiveStar, 'brightdata-fivestar')
-
-      // Mixed reviews: rebalance toward negative for complaint analysis
-      allReviews     = rebalanceReviews(validMixed, productData.ratingBreakdown)
-      // Five-star reviews: stored separately, used only for strengths/SEO/marketing copy
-      fiveStarReviews = validFiveStar.length > 0 ? validFiveStar : undefined
-      scraperProvider = 'brightdata'
+      const domain   = marketplace.replace('amazon.', '')
+      const dpUrl    = `https://www.amazon.${domain}/dp/${asin}`
+      const maxReviews = brightDataMaxReviews(productData.ratingBreakdown, productData.totalReviews, plan)
+      const raw      = await fetchFromBrightData(dpUrl, maxReviews, asin, 'mixed')
+      const valid    = filterReviews(raw, 'brightdata')
+      if (valid.length > 0) {
+        allReviews      = rebalanceReviews(valid, productData.ratingBreakdown)
+        scraperProvider = 'brightdata'
+      } else {
+        console.warn('[Scraper] BrightData returned 0 valid reviews — falling back to Canopy')
+      }
     } catch (err: any) {
-      console.warn(`[Scraper] BrightData failed: ${err.message}`)
+      console.warn(`[Scraper] BrightData failed: ${err.message} — falling back to Canopy`)
+    }
+  }
+
+  // Canopy fallback — runs when BrightData is unavailable or returns nothing
+  if (allReviews.length === 0) {
+    try {
+      const canopyDomain = DOMAIN_MAP[marketplace] ?? 'US'
+      const pageAlloc    = allocatePages(productData.ratingBreakdown)
+      const starFetches  = ([1, 2, 3, 4, 5] as const).map(star =>
+        fetchStarReviews(asin, canopyDomain, star, pageAlloc[star])
+      )
+      const results = await Promise.allSettled(starFetches)
+      const reviews = results.flatMap(r => r.status === 'fulfilled' ? r.value : [])
+      if (reviews.length > 0) {
+        allReviews          = reviews
+        scraperProvider     = 'canopy'
+        totalAllocatedPages = ([1, 2, 3, 4, 5] as const).reduce((s, star) => s + pageAlloc[star], 0)
+        console.log(`[Scraper] Canopy fallback: ${reviews.length} reviews across ${totalAllocatedPages} pages`)
+      }
+    } catch (err: any) {
+      console.warn(`[Scraper] Canopy fallback failed: ${err.message}`)
     }
   }
 
