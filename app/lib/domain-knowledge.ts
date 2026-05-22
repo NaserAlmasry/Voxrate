@@ -127,13 +127,14 @@ Read each positive review above. Find the specific phrases buyers use to describ
 Group similar expressions into one canonical search phrase.
 
 Example grouping: "pattern is gorgeous" + "pattern is mesmerizing" + "pattern is stunning" → "stunning glaze pattern"
-Example grouping: "keeps coffee hot for ages" + "still warm after 45 minutes" + "retains heat so well" → "keeps coffee hot longer"
+Example grouping: "clicks feel satisfying" + "tactile bump is perfect" + "love the feedback" → "satisfying tactile feedback"
 
 Rules:
 - Must come from actual words in the positive reviews above — do NOT invent phrases
 - Must be 2-5 words that a buyer would actually type into Amazon search
 - REJECT generic terms: "great product", "unique design", "good quality", "nice product"
-- ACCEPT specific buyer praise: "keeps coffee hot longer", "stunning glaze depth", "works with all devices", "heat retention coffee"
+- REJECT any phrase not grounded in the reviews above — the examples above are just format guides, not valid output
+- ACCEPT only specific buyer praise extracted from the reviews provided
 - If you cannot find 5 good phrases in the reviews, use fewer — do not invent to reach 5
 
 Format your response EXACTLY like this — nothing else:
