@@ -42,9 +42,12 @@ function warmupHeaders(tld: string): Record<string, string> {
 }
 
 // Parse Set-Cookie headers into a cookie jar string
-function extractCookies(res: Response): string {
-  const raw = res.headers.getSetCookie?.() ?? []
-  return raw.map(c => c.split(';')[0]).filter(Boolean).join('; ')
+function extractCookies(res: { headers: { get: (k: string) => string | null } }): string {
+  const raw = res.headers.get('set-cookie') ?? ''
+  return raw.split(',')
+    .map(c => c.split(';')[0].trim())
+    .filter(Boolean)
+    .join('; ')
 }
 
 function mergeCookies(existing: string, fresh: string): string {
