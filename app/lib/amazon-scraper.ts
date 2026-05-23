@@ -477,10 +477,6 @@ async function fetchFromBrightData(url: string, maxReviews: number, asin: string
 function isValidReview(r: AmazonReview): boolean {
   if (r.rating < 1 || r.rating > 5) return false
   if (!r.body || r.body.trim().length < 20) return false
-  // Simple non-English detection: if less than 40% of chars are ASCII letters, skip
-  const ascii = (r.body.match(/[a-zA-Z]/g) || []).length
-  const ratio = ascii / r.body.length
-  if (ratio < 0.4) return false
   return true
 }
 
