@@ -7,12 +7,35 @@
 //   Used for Webshare, Oxylabs, or any standard HTTP proxy.
 //   Session pinning is not available — IP rotates per request.
 
-export function proxyUrl(sessionId: string): string {
-  // DataImpulse residential with session pinning (sessid parameter in username)
+// Maps Amazon marketplace TLD to DataImpulse country code
+const MARKETPLACE_COUNTRY: Record<string, string> = {
+  'com':    'us',
+  'co.uk':  'gb',
+  'de':     'de',
+  'fr':     'fr',
+  'it':     'it',
+  'es':     'es',
+  'ca':     'ca',
+  'com.au': 'au',
+  'co.jp':  'jp',
+  'in':     'in',
+  'com.mx': 'mx',
+  'com.br': 'br',
+  'pl':     'pl',
+  'nl':     'nl',
+  'se':     'se',
+  'sg':     'sg',
+  'ae':     'ae',
+  'sa':     'sa',
+}
+
+export function proxyUrl(sessionId: string, marketplaceTld?: string): string {
+  // DataImpulse residential with country targeting + session pinning
   if (process.env.DATAIMPULSE_LOGIN && process.env.DATAIMPULSE_PASSWORD) {
     const login    = process.env.DATAIMPULSE_LOGIN
     const password = encodeURIComponent(process.env.DATAIMPULSE_PASSWORD)
-    const user     = encodeURIComponent(`${login}__sessid.${sessionId}`)
+    const country  = marketplaceTld ? (MARKETPLACE_COUNTRY[marketplaceTld] ?? 'us') : 'us'
+    const user     = encodeURIComponent(`${login}__cr.${country}__sessid.${sessionId}`)
     return `http://${user}:${password}@gw.dataimpulse.com:823`
   }
 
