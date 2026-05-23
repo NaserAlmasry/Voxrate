@@ -37,8 +37,9 @@ const MAX_PAGES           = 20    // hard ceiling to prevent runaway jobs
 
 export async function scrape(req: ScrapeRequest): Promise<Review[]> {
   // One session ID per product = same residential IP across all pages of this job
-  const sessionId = newSessionId()
-  const proxy     = proxyUrl(sessionId)
+  const sessionId    = newSessionId()
+  const marketplaceTld = req.marketplace.replace(/^amazon\./, '')
+  const proxy        = proxyUrl(sessionId, marketplaceTld)
 
   const client = new Impit({
     browser:         'chrome',
@@ -83,9 +84,9 @@ export async function scrape(req: ScrapeRequest): Promise<Review[]> {
         break
       }
 
-      // New session = new residential IP from BrightData
+      // New session = new residential IP
       const newSession  = newSessionId()
-      const newProxy    = proxyUrl(newSession)
+      const newProxy    = proxyUrl(newSession, marketplaceTld)
       ;(client as any)._proxyUrl = newProxy
 
       page--   // retry the same page with the new IP
