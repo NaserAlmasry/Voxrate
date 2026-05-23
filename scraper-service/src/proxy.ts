@@ -8,7 +8,15 @@
 //   Session pinning is not available — IP rotates per request.
 
 export function proxyUrl(sessionId: string): string {
-  // Direct proxy URL takes priority (Webshare, testing, any non-BrightData provider)
+  // DataImpulse residential with session pinning (sessid parameter in username)
+  if (process.env.DATAIMPULSE_LOGIN && process.env.DATAIMPULSE_PASSWORD) {
+    const login    = process.env.DATAIMPULSE_LOGIN
+    const password = encodeURIComponent(process.env.DATAIMPULSE_PASSWORD)
+    const user     = encodeURIComponent(`${login}__sessid.${sessionId}`)
+    return `http://${user}:${password}@gw.dataimpulse.com:823`
+  }
+
+  // Generic direct proxy URL — no session pinning (Webshare, testing, etc.)
   if (process.env.PROXY_URL) return process.env.PROXY_URL
 
   // BrightData residential with session pinning
