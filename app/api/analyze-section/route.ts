@@ -304,7 +304,7 @@ export async function POST(request: NextRequest) {
               complaints: (updatedReport.complaints || fullReport.complaints || []).slice(0, 3),
             }),
           },
-        ], 1500)
+        ], 2500)
 
         const parsedB: any = extractJson(rawB)
         if (Array.isArray(parsedB.topActions) && parsedB.topActions.length > 0) {

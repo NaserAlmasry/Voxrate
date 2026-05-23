@@ -12,10 +12,19 @@ const CAPTCHA_MARKERS = [
   'sorry, we just need to make sure',
 ]
 
+const SIGNIN_MARKERS = [
+  '/ap/signin',
+  'sign in to continue',
+  'authportal',
+  'claimid=',
+  'ap_signin_form',
+]
+
 export function isBlocked(html: string, finalUrl: string): boolean {
   if (/captcha|validateCaptcha/i.test(finalUrl)) return true
+  if (/\/ap\/signin/i.test(finalUrl)) return true
   const lower = html.toLowerCase()
-  return CAPTCHA_MARKERS.some(m => lower.includes(m))
+  return CAPTCHA_MARKERS.some(m => lower.includes(m)) || SIGNIN_MARKERS.some(m => lower.includes(m))
 }
 
 export function hasNextPage($: cheerio.CheerioAPI): boolean {
