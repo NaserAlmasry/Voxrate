@@ -35,7 +35,7 @@ export function proxyUrl(sessionId: string, marketplaceTld?: string): string {
     const login    = process.env.DATAIMPULSE_LOGIN
     const password = encodeURIComponent(process.env.DATAIMPULSE_PASSWORD)
     const country  = marketplaceTld ? (MARKETPLACE_COUNTRY[marketplaceTld] ?? 'us') : 'us'
-    const user     = encodeURIComponent(`${login}__cr.${country}__sessid.${sessionId}`)
+    const user     = encodeURIComponent(`${login}__cr.${country}`)
     return `http://${user}:${password}@gw.dataimpulse.com:823`
   }
 
