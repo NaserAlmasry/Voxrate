@@ -78,7 +78,7 @@ export async function scrape(req: ScrapeRequest): Promise<Review[]> {
     if (isBlocked(html, finalUrl)) {
       captchaStreak++
       console.warn(`[Scraper] CAPTCHA on page ${page} (streak ${captchaStreak}) — rotating session`)
-      console.warn(`[Scraper] Block details — finalUrl: ${finalUrl} | html snippet: ${html.slice(0, 500)}`)
+      console.log(`[Scraper] Block details — finalUrl: ${finalUrl} | html snippet: ${html.slice(0, 500)}`)
 
       if (captchaStreak >= MAX_CAPTCHA_RETRIES) {
         console.error(`[Scraper] ${MAX_CAPTCHA_RETRIES} consecutive CAPTCHAs — aborting`)
