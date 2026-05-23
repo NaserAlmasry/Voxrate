@@ -478,7 +478,7 @@ Generate exactly 3 top actions a seller should take, grounded ONLY in the known 
 
 HARD CONSTRAINTS:
 1. action: 6-10 words using reviewer language — NOT "improve durability", NOT "enhance quality"
-2. detail: 4-5 sentences — reference ONLY what the complaints above describe, no invented issues
+2. detail: 2-3 sentences — reference ONLY what the complaints above describe, no invented issues
 3. segment: name the specific buyer type from the complaint context
 4. Each action must address a different complaint or opportunity angle
 5. BANNED: invented issues not in the complaints list, invented percentages, "rust", "corrosion", "hardware failure" unless explicitly in a complaint above
@@ -488,17 +488,17 @@ Return ONLY this JSON — start with { immediately:
   "topActions": [
     {
       "action": "<6-10 words from reviewer language>",
-      "detail": "<4-5 sentences grounded in the complaints above>",
+      "detail": "<2-3 sentences grounded in the complaints above>",
       "segment": "<specific buyer type from reviews>"
     },
     {
       "action": "<action 2 — different complaint or angle>",
-      "detail": "<4-5 sentences>",
+      "detail": "<2-3 sentences>",
       "segment": "<specific buyer type>"
     },
     {
       "action": "<action 3 — third distinct angle>",
-      "detail": "<4-5 sentences>",
+      "detail": "<2-3 sentences>",
       "segment": "<specific buyer type>"
     }
   ]
