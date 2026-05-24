@@ -3,6 +3,7 @@ import type { ScrapeRequest, Review } from './types.js'
 const BRIGHTDATA_API_KEY = process.env.BRIGHTDATA_API_KEY!
 const DATASET_ID         = 'gd_le8e811kzy4ggddlq'
 const BASE_URL           = 'https://api.brightdata.com/datasets/v3'
+const BATCH_SIZE         = 50
 
 interface BDReview {
   review_id?:          string
@@ -48,9 +49,8 @@ function mapReview(raw: BDReview, asin: string, tld: string, index: number): Rev
   return { id, rating, title, body, date, verified, helpful, country }
 }
 
-async function triggerSnapshot(productUrl: string, excludeIds: string[], maxReviews?: number): Promise<string | null> {
-  const body: Record<string, unknown> = { url: productUrl }
-  if (maxReviews) body.max_reviews = maxReviews
+async function triggerSnapshot(productUrl: string, excludeIds: string[], maxReviews: number): Promise<string | null> {
+  const body: Record<string, unknown> = { url: productUrl, max_reviews: maxReviews }
   if (excludeIds.length > 0) body.reviews_to_not_include = excludeIds
 
   const res = await fetch(`${BASE_URL}/trigger?dataset_id=${DATASET_ID}&notify=false&include_errors=true&format=json`, {
@@ -98,29 +98,53 @@ async function pollSnapshot(snapshotId: string, timeoutMs = 120_000): Promise<BD
   return []
 }
 
+async function fetchBatch(productUrl: string, excludeIds: string[], tld: string, asin: string, offset: number): Promise<Review[]> {
+  const snapshotId = await triggerSnapshot(productUrl, excludeIds, BATCH_SIZE)
+  if (!snapshotId) return []
+
+  const rows = await pollSnapshot(snapshotId, 90_000)
+  console.log(`[Scraper] Batch offset=${offset} — ${rows.length} raw rows`)
+
+  const reviews: Review[] = []
+  for (let i = 0; i < rows.length; i++) {
+    const review = mapReview(rows[i], asin, tld, offset + i)
+    if (review) reviews.push(review)
+  }
+  return reviews
+}
+
 export async function scrape(req: ScrapeRequest): Promise<Review[]> {
   const tld        = req.marketplace.replace(/^amazon\./, '')
   const productUrl = `https://www.amazon.${tld}/dp/${req.asin}/`
+  const target     = req.maxReviews ?? BATCH_SIZE
 
-  console.log(`[Scraper] ${req.asin} — requesting ${req.maxReviews} reviews via single async call`)
-
-  const snapshotId = await triggerSnapshot(productUrl, [], req.maxReviews)
-  if (!snapshotId) return []
-
-  const rows = await pollSnapshot(snapshotId, 180_000)
-  console.log(`[Scraper] ${req.asin} → ${rows.length} raw rows`)
+  console.log(`[Scraper] ${req.asin} — targeting ${target} reviews in batches of ${BATCH_SIZE}`)
 
   const allReviews: Review[] = []
   const seenIds = new Set<string>()
+  const maxRounds = Math.ceil(target / BATCH_SIZE)
 
-  for (let i = 0; i < rows.length; i++) {
-    const review = mapReview(rows[i], req.asin, tld, i)
-    if (review && !seenIds.has(review.id)) {
-      seenIds.add(review.id)
-      allReviews.push(review)
+  for (let round = 0; round < maxRounds && allReviews.length < target; round++) {
+    const excludeIds = allReviews.map(r => r.id)
+    console.log(`[Scraper] ${req.asin} round ${round + 1}/${maxRounds} — excluding ${excludeIds.length} ids`)
+
+    const batch = await fetchBatch(productUrl, excludeIds, tld, req.asin, allReviews.length)
+
+    if (batch.length === 0) {
+      console.log(`[Scraper] ${req.asin} — empty batch, stopping early`)
+      break
     }
+
+    for (const review of batch) {
+      if (!seenIds.has(review.id)) {
+        seenIds.add(review.id)
+        allReviews.push(review)
+      }
+    }
+
+    console.log(`[Scraper] ${req.asin} — ${allReviews.length} total so far`)
   }
 
   console.log(`[Scraper] ${req.asin} → ${allReviews.length} mapped reviews`)
-  return allReviews.slice(0, req.maxReviews)
+  return allReviews.slice(0, target)
 }
