@@ -79,9 +79,10 @@ export async function scrape(req: ScrapeRequest): Promise<Review[]> {
       break
     }
 
+    console.log(`[Scraper] HTML snippet (first 800 chars): ${html.slice(0, 800)}`)
+
     if (isBlocked(html, pageUrl)) {
       console.warn(`[Scraper] Block detected on page ${page} despite Unlocker — aborting`)
-      console.log(`[Scraper] HTML snippet: ${html.slice(0, 500)}`)
       break
     }
 
