@@ -34,8 +34,8 @@ function mapReview(raw: BDReview, asin: string, tld: string, index: number): Rev
   if (raw.error_code) return null
 
   const id     = raw.review_id ?? raw.id ?? `bd-${asin}-${Date.now()}-${index}`
-  const rating = Math.round(parseFloat(String(raw.review_rating ?? raw.star_rating ?? raw.rating ?? 0)))
-  if (rating < 1 || rating > 5) return null
+  const rating = Math.round(parseFloat(String(raw.rating ?? raw.review_rating ?? raw.star_rating ?? 0)))
+  if (rating > 5) return null  // 0 = unavailable, still include the review
 
   const title = raw.title ?? raw.review_title ?? ''
   const body  = raw.review_text ?? raw.body ?? raw.review_body ?? raw.content ?? ''
