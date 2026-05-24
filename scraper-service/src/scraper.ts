@@ -64,12 +64,15 @@ export async function scrape(req: ScrapeRequest): Promise<Review[]> {
 
   const base = new URL(req.url)
   base.searchParams.delete('pageNumber')
-  const baseUrl = base.toString()
+  // Ensure required Amazon review params are present
+  if (!base.searchParams.has('reviewerType')) base.searchParams.set('reviewerType', 'all_reviews')
+  if (!base.searchParams.has('ie')) base.searchParams.set('ie', 'UTF8')
 
   for (let page = 1; page <= MAX_PAGES; page++) {
     if (allReviews.length >= req.maxReviews) break
 
-    const pageUrl = `${baseUrl}&pageNumber=${page}`
+    base.searchParams.set('pageNumber', String(page))
+    const pageUrl = base.toString()
     console.log(`[Scraper] ${req.asin} fetching page ${page} via Unlocker`)
 
     const { html, ok } = await fetchPage(pageUrl, country)
