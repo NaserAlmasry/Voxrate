@@ -10,6 +10,7 @@ const CAPTCHA_MARKERS = [
   '/errors/validatecaptcha',
   'api-services-support@amazon.com',
   'sorry, we just need to make sure',
+  '<title>\n      page not found',
 ]
 
 const SIGNIN_MARKERS = [
