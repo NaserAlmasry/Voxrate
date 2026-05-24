@@ -10,13 +10,16 @@ interface BDReview {
   id?:                string
   rating?:            number | string
   star_rating?:       number | string
+  review_rating?:     number | string
   title?:             string
   review_title?:      string
   body?:              string
   review_body?:       string
+  review_text?:       string
   content?:           string
   date?:              string
   review_date?:       string
+  date_posted?:       string
   verified_purchase?: boolean | string
   verified?:          boolean | string
   helpful_votes?:     number | string
@@ -31,14 +34,14 @@ function mapReview(raw: BDReview, asin: string, tld: string, index: number): Rev
   if (raw.error_code) return null
 
   const id     = raw.review_id ?? raw.id ?? `bd-${asin}-${Date.now()}-${index}`
-  const rating = Math.round(parseFloat(String(raw.rating ?? raw.star_rating ?? 0)))
+  const rating = Math.round(parseFloat(String(raw.review_rating ?? raw.star_rating ?? raw.rating ?? 0)))
   if (rating < 1 || rating > 5) return null
 
   const title = raw.title ?? raw.review_title ?? ''
-  const body  = raw.body  ?? raw.review_body  ?? raw.content ?? ''
+  const body  = raw.review_text ?? raw.body ?? raw.review_body ?? raw.content ?? ''
   if (body.length < 20) return null
 
-  const date     = raw.date ?? raw.review_date ?? ''
+  const date     = raw.date ?? raw.review_date ?? raw.date_posted ?? ''
   const verified = Boolean(raw.verified_purchase ?? raw.verified ?? false)
   const helpful  = parseInt(String(raw.helpful_votes ?? raw.helpful ?? 0)) || 0
   const country  = raw.country ?? raw.marketplace ?? tld
@@ -74,6 +77,10 @@ export async function scrape(req: ScrapeRequest): Promise<Review[]> {
 
   const data = await res.json()
   console.log(`[Scraper] Raw response snippet: ${JSON.stringify(data).slice(0, 800)}`)
+  if (Array.isArray(data) && data.length > 0) {
+    console.log(`[Scraper] First row keys: ${Object.keys(data[0]).join(', ')}`)
+    console.log(`[Scraper] First row full: ${JSON.stringify(data[0])}`)
+  }
 
   const rows: BDReview[] = Array.isArray(data) ? data : (data?.reviews ?? [])
   console.log(`[Scraper] ${req.asin} → ${rows.length} raw rows from BrightData`)
