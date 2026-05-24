@@ -19,12 +19,16 @@ interface BDReview {
   content?:           string
   date?:              string
   review_date?:       string
+  review_posted_date?: string
   date_posted?:       string
   verified_purchase?: boolean | string
   verified?:          boolean | string
+  is_verified?:       boolean
   helpful_votes?:     number | string
   helpful?:           number | string
+  helpful_count?:     number
   country?:           string
+  review_country?:    string
   marketplace?:       string
   error?:             string
   error_code?:        string
@@ -41,10 +45,10 @@ function mapReview(raw: BDReview, asin: string, tld: string, index: number): Rev
   const body  = raw.review_text ?? raw.body ?? raw.review_body ?? raw.content ?? ''
   if (body.length < 20) return null
 
-  const date     = raw.date ?? raw.review_date ?? raw.date_posted ?? ''
-  const verified = Boolean(raw.verified_purchase ?? raw.verified ?? false)
-  const helpful  = parseInt(String(raw.helpful_votes ?? raw.helpful ?? 0)) || 0
-  const country  = raw.country ?? raw.marketplace ?? tld
+  const date     = raw.review_posted_date ?? raw.review_date ?? raw.date ?? raw.date_posted ?? ''
+  const verified = Boolean(raw.is_verified ?? raw.verified_purchase ?? raw.verified ?? false)
+  const helpful  = parseInt(String(raw.helpful_count ?? raw.helpful_votes ?? raw.helpful ?? 0)) || 0
+  const country  = raw.review_country ?? raw.country ?? raw.marketplace ?? tld
 
   return { id, rating, title, body, date, verified, helpful, country }
 }
