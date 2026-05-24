@@ -2,7 +2,7 @@ import type { ScrapeRequest, Review } from './types.js'
 
 const BRIGHTDATA_API_KEY  = process.env.BRIGHTDATA_API_KEY!
 const DATASET_ID          = 'gd_le8e811kzy4ggddlq'
-const SCRAPE_ENDPOINT     = `https://api.brightdata.com/datasets/v3/scrape?dataset_id=${DATASET_ID}&format=json`
+const SCRAPE_ENDPOINT     = `https://api.brightdata.com/datasets/v3/scrape?dataset_id=${DATASET_ID}&notify=false&include_errors=true&format=json`
 
 const MAX_PAGES = 10
 
@@ -52,7 +52,7 @@ async function fetchPageViaDataset(url: string): Promise<BDReview[]> {
       'Authorization': `Bearer ${BRIGHTDATA_API_KEY}`,
       'Content-Type':  'application/json',
     },
-    body: JSON.stringify([{ url }]),
+    body: JSON.stringify({ input: [{ url, max_reviews: 20 }] }),
   })
 
   if (!res.ok) {
