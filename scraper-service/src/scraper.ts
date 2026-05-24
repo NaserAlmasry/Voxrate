@@ -48,8 +48,9 @@ function mapReview(raw: BDReview, asin: string, tld: string, index: number): Rev
   return { id, rating, title, body, date, verified, helpful, country }
 }
 
-async function triggerSnapshot(productUrl: string, excludeIds: string[]): Promise<string | null> {
+async function triggerSnapshot(productUrl: string, excludeIds: string[], maxReviews?: number): Promise<string | null> {
   const body: Record<string, unknown> = { url: productUrl }
+  if (maxReviews) body.max_reviews = maxReviews
   if (excludeIds.length > 0) body.reviews_to_not_include = excludeIds
 
   const res = await fetch(`${BASE_URL}/trigger?dataset_id=${DATASET_ID}&notify=false&include_errors=true&format=json`, {
@@ -101,48 +102,25 @@ export async function scrape(req: ScrapeRequest): Promise<Review[]> {
   const tld        = req.marketplace.replace(/^amazon\./, '')
   const productUrl = `https://www.amazon.${tld}/dp/${req.asin}/`
 
-  console.log(`[Scraper] ${req.asin} — target ${req.maxReviews} reviews via async Dataset API`)
+  console.log(`[Scraper] ${req.asin} — requesting ${req.maxReviews} reviews via single async call`)
+
+  const snapshotId = await triggerSnapshot(productUrl, [], req.maxReviews)
+  if (!snapshotId) return []
+
+  const rows = await pollSnapshot(snapshotId, 180_000)
+  console.log(`[Scraper] ${req.asin} → ${rows.length} raw rows`)
 
   const allReviews: Review[] = []
-  const seenIds    = new Set<string>()
-  const excludeIds: string[] = []
-  const MAX_ROUNDS = 10
+  const seenIds = new Set<string>()
 
-  for (let round = 1; round <= MAX_ROUNDS; round++) {
-    if (allReviews.length >= req.maxReviews) break
-
-    console.log(`[Scraper] Round ${round} — fetching, excluding ${excludeIds.length} known IDs`)
-
-    const snapshotId = await triggerSnapshot(productUrl, excludeIds)
-    if (!snapshotId) break
-
-    const rows = await pollSnapshot(snapshotId)
-    if (rows.length === 0) {
-      console.log(`[Scraper] No rows in round ${round} — stopping`)
-      break
-    }
-
-    let newCount = 0
-    for (let i = 0; i < rows.length; i++) {
-      const raw = rows[i]
-      const rid = raw.review_id ?? raw.id
-      if (rid) excludeIds.push(rid)
-
-      const review = mapReview(raw, req.asin, tld, i)
-      if (review && !seenIds.has(review.id)) {
-        seenIds.add(review.id)
-        allReviews.push(review)
-        newCount++
-      }
-    }
-
-    console.log(`[Scraper] Round ${round} → ${newCount} new reviews (total: ${allReviews.length}/${req.maxReviews})`)
-
-    if (newCount === 0) {
-      console.log(`[Scraper] No new reviews in round ${round} — end of available reviews`)
-      break
+  for (let i = 0; i < rows.length; i++) {
+    const review = mapReview(rows[i], req.asin, tld, i)
+    if (review && !seenIds.has(review.id)) {
+      seenIds.add(review.id)
+      allReviews.push(review)
     }
   }
 
+  console.log(`[Scraper] ${req.asin} → ${allReviews.length} mapped reviews`)
   return allReviews.slice(0, req.maxReviews)
 }
