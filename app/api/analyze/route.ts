@@ -660,7 +660,7 @@ export async function POST(request: NextRequest) {
       .select()
       .single()
 
-    if (reportError) throw reportError
+    if (reportError) throw new Error(reportError.message)
     const reportId = reportRow.id
 
     try {

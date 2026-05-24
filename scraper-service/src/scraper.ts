@@ -40,7 +40,7 @@ async function fetchPage(url: string, country: string): Promise<{ html: string; 
       zone:    BRIGHTDATA_ZONE,
       url,
       country,
-      format:  'raw',
+      format:  'json',
     }),
   })
 
@@ -51,7 +51,7 @@ async function fetchPage(url: string, country: string): Promise<{ html: string; 
     return { html: '', ok: false }
   }
 
-  const html = await res.text()
+  const { body: html = '' } = await res.json() as { status_code: number; body: string }
   return { html, ok: true }
 }
 
