@@ -1,9 +1,10 @@
 // Voxrate Extension — Amazon Review Content Script
-// Auto-injected by manifest on amazon.*/product-reviews/* pages.
-// Uses real tab navigation (not fetch) so Amazon can't detect programmatic requests.
+// Handles both Amazon pagination styles:
+//   1. Traditional (pageNumber URL param) — navigate tab per page
+//   2. AJAX "Show more reviews" button — click in-page
 
 ;(async () => {
-  // ── Resume an in-progress scrape (page 2+) ───────────────────────
+  // ── Resume a navigation-based scrape (page 2+) ───────────────────
   const saved = sessionStorage.getItem('voxrate_job')
   if (saved) {
     let state
@@ -15,10 +16,9 @@
       return
     }
 
-    bgLog(state.jobId, `Page ${state.page} landed on: ${location.href}`)
     const batch   = parseReviews(document, state.asin, state.marketplace)
     const newOnes = batch.filter(r => !state.seenIds.includes(r.id))
-    bgLog(state.jobId, `Page ${state.page}: ${batch.length} reviews, ${newOnes.length} new — IDs: ${batch.map(r=>r.id).join(',').slice(0,80)}`)
+    bgLog(state.jobId, `Page ${state.page}: ${batch.length} reviews, ${newOnes.length} new`)
 
     state.reviews.push(...newOnes)
     newOnes.forEach(r => state.seenIds.push(r.id))
@@ -29,25 +29,16 @@
 
     if (done) {
       sessionStorage.removeItem('voxrate_job')
-      bgLog(state.jobId, `Done: ${state.reviews.length} unique reviews collected`)
-      chrome.runtime.sendMessage({
-        type: 'REVIEWS_DONE',
-        jobId: state.jobId,
-        asin:  state.asin,
-        reviews: state.reviews,
-        amazonLoggedIn: true,
-      })
+      finish(state.jobId, state.asin, state.reviews)
     } else {
       state.page++
       sessionStorage.setItem('voxrate_job', JSON.stringify(state))
-      const tld     = state.marketplace.replace('amazon.', '')
-      const nextUrl = `https://www.amazon.${tld}/product-reviews/${state.asin}/ref=cm_cr_arp_d_paging_btm_next_${state.page}?ie=UTF8&reviewerType=all_reviews&sortBy=recent&pageNumber=${state.page}`
-      location.assign(nextUrl)
+      navigateTo(state.asin, state.marketplace, state.page)
     }
     return
   }
 
-  // ── First page — ask background for a job ────────────────────────
+  // ── First page — get job from background ─────────────────────────
   let job = null
   try {
     const response = await new Promise((resolve) => {
@@ -57,9 +48,7 @@
       })
     })
     job = response?.job || null
-  } catch {
-    return
-  }
+  } catch { return }
 
   if (!job) return
 
@@ -70,42 +59,100 @@
     return
   }
 
-  const page1   = parseReviews(document, asin, marketplace)
-  const maxPages = Math.min(10, Math.ceil((maxReviews || 100) / 10))
+  const page1    = parseReviews(document, asin, marketplace)
+  const max      = maxReviews || 100
+  const maxPages = Math.min(10, Math.ceil(max / 10))
   bgLog(jobId, `Page 1: ${page1.length} reviews`)
 
-  const canContinue = page1.length >= 10 && maxPages > 1
-
-  if (!canContinue) {
-    bgLog(jobId, `Done: ${page1.length} unique reviews collected`)
-    chrome.runtime.sendMessage({
-      type: 'REVIEWS_DONE',
-      jobId,
-      asin,
-      reviews: page1,
-      amazonLoggedIn: true,
-    })
+  if (page1.length === 0 || maxPages <= 1) {
+    finish(jobId, asin, page1)
     return
   }
 
-  // Save state and navigate to page 2
-  const state = {
-    jobId,
-    asin,
-    marketplace,
-    maxReviews: maxReviews || 150,
-    maxPages,
-    reviews:  page1,
-    seenIds:  page1.map(r => r.id),
-    page: 2,
+  // Detect pagination style
+  const showMoreBtn = document.querySelector(
+    '[data-hook="show-more-reviews-button"] a, ' +
+    '[data-action="reviews:show-more-reviews"], ' +
+    'a[data-hook="load-more-reviews"]'
+  )
+
+  if (showMoreBtn) {
+    // ── AJAX "Show more" style ──────────────────────────────────────
+    bgLog(jobId, 'Using AJAX show-more pagination')
+    const allReviews = [...page1]
+    const seenIds    = new Set(page1.map(r => r.id))
+
+    let clicks = 0
+    while (allReviews.length < max && clicks < 9) {
+      const btn = document.querySelector(
+        '[data-hook="show-more-reviews-button"] a, ' +
+        '[data-action="reviews:show-more-reviews"], ' +
+        'a[data-hook="load-more-reviews"]'
+      )
+      if (!btn) break
+
+      const countBefore = document.querySelectorAll('[data-hook="review"]').length
+      btn.click()
+      clicks++
+
+      // Wait for new reviews to appear in DOM (up to 8 seconds)
+      const loaded = await waitForMoreReviews(countBefore, 8000)
+      if (!loaded) { bgLog(jobId, 'Show-more timed out'); break }
+
+      const batch   = parseReviews(document, asin, marketplace)
+      const newOnes = batch.filter(r => !seenIds.has(r.id))
+      bgLog(jobId, `Show-more click ${clicks}: ${newOnes.length} new`)
+      if (newOnes.length === 0) break
+      newOnes.forEach(r => { allReviews.push(r); seenIds.add(r.id) })
+    }
+
+    finish(jobId, asin, allReviews)
+  } else {
+    // ── Traditional URL pagination — navigate tab ───────────────────
+    bgLog(jobId, 'Using URL pagination')
+    const state = {
+      jobId, asin, marketplace,
+      maxReviews: max, maxPages,
+      reviews:  page1,
+      seenIds:  page1.map(r => r.id),
+      page: 2,
+    }
+    sessionStorage.setItem('voxrate_job', JSON.stringify(state))
+    navigateTo(asin, marketplace, 2)
   }
-  sessionStorage.setItem('voxrate_job', JSON.stringify(state))
-  const tld     = marketplace.replace('amazon.', '')
-  const nextUrl = `https://www.amazon.${tld}/product-reviews/${asin}/ref=cm_cr_arp_d_paging_btm_next_2?ie=UTF8&reviewerType=all_reviews&sortBy=recent&pageNumber=2`
-  location.assign(nextUrl)
 })()
 
 // ── Helpers ───────────────────────────────────────────────────────
+
+function navigateTo(asin, marketplace, page) {
+  const tld = marketplace.replace('amazon.', '')
+  location.assign(
+    `https://www.amazon.${tld}/product-reviews/${asin}` +
+    `/ref=cm_cr_arp_d_paging_btm_next_${page}` +
+    `?ie=UTF8&reviewerType=all_reviews&sortBy=recent&pageNumber=${page}`
+  )
+}
+
+function finish(jobId, asin, reviews) {
+  bgLog(jobId, `Done: ${reviews.length} unique reviews collected`)
+  chrome.runtime.sendMessage({
+    type: 'REVIEWS_DONE',
+    jobId, asin,
+    reviews,
+    amazonLoggedIn: true,
+  })
+}
+
+function waitForMoreReviews(countBefore, timeout) {
+  return new Promise((resolve) => {
+    const start = Date.now()
+    const check = setInterval(() => {
+      const current = document.querySelectorAll('[data-hook="review"]').length
+      if (current > countBefore) { clearInterval(check); resolve(true) }
+      else if (Date.now() - start > timeout) { clearInterval(check); resolve(false) }
+    }, 300)
+  })
+}
 
 function bgLog(jobId, msg) {
   console.log(`[Voxrate] ${msg}`)
@@ -136,7 +183,7 @@ function parseReviews(doc, asin, marketplace) {
       if (rating < 1 || rating > 5) return
 
       const titleEl = el.querySelector('[data-hook="review-title"] > span:not([class]), [data-hook="review-title"] span:not(.a-icon-alt)')
-      const title   = titleEl?.innerText?.trim() || titleEl?.textContent?.trim() || ''
+      const title   = (titleEl?.innerText || titleEl?.textContent || '').trim()
 
       const bodyEl = el.querySelector('[data-hook="review-body"] span')
       const body   = (bodyEl?.innerText || bodyEl?.textContent || '').trim()
