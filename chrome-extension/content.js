@@ -15,9 +15,10 @@
       return
     }
 
+    bgLog(state.jobId, `Page ${state.page} landed on: ${location.href}`)
     const batch   = parseReviews(document, state.asin, state.marketplace)
     const newOnes = batch.filter(r => !state.seenIds.includes(r.id))
-    bgLog(state.jobId, `Page ${state.page}: ${batch.length} reviews, ${newOnes.length} new`)
+    bgLog(state.jobId, `Page ${state.page}: ${batch.length} reviews, ${newOnes.length} new — IDs: ${batch.map(r=>r.id).join(',').slice(0,80)}`)
 
     state.reviews.push(...newOnes)
     newOnes.forEach(r => state.seenIds.push(r.id))
