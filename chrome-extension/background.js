@@ -56,11 +56,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   // content.js loads on Amazon review page and asks: "do you have a job for me?"
-  // This is the key fix — content script initiates, so no "frame removed" error possible.
+  // Match by tab ID, or by ASIN if tab ID hasn't been stored yet (race condition safety).
   if (msg.type === 'CONTENT_READY') {
     const senderTabId = sender.tab?.id
-    if (senderTabId === activeJobTabId && activeJob) {
-      console.log(`[Voxrate] Content script ready in tab ${senderTabId} — sending job`)
+    const matchByTab  = activeJobTabId && senderTabId === activeJobTabId
+    const matchByAsin = activeJob && msg.url && msg.url.includes(activeJob.asin)
+
+    if (activeJob && (matchByTab || matchByAsin)) {
+      // Record tab ID in case we got here via ASIN match before tabs.create resolved
+      if (senderTabId && !activeJobTabId) activeJobTabId = senderTabId
+      console.log(`[Voxrate] Content script ready — sending job ${activeJob.id}`)
       sendResponse({ job: activeJob })
     } else {
       sendResponse({ job: null })
