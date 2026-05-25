@@ -76,10 +76,12 @@ const STAR_FILTERS = ['five_star', 'four_star', 'three_star', 'two_star', 'one_s
   }
 
   const max        = maxReviews || 100
-  const csrfToken  = extractCsrfToken()
   const tld        = marketplace.replace('amazon.', '')
   const refererUrl = `https://www.amazon.${tld}/product-reviews/${asin}`
 
+  // Amazon injects the CSRF token into a <meta name="anti-csrftoken-a2z"> tag
+  // dynamically via a lazy /render XHR after page load — wait up to 8s for it.
+  const csrfToken = await waitForCsrfToken(8000)
   chrome.runtime.sendMessage({ type: 'CONTENT_LOG', msg: `csrfToken found: ${!!csrfToken}` })
 
   if (!csrfToken) {
@@ -243,44 +245,66 @@ function extractNextPageTokenFromDoc(doc) {
   return null
 }
 
-// ── Extract anti-CSRF token ───────────────────────────────────────
-// Confirmed location (2024-2025): <script type="a-state"> JSON blocks.
-// Amazon stores the value under "csrfToken"; the request header is named "anti-csrftoken-a2z".
+// ── Wait for anti-CSRF token ──────────────────────────────────────
+// Amazon injects <meta name="anti-csrftoken-a2z"> dynamically via a lazy
+// /render XHR after page load. We observe the DOM for up to `timeoutMs`
+// and also poll other locations as fallbacks.
+
+function waitForCsrfToken(timeoutMs) {
+  return new Promise((resolve) => {
+    // Check immediately first
+    const immediate = extractCsrfToken()
+    if (immediate) { resolve(immediate); return }
+
+    let resolved = false
+    const done = (token) => {
+      if (resolved) return
+      resolved = true
+      observer.disconnect()
+      clearInterval(poll)
+      clearTimeout(timer)
+      resolve(token)
+    }
+
+    // MutationObserver: fires as soon as the meta tag is injected
+    const observer = new MutationObserver(() => {
+      const token = extractCsrfToken()
+      if (token) done(token)
+    })
+    observer.observe(document.head, { childList: true, subtree: true, attributes: true })
+
+    // Polling fallback every 500ms (catches attribute mutations MutationObserver may miss)
+    const poll = setInterval(() => {
+      const token = extractCsrfToken()
+      if (token) done(token)
+    }, 500)
+
+    // Timeout — give up and return null, falling back to nav approach
+    const timer = setTimeout(() => done(null), timeoutMs)
+  })
+}
+
+// ── Extract anti-CSRF token (synchronous, checks current DOM state) ───────────
+// Primary location: <meta name="anti-csrftoken-a2z"> injected by Amazon's
+// lazy /render XHR. Also checks a-state blocks and inline scripts as fallbacks.
 
 function extractCsrfToken() {
-  // Primary: a-state JSON blobs (confirmed across all modern Amazon marketplaces)
+  // Primary: meta tag injected by Amazon's lazy render response (confirmed 2025)
+  const metaToken = document.querySelector('meta[name="anti-csrftoken-a2z"]')?.content
+  if (metaToken && metaToken.length >= 10) return metaToken
+
+  // Fallback: a-state JSON blobs
   for (const script of document.querySelectorAll('script[type="a-state"]')) {
     try {
       const data = JSON.parse(script.textContent)
-      const key = (() => { try { return JSON.parse(script.dataset.aState || '{}').key } catch { return '?' } })()
-      if (typeof data.csrfToken === 'string' && data.csrfToken.length >= 10) {
-        console.log('[Voxrate] csrfToken source a-state key:', key, '| token prefix:', data.csrfToken.slice(0, 12))
-        return data.csrfToken
-      }
-      if (typeof data.lazyWidgetCsrfToken === 'string' && data.lazyWidgetCsrfToken.length >= 10) {
-        console.log('[Voxrate] lazyWidgetCsrfToken source a-state key:', key, '| token prefix:', data.lazyWidgetCsrfToken.slice(0, 12))
-        return data.lazyWidgetCsrfToken
-      }
+      if (typeof data.csrfToken === 'string' && data.csrfToken.length >= 10) return data.csrfToken
+      if (typeof data.lazyWidgetCsrfToken === 'string' && data.lazyWidgetCsrfToken.length >= 10) return data.lazyWidgetCsrfToken
     } catch {}
   }
-
-  // Fallback: inline scripts (older/regional Amazon pages)
-  for (const script of document.querySelectorAll('script:not([src])')) {
-    const m = script.textContent.match(/"(?:anti-csrftoken-a2z|csrfToken)"\s*:\s*"([^"]{10,})"/)
-    if (m) return m[1]
-  }
-
-  // Fallback: meta tag (some Amazon locales)
-  const metaToken = document.querySelector('meta[name="anti-csrftoken-a2z"]')?.content
-  if (metaToken && metaToken.length >= 10) return metaToken
 
   // Fallback: data attribute
   const elToken = document.querySelector('[data-anti-csrftoken-a2z]')?.getAttribute('data-anti-csrftoken-a2z')
   if (elToken && elToken.length >= 10) return elToken
-
-  // Fallback: cookie
-  const cm = document.cookie.match(/(?:anti-csrftoken-a2z|csrfToken)=([^;]{10,})/)
-  if (cm) return decodeURIComponent(cm[1])
 
   return null
 }
