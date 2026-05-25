@@ -252,23 +252,13 @@ function extractNextPageTokenFromDoc(doc) {
 // and also poll other locations as fallbacks.
 
 async function waitForCsrfToken(tld) {
-  // 1. Check DOM immediately (works in foreground tabs where Rufus already fired)
-  const immediate = extractCsrfToken()
-  if (immediate) return immediate
-
-  // 2. Fetch the Rufus render endpoint directly — it returns the CSRF meta tag in
-  //    its HTML response and requires only session cookies (no prior CSRF needed).
-  //    This works reliably in background tabs where Amazon's lazy loader never fires.
-  try {
-    const res = await fetch(`https://www.amazon.${tld}/rufus/cl/render?ref=nl_cl_dsk_rend`, {
-      credentials: 'include',
-      signal: AbortSignal.timeout(8000),
-    })
-    const html = await res.text()
-    const m = html.match(/anti-csrftoken-a2z[^>]*content="([^"]+)"/)
-    if (m && m[1].length >= 10) return { token: m[1], source: 'rufus-fetch' }
-  } catch {}
-
+  // #cr-state-object is present in the initial HTML — check immediately.
+  // If not yet parsed (very early execution), poll briefly.
+  for (let i = 0; i < 10; i++) {
+    const result = extractCsrfToken()
+    if (result) return result
+    await sleep(200)
+  }
   return null
 }
 
@@ -277,37 +267,17 @@ async function waitForCsrfToken(tld) {
 // lazy /render XHR. Also checks a-state blocks and inline scripts as fallbacks.
 
 function extractCsrfToken() {
-  // Primary: meta tag injected by Amazon's lazy render response (confirmed 2025)
-  const metaToken = document.querySelector('meta[name="anti-csrftoken-a2z"]')?.content
-  if (metaToken && metaToken.length >= 10) return { token: metaToken, source: 'meta' }
-
-  // Fallback: data attribute
-  const elToken = document.querySelector('[data-anti-csrftoken-a2z]')?.getAttribute('data-anti-csrftoken-a2z')
-  if (elToken && elToken.length >= 10) return { token: elToken, source: 'data-attr' }
-
-  // Fallback: csrfT embedded in review vote-action data attributes.
-  const voteEl = document.querySelector('[data-reviews\\:vote-action], [data-action="reviews:vote-action"]')
-  if (voteEl) {
-    try {
-      const raw = voteEl.getAttribute('data-reviews:vote-action') || voteEl.getAttribute('data-a-csa')
-      const data = JSON.parse(raw || '{}')
-      if (data.csrfT && data.csrfT.length >= 10) return { token: decodeURIComponent(data.csrfT), source: 'vote-action' }
-    } catch {}
-  }
-
-  // Fallback: a-state JSON blobs — only use csrfToken fields that look like
-  // real tokens (base64 with AAAAAGo pattern), not internal identifiers.
-  for (const script of document.querySelectorAll('script[type="a-state"]')) {
-    try {
-      const data = JSON.parse(script.textContent)
-      for (const key of ['csrfToken', 'lazyWidgetCsrfToken']) {
-        const val = data[key]
-        if (typeof val === 'string' && val.length >= 10 && /AAAAA/.test(val)) {
-          return { token: val, source: `a-state:${key}` }
-        }
+  // Primary: reviews-specific CSRF token stored in #cr-state-object data-state JSON.
+  // This is the exact token Amazon's own show-more button uses for the reviews AJAX endpoint.
+  try {
+    const crState = document.querySelector('#cr-state-object')?.getAttribute('data-state')
+    if (crState) {
+      const data = JSON.parse(crState)
+      if (data.reviewsCsrfToken && data.reviewsCsrfToken.length >= 10) {
+        return { token: data.reviewsCsrfToken, source: 'cr-state' }
       }
-    } catch {}
-  }
+    }
+  } catch {}
 
   return null
 }
