@@ -26,10 +26,12 @@
   }
 
   const allReviews = []
+  const seenIds    = new Set()
   const maxPages   = Math.ceil((maxReviews || 150) / 10)
   const tld        = marketplace.replace('amazon.', '')
 
   const page1 = parseReviews(document, asin, marketplace)
+  page1.forEach(r => seenIds.add(r.id))
   log(jobId, `Page 1: ${page1.length} reviews`)
   allReviews.push(...page1)
 
@@ -41,31 +43,29 @@
     log(jobId, `Fetching page ${pageNumber}`)
 
     try {
-      const html = await fetchPage(nextUrl)
-      const doc  = new DOMParser().parseFromString(html, 'text/html')
+      const html  = await fetchPage(nextUrl)
+      const doc   = new DOMParser().parseFromString(html, 'text/html')
       if (isLoginWall(doc)) { log(jobId, `Login wall on page ${pageNumber}`); break }
       const batch = parseReviews(doc, asin, marketplace)
-      log(jobId, `Page ${pageNumber}: ${batch.length} reviews`)
       if (batch.length === 0) break
-      allReviews.push(...batch)
+      const newOnes = batch.filter(r => !seenIds.has(r.id))
+      log(jobId, `Page ${pageNumber}: ${batch.length} reviews, ${newOnes.length} new`)
+      if (newOnes.length === 0) break  // Amazon looped back to page 1
+      newOnes.forEach(r => seenIds.add(r.id))
+      allReviews.push(...newOnes)
     } catch (e) {
       log(jobId, `Fetch error page ${pageNumber}: ${e.message}`)
       break
     }
   }
 
-  const seen    = new Set()
-  const deduped = allReviews.filter(r => {
-    if (seen.has(r.id)) return false
-    seen.add(r.id)
-    return true
-  })
+  log(jobId, `Done: ${allReviews.length} unique reviews collected`)
 
   chrome.runtime.sendMessage({
     type: 'REVIEWS_DONE',
     jobId,
     asin,
-    reviews: deduped,
+    reviews: allReviews,
     amazonLoggedIn: true,
   })
 })()
