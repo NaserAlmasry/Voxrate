@@ -29,26 +29,34 @@
   const maxPages   = Math.ceil((maxReviews || 150) / 10)
   const tld        = marketplace.replace('amazon.', '')
 
-  allReviews.push(...parseReviews(document, asin, marketplace))
+  const page1 = parseReviews(document, asin, marketplace)
+  console.log(`[Voxrate] Page 1: ${page1.length} reviews, hasNextPage=${hasNextPage(document)}`)
+  allReviews.push(...page1)
 
   // Track currentDoc so hasNextPage checks the most recently fetched page
   let currentDoc  = document
   let pageNumber  = 1
 
   while (allReviews.length < (maxReviews || 150) && pageNumber < maxPages) {
-    if (!hasNextPage(currentDoc)) break
+    if (!hasNextPage(currentDoc)) {
+      console.log(`[Voxrate] No next page at page ${pageNumber}, stopping`)
+      break
+    }
 
     pageNumber++
     const nextUrl = `https://www.amazon.${tld}/product-reviews/${asin}?pageNumber=${pageNumber}&reviewerType=all_reviews&sortBy=recent`
+    console.log(`[Voxrate] Fetching page ${pageNumber}`)
 
     try {
       const html = await fetchPage(nextUrl)
       currentDoc  = new DOMParser().parseFromString(html, 'text/html')
-      if (isLoginWall(currentDoc)) break
+      if (isLoginWall(currentDoc)) { console.log('[Voxrate] Login wall on page', pageNumber); break }
       const batch = parseReviews(currentDoc, asin, marketplace)
+      console.log(`[Voxrate] Page ${pageNumber}: ${batch.length} reviews, hasNextPage=${hasNextPage(currentDoc)}`)
       if (batch.length === 0) break
       allReviews.push(...batch)
-    } catch {
+    } catch (e) {
+      console.log(`[Voxrate] Fetch error page ${pageNumber}:`, e.message)
       break
     }
   }
@@ -81,11 +89,23 @@ function isLoginWall(doc) {
 }
 
 function hasNextPage(doc) {
-  return !!doc.querySelector('li.a-last a, [data-hook="pagination-bar"] .a-last a')
+  // li.a-last WITHOUT a-disabled class means "Next" exists and is clickable
+  const pagination = doc.querySelector(
+    'li.a-last:not(.a-disabled) a, ' +
+    '.a-pagination li.a-last:not(.a-disabled) a, ' +
+    '[data-hook="pagination-bar"] li.a-last:not(.a-disabled) a'
+  )
+  return !!pagination
 }
 
 async function fetchPage(url) {
-  const res = await fetch(url, { credentials: 'include' })
+  const res = await fetch(url, {
+    credentials: 'include',
+    headers: {
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'en-US,en;q=0.9',
+    },
+  })
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   return res.text()
 }
