@@ -108,13 +108,26 @@ const STAR_FILTERS = ['five_star', 'four_star', 'three_star', 'two_star', 'one_s
   page1.forEach(r => { allReviews.push(r); seenIds.add(r.id) })
   chrome.runtime.sendMessage({ type: 'CONTENT_LOG', msg: `Page 1 (all): ${page1.length} reviews` })
 
+  // Per-filter quotas mirror the backend rebalance targets:
+  // 1★30% 2★20% 3★10% 4★10% 5★30% — ensures negative reviews aren't crowded out
+  // by a product with 500+ five-star reviews consuming the entire page budget.
+  const filterQuota = {
+    five_star:   Math.ceil(max * 0.30),
+    four_star:   Math.ceil(max * 0.10),
+    three_star:  Math.ceil(max * 0.10),
+    two_star:    Math.ceil(max * 0.20),
+    one_star:    Math.ceil(max * 0.30),
+  }
+
   for (const filter of STAR_FILTERS) {
     if (allReviews.length >= max) break
 
     let page          = 1
     let nextPageToken = null
+    let filterCount   = 0
+    const quota       = filterQuota[filter]
 
-    while (page <= 30 && allReviews.length < max) {
+    while (page <= 30 && allReviews.length < max && filterCount < quota) {
       let html = null
       for (let attempt = 1; attempt <= 3; attempt++) {
         try {
@@ -137,6 +150,7 @@ const STAR_FILTERS = ['five_star', 'four_star', 'three_star', 'two_star', 'one_s
       if (newOnes.length === 0) break
 
       newOnes.forEach(r => { allReviews.push(r); seenIds.add(r.id) })
+      filterCount += newOnes.length
 
       nextPageToken = extractNextPageTokenFromDoc(doc)
       if (!nextPageToken) break
