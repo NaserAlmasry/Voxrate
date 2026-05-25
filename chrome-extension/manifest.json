@@ -3,7 +3,7 @@
   "name": "Voxrate Reviews Scraper",
   "version": "1.0.0",
   "description": "Scrapes Amazon reviews for Voxrate AI analysis — works because you're already logged in.",
-  "permissions": ["storage", "tabs", "alarms", "scripting", "windows"],
+  "permissions": ["storage", "tabs", "alarms", "scripting"],
   "host_permissions": [
     "https://voxrate.app/*",
     "https://*.amazon.com/*",
