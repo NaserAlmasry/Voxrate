@@ -140,6 +140,7 @@ const STAR_FILTERS = ['five_star', 'four_star', 'three_star', 'two_star', 'one_s
 
       nextPageToken = extractNextPageTokenFromDoc(doc)
       if (!nextPageToken) break
+      await sleep(300)
       page++
     }
   }
