@@ -3,7 +3,7 @@
 const STAR_FILTERS = ['five_star', 'four_star', 'three_star', 'two_star', 'one_star']
 
 ;(async () => {
-  // ── Resume a filter-based scrape (filter 2+) ────────────────────
+  // ── Resume a scrape (filter page 2+) ────────────────────────────
   const saved = sessionStorage.getItem('voxrate_job')
   if (saved) {
     let state
@@ -17,27 +17,45 @@ const STAR_FILTERS = ['five_star', 'four_star', 'three_star', 'two_star', 'one_s
 
     const batch   = parseReviews(document, state.asin, state.marketplace)
     const newOnes = batch.filter(r => !state.seenIds.includes(r.id))
-    console.log(`[Voxrate] Filter ${state.currentFilter}: ${batch.length} reviews, ${newOnes.length} new`)
+    console.log(`[Voxrate] Filter ${state.currentFilter} page ${state.currentPage}: ${batch.length} reviews, ${newOnes.length} new`)
 
     state.reviews.push(...newOnes)
     newOnes.forEach(r => state.seenIds.push(r.id))
 
-    const nextFilter = nextStarFilter(state.currentFilter)
-    const reachedMax = state.reviews.length >= state.maxReviews
+    const reachedMax  = state.reviews.length >= state.maxReviews
+    const noMore      = newOnes.length === 0 || !hasNextPage(document)
+    const tld         = state.marketplace.replace('amazon.', '')
 
-    if (reachedMax || !nextFilter) {
+    if (reachedMax) {
       sessionStorage.removeItem('voxrate_job')
       finish(state.jobId, state.asin, state.reviews)
-    } else {
-      state.currentFilter = nextFilter
-      sessionStorage.setItem('voxrate_job', JSON.stringify(state))
-      const tld = state.marketplace.replace('amazon.', '')
-      location.assign(filterUrl(tld, state.asin, nextFilter))
+      return
     }
+
+    if (!noMore) {
+      // More pages within this star filter
+      state.currentPage++
+      sessionStorage.setItem('voxrate_job', JSON.stringify(state))
+      location.assign(filterUrl(tld, state.asin, state.currentFilter, state.currentPage))
+      return
+    }
+
+    // This filter is exhausted — move to next star filter
+    const nextFilter = nextStarFilter(state.currentFilter)
+    if (!nextFilter) {
+      sessionStorage.removeItem('voxrate_job')
+      finish(state.jobId, state.asin, state.reviews)
+      return
+    }
+
+    state.currentFilter = nextFilter
+    state.currentPage   = 1
+    sessionStorage.setItem('voxrate_job', JSON.stringify(state))
+    location.assign(filterUrl(tld, state.asin, nextFilter, 1))
     return
   }
 
-  // ── First page — get job from background ────────────────────────
+  // ── First load — get job from background ────────────────────────
   let job = null
   try {
     const response = await new Promise((resolve) => {
@@ -68,11 +86,12 @@ const STAR_FILTERS = ['five_star', 'four_star', 'three_star', 'two_star', 'one_s
     reviews:       page1,
     seenIds:       page1.map(r => r.id),
     currentFilter: 'five_star',
+    currentPage:   1,
   }
 
   sessionStorage.setItem('voxrate_job', JSON.stringify(state))
   const tld = marketplace.replace('amazon.', '')
-  location.assign(filterUrl(tld, asin, 'five_star'))
+  location.assign(filterUrl(tld, asin, 'five_star', 1))
 })()
 
 // ── Helpers ───────────────────────────────────────────────────────
@@ -82,8 +101,12 @@ function nextStarFilter(current) {
   return idx >= 0 && idx < STAR_FILTERS.length - 1 ? STAR_FILTERS[idx + 1] : null
 }
 
-function filterUrl(tld, asin, filter) {
-  return `https://www.amazon.${tld}/product-reviews/${asin}?reviewerType=all_reviews&filterByStar=${filter}&sortBy=recent`
+function filterUrl(tld, asin, filter, page) {
+  return `https://www.amazon.${tld}/product-reviews/${asin}?reviewerType=all_reviews&filterByStar=${filter}&sortBy=recent&pageNumber=${page}`
+}
+
+function hasNextPage(doc) {
+  return !!doc.querySelector('li.a-last:not(.a-disabled) a')
 }
 
 function finish(jobId, asin, reviews) {
