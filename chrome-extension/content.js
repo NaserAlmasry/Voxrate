@@ -30,7 +30,7 @@
   const tld        = marketplace.replace('amazon.', '')
 
   const page1 = parseReviews(document, asin, marketplace)
-  console.log(`[Voxrate] Page 1: ${page1.length} reviews, hasNextPage=${hasNextPage(document)}`)
+  log(jobId, `Page 1: ${page1.length} reviews, hasNextPage=${hasNextPage(document)}`)
   allReviews.push(...page1)
 
   // Track currentDoc so hasNextPage checks the most recently fetched page
@@ -39,24 +39,24 @@
 
   while (allReviews.length < (maxReviews || 150) && pageNumber < maxPages) {
     if (!hasNextPage(currentDoc)) {
-      console.log(`[Voxrate] No next page at page ${pageNumber}, stopping`)
+      log(jobId, `No next page at page ${pageNumber}, stopping`)
       break
     }
 
     pageNumber++
     const nextUrl = `https://www.amazon.${tld}/product-reviews/${asin}?pageNumber=${pageNumber}&reviewerType=all_reviews&sortBy=recent`
-    console.log(`[Voxrate] Fetching page ${pageNumber}`)
+    log(jobId, `Fetching page ${pageNumber}`)
 
     try {
       const html = await fetchPage(nextUrl)
       currentDoc  = new DOMParser().parseFromString(html, 'text/html')
-      if (isLoginWall(currentDoc)) { console.log('[Voxrate] Login wall on page', pageNumber); break }
+      if (isLoginWall(currentDoc)) { log(jobId, `Login wall on page ${pageNumber}`); break }
       const batch = parseReviews(currentDoc, asin, marketplace)
-      console.log(`[Voxrate] Page ${pageNumber}: ${batch.length} reviews, hasNextPage=${hasNextPage(currentDoc)}`)
+      log(jobId, `Page ${pageNumber}: ${batch.length} reviews, hasNextPage=${hasNextPage(currentDoc)}`)
       if (batch.length === 0) break
       allReviews.push(...batch)
     } catch (e) {
-      console.log(`[Voxrate] Fetch error page ${pageNumber}:`, e.message)
+      log(jobId, `Fetch error page ${pageNumber}: ${e.message}`)
       break
     }
   }
@@ -76,6 +76,11 @@
     amazonLoggedIn: true,
   })
 })()
+
+function log(jobId, msg) {
+  console.log(`[Voxrate] ${msg}`)
+  chrome.runtime.sendMessage({ type: 'CONTENT_LOG', jobId, msg }).catch(() => {})
+}
 
 // ── Helpers ───────────────────────────────────────────────────────
 
