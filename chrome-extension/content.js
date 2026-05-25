@@ -207,9 +207,15 @@ function parseTurboResponse(text) {
     try {
       const parsed = JSON.parse(trimmed)
       if (!Array.isArray(parsed)) continue
-      for (const entry of parsed) {
-        if (Array.isArray(entry) && entry.length >= 3 && typeof entry[2] === 'string') {
-          htmlParts.push(entry[2])
+      // Flat format: ["op", "#selector", "html"]
+      if (typeof parsed[0] === 'string' && parsed.length >= 3 && typeof parsed[2] === 'string') {
+        htmlParts.push(parsed[2])
+      } else {
+        // Nested format: [["op", "#selector", "html"], ...]
+        for (const entry of parsed) {
+          if (Array.isArray(entry) && entry.length >= 3 && typeof entry[2] === 'string') {
+            htmlParts.push(entry[2])
+          }
         }
       }
     } catch {
