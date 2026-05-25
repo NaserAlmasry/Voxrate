@@ -34,10 +34,14 @@ const STAR_FILTERS = ['five_star', 'four_star', 'three_star', 'two_star', 'one_s
     }
 
     if (!noMore) {
-      // More pages within this star filter
+      // Use the "Show more" button's real href if available, else construct URL
+      const showMoreEl = document.querySelector('a[data-hook="show-more-button"]')
+      const nextUrl = (showMoreEl?.href && !showMoreEl.href.includes('javascript'))
+        ? showMoreEl.href
+        : filterUrl(tld, state.asin, state.currentFilter, state.currentPage + 1)
       state.currentPage++
       sessionStorage.setItem('voxrate_job', JSON.stringify(state))
-      location.assign(filterUrl(tld, state.asin, state.currentFilter, state.currentPage))
+      location.assign(nextUrl)
       return
     }
 
