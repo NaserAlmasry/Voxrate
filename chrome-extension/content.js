@@ -92,6 +92,11 @@
 
 // ── Helpers ───────────────────────────────────────────────────────
 
+function getCsrfToken() {
+  const match = document.cookie.match(/anti-csrftoken-a2z=([^;]+)/)
+  return match ? decodeURIComponent(match[1]) : ''
+}
+
 async function fetchReviewPage(tld, asin, pageNumber, sortBy) {
   const res = await fetch(`https://www.amazon.${tld}/hz/reviews-render/ajax/reviews/get/`, {
     method: 'POST',
@@ -99,6 +104,7 @@ async function fetchReviewPage(tld, asin, pageNumber, sortBy) {
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
       'X-Requested-With': 'XMLHttpRequest',
+      'anti-csrftoken-a2z': getCsrfToken(),
     },
     body: new URLSearchParams({
       asin,
@@ -108,6 +114,7 @@ async function fetchReviewPage(tld, asin, pageNumber, sortBy) {
       sortBy,
       shouldAppend: 'undefined',
       reftag: `cm_cr_arp_d_paging_btm_next_${pageNumber}`,
+      deviceType: 'desktop',
     }),
   })
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
