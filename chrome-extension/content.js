@@ -266,12 +266,12 @@ function waitForCsrfToken(timeoutMs) {
       resolve(token)
     }
 
-    // MutationObserver: fires as soon as the meta tag is injected
+    // MutationObserver: fires as soon as the meta tag is injected anywhere in the document
     const observer = new MutationObserver(() => {
       const token = extractCsrfToken()
       if (token) done(token)
     })
-    observer.observe(document.head, { childList: true, subtree: true, attributes: true })
+    observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true })
 
     // Polling fallback every 500ms (catches attribute mutations MutationObserver may miss)
     const poll = setInterval(() => {
@@ -305,6 +305,18 @@ function extractCsrfToken() {
   // Fallback: data attribute
   const elToken = document.querySelector('[data-anti-csrftoken-a2z]')?.getAttribute('data-anti-csrftoken-a2z')
   if (elToken && elToken.length >= 10) return elToken
+
+  // Fallback: csrfT embedded in review vote-action data attributes.
+  // Each review on the page has a csrfT token in its vote action JSON —
+  // these are session-scoped and accepted by the reviews AJAX endpoint.
+  const voteEl = document.querySelector('[data-reviews\\:vote-action], [data-action="reviews:vote-action"]')
+  if (voteEl) {
+    try {
+      const raw = voteEl.getAttribute('data-reviews:vote-action') || voteEl.getAttribute('data-a-csa')
+      const data = JSON.parse(raw || '{}')
+      if (data.csrfT && data.csrfT.length >= 10) return decodeURIComponent(data.csrfT)
+    } catch {}
+  }
 
   return null
 }
