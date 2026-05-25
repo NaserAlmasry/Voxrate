@@ -72,11 +72,9 @@
   }
 
   // Detect pagination style
-  const showMoreBtn = document.querySelector(
-    '[data-hook="show-more-reviews-button"] a, ' +
-    '[data-action="reviews:show-more-reviews"], ' +
-    'a[data-hook="load-more-reviews"]'
-  )
+  const showMoreBtn = findShowMoreButton()
+  const nextLink    = getNextPageHref()
+  bgLog(jobId, `Pagination detect: showMore=${!!showMoreBtn} nextLink=${!!nextLink} url=${location.href.slice(0,80)}`)
 
   if (showMoreBtn) {
     // ── AJAX "Show more" style ──────────────────────────────────────
@@ -86,11 +84,7 @@
 
     let clicks = 0
     while (allReviews.length < max && clicks < 9) {
-      const btn = document.querySelector(
-        '[data-hook="show-more-reviews-button"] a, ' +
-        '[data-action="reviews:show-more-reviews"], ' +
-        'a[data-hook="load-more-reviews"]'
-      )
+      const btn = findShowMoreButton()
       if (!btn) break
 
       const countBefore = document.querySelectorAll('[data-hook="review"]').length
@@ -131,6 +125,26 @@
 })()
 
 // ── Helpers ───────────────────────────────────────────────────────
+
+function findShowMoreButton() {
+  // Try known data-hook / data-action selectors first
+  const byHook = document.querySelector(
+    '[data-hook="show-more-reviews-button"], ' +
+    '[data-hook="show-more-reviews-button"] a, ' +
+    '[data-action="reviews:show-more-reviews"], ' +
+    '[data-action="reviews:reload-on-click-show-more-reviews"], ' +
+    'a[data-hook="load-more-reviews"]'
+  )
+  if (byHook) return byHook
+
+  // Text-content fallback — catches any button/link/span with "more review" text
+  const all = document.querySelectorAll('a, button, span[data-action], input[type="submit"]')
+  for (const el of all) {
+    const txt = el.textContent?.toLowerCase() || ''
+    if (txt.includes('more review') && !txt.includes('see all')) return el
+  }
+  return null
+}
 
 function getNextPageHref() {
   const el = document.querySelector(
