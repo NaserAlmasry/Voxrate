@@ -1,14 +1,14 @@
 // Voxrate Extension — Background Service Worker (Manifest V3)
-// Polls voxrate.app for pending scrape jobs, opens hidden Amazon tabs,
-// collects reviews via content.js, and POSTs results back.
 
 const API_BASE = 'https://voxrate.app/api/extension'
 const POLL_ALARM = 'voxrate-poll'
-const POLL_INTERVAL_MINUTES = 0.5 // 30 seconds — Chrome's minimum reliable alarm period for unpacked extensions
+const POLL_INTERVAL_MINUTES = 0.5 // 30 seconds
 
-// ── State (in-memory; rebuilt on SW wake) ────────────────────────
+// ── State ────────────────────────────────────────────────────────
 let activeJobTabId = null
 let activeJobId = null
+let activeJob = null        // full job object — content.js pulls this
+let activeJobToken = null
 let stats = { jobsToday: 0, lastAsin: null, lastJobAt: null }
 
 // ── Bootstrap ────────────────────────────────────────────────────
@@ -16,57 +16,72 @@ let stats = { jobsToday: 0, lastAsin: null, lastJobAt: null }
 chrome.runtime.onInstalled.addListener(() => {
   setupAlarm()
   loadStats()
-  poll() // immediate first poll
+  poll()
 })
 
 chrome.runtime.onStartup.addListener(() => {
   setupAlarm()
   loadStats()
-  poll() // immediate first poll
+  poll()
 })
 
-// Wake on alarm
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === POLL_ALARM) poll()
 })
 
-// Wake on message from popup or voxrate-bridge.js
-chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'GET_STATUS') {
     getStatus().then(sendResponse)
     return true
   }
+
   if (msg.type === 'SET_TOKEN') {
     chrome.storage.local.set({ extensionToken: msg.token }, () => {
       sendResponse({ ok: true })
-      poll() // immediate poll after token set
+      poll()
     })
     return true
   }
+
   if (msg.type === 'CLEAR_TOKEN') {
     chrome.storage.local.remove('extensionToken', () => sendResponse({ ok: true }))
     return true
   }
+
   if (msg.type === 'VOXRATE_TOKEN') {
-    // Sent by voxrate-bridge.js when user visits voxrate.app
     chrome.storage.local.set({ extensionToken: msg.token }, () => {
       console.log('[Voxrate] Token auto-captured from voxrate.app page')
     })
+    return
   }
-  // Sent by content.js when review parsing is done
+
+  // content.js loads on Amazon review page and asks: "do you have a job for me?"
+  // This is the key fix — content script initiates, so no "frame removed" error possible.
+  if (msg.type === 'CONTENT_READY') {
+    const senderTabId = sender.tab?.id
+    if (senderTabId === activeJobTabId && activeJob) {
+      console.log(`[Voxrate] Content script ready in tab ${senderTabId} — sending job`)
+      sendResponse({ job: activeJob })
+    } else {
+      sendResponse({ job: null })
+    }
+    return true
+  }
+
   if (msg.type === 'REVIEWS_DONE') {
     handleReviewsDone(msg)
+    return
   }
+
   if (msg.type === 'AMAZON_NOT_LOGGED_IN') {
     handleAmazonNotLoggedIn(msg.jobId)
+    return
   }
 })
 
 function setupAlarm() {
   chrome.alarms.get(POLL_ALARM, (existing) => {
-    if (!existing) {
-      chrome.alarms.create(POLL_ALARM, { periodInMinutes: POLL_INTERVAL_MINUTES })
-    }
+    if (!existing) chrome.alarms.create(POLL_ALARM, { periodInMinutes: POLL_INTERVAL_MINUTES })
   })
 }
 
@@ -98,20 +113,19 @@ async function saveStats() {
 async function getStatus() {
   const stored = await chrome.storage.local.get(['extensionToken', 'statsJobsToday', 'statsLastAsin', 'statsLastJobAt', 'statsDate'])
   const today = new Date().toDateString()
-  const jobsToday = stored.statsDate === today ? (stored.statsJobsToday || 0) : 0
   return {
     connected: !!stored.extensionToken,
     busy: activeJobTabId !== null,
-    jobsToday,
+    jobsToday: stored.statsDate === today ? (stored.statsJobsToday || 0) : 0,
     lastAsin: stored.statsLastAsin || null,
     lastJobAt: stored.statsLastJobAt || null,
   }
 }
 
-// ── Main poll loop ────────────────────────────────────────────────
+// ── Poll loop ─────────────────────────────────────────────────────
 
 async function poll() {
-  if (activeJobTabId !== null) return // already processing a job
+  if (activeJobTabId !== null) return
 
   const { extensionToken } = await chrome.storage.local.get('extensionToken')
   if (!extensionToken) return
@@ -123,19 +137,17 @@ async function poll() {
       signal: AbortSignal.timeout(8000),
     })
     if (res.status === 401) {
-      console.warn('[Voxrate] Token rejected — clearing')
       chrome.storage.local.remove('extensionToken')
       return
     }
     if (!res.ok) return
     const data = await res.json()
     job = data.job
-  } catch (e) {
-    // Network error — silent fail, will retry
+  } catch {
     return
   }
 
-  if (!job) return // no pending jobs
+  if (!job) return
 
   startJob(job, extensionToken)
 }
@@ -144,146 +156,93 @@ async function poll() {
 
 async function startJob(job, token) {
   activeJobId = job.id
-  const { asin, marketplace, maxReviews } = job
+  activeJob = job
+  activeJobToken = token
+
+  const { asin, marketplace } = job
   const url = `https://www.${marketplace}/product-reviews/${asin}?pageNumber=1&reviewerType=all_reviews&sortBy=recent`
 
-  console.log(`[Voxrate] Starting job ${job.id}: ${asin} on ${marketplace}`)
+  console.log(`[Voxrate] Starting job ${job.id}: ${asin}`)
 
-  let tabId
+  // Hard timeout — backend waits 100s, we give 120s
   const hardTimeoutId = setTimeout(() => {
-    if (activeJobId === job.id) {
-      console.warn('[Voxrate] Job hard timeout')
-      submitJob(job.id, [], true, token, 'timeout')
-      if (tabId) cleanupTab(tabId)
-      stats.jobsToday++
-      stats.lastAsin = asin
-      stats.lastJobAt = new Date().toISOString()
-      saveStats()
-    }
+    if (activeJobId !== job.id) return
+    console.warn('[Voxrate] Job hard timeout')
+    submitJob(job.id, [], true, token, 'timeout')
+    if (activeJobTabId) cleanupTab(activeJobTabId)
+    stats.jobsToday++
+    stats.lastAsin = asin
+    stats.lastJobAt = new Date().toISOString()
+    saveStats()
   }, 120000)
 
   try {
     const tab = await chrome.tabs.create({ url, active: false })
-    tabId = tab.id
-    activeJobTabId = tabId
-
-    // Wait for the tab to fully load AND verify it landed on an Amazon page
-    await waitForTabStable(tabId, marketplace)
-
-    // Inject content script — retry once if frame was replaced during navigation
-    let injected = false
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        await chrome.scripting.executeScript({ target: { tabId }, files: ['content.js'] })
-        injected = true
-        break
-      } catch (e) {
-        if (attempt === 0 && e.message.includes('Frame')) {
-          // Frame was replaced by a redirect — wait for the next stable load
-          await waitForTabStable(tabId, marketplace)
-        } else {
-          throw e
-        }
-      }
-    }
-
-    if (!injected) throw new Error('Could not inject content script after redirect')
-
-    // Send job config to content script
-    await chrome.tabs.sendMessage(tabId, {
-      type: 'START_SCRAPE',
-      jobId: job.id,
-      asin,
-      marketplace,
-      maxReviews: maxReviews || 150,
-    })
-
+    activeJobTabId = tab.id
+    console.log(`[Voxrate] Tab ${tab.id} opened for ${asin}`)
+    // content.js auto-injects via manifest and will send CONTENT_READY when ready.
+    // We just wait — no sendMessage, no frame errors.
   } catch (err) {
     clearTimeout(hardTimeoutId)
-    console.error('[Voxrate] Job start error:', err)
-    await submitJob(job.id, [], false, token, err.message)
-    if (tabId) cleanupTab(tabId)
+    console.error('[Voxrate] Could not create tab:', err)
+    submitJob(job.id, [], false, token, err.message)
+    cleanupState()
   }
 }
 
-// Waits for the tab to reach 'complete' status on an Amazon domain.
-// Handles redirects by waiting for the NEXT complete event if the URL isn't Amazon yet.
-function waitForTabStable(tabId, marketplace) {
-  return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      chrome.tabs.onUpdated.removeListener(listener)
-      reject(new Error('Tab load timeout after 35s'))
-    }, 35000)
-
-    function check(tab) {
-      if (!tab || chrome.runtime.lastError) return
-      if (tab.status === 'complete' && tab.url && tab.url.includes(marketplace)) {
-        clearTimeout(timeout)
-        chrome.tabs.onUpdated.removeListener(listener)
-        resolve()
-      }
-      // If status=complete but wrong URL (redirect), keep listening for next load
-    }
-
-    function listener(id, info, tab) {
-      if (id !== tabId) return
-      if (info.status === 'complete') {
-        chrome.tabs.get(tabId, check)
-      }
-    }
-
-    chrome.tabs.onUpdated.addListener(listener)
-
-    // Check current state immediately in case tab already loaded
-    chrome.tabs.get(tabId, (tab) => {
-      if (chrome.runtime.lastError) return
-      check(tab)
-    })
-  })
-}
+// ── Handlers called by content.js messages ───────────────────────
 
 async function handleReviewsDone(msg) {
-  const { jobId, reviews, amazonLoggedIn } = msg
+  const { jobId, reviews, amazonLoggedIn, asin } = msg
   if (jobId !== activeJobId) return
 
-  const { extensionToken } = await chrome.storage.local.get('extensionToken')
-  await submitJob(jobId, reviews, amazonLoggedIn, extensionToken, null)
-  cleanupTab(activeJobTabId)
+  const token = activeJobToken
+  await submitJob(jobId, reviews, amazonLoggedIn, token, null)
+
+  const tabId = activeJobTabId
+  cleanupState()
+  if (tabId) chrome.tabs.remove(tabId).catch(() => {})
 
   stats.jobsToday++
-  stats.lastAsin = msg.asin
+  stats.lastAsin = asin
   stats.lastJobAt = new Date().toISOString()
   saveStats()
 }
 
 async function handleAmazonNotLoggedIn(jobId) {
   if (jobId !== activeJobId) return
-  const { extensionToken } = await chrome.storage.local.get('extensionToken')
-  await submitJob(jobId, [], false, extensionToken, 'amazon_not_logged_in')
-  cleanupTab(activeJobTabId)
+  const token = activeJobToken
+  const tabId = activeJobTabId
+  cleanupState()
+  await submitJob(jobId, [], false, token, 'amazon_not_logged_in')
+  if (tabId) chrome.tabs.remove(tabId).catch(() => {})
 }
+
+function cleanupState() {
+  activeJobTabId = null
+  activeJobId = null
+  activeJob = null
+  activeJobToken = null
+}
+
+// ── Submit ────────────────────────────────────────────────────────
 
 async function submitJob(jobId, reviews, amazonLoggedIn, token, error) {
   try {
     await fetch(`${API_BASE}/submit`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ jobId, reviews, amazonLoggedIn, error }),
       signal: AbortSignal.timeout(15000),
     })
-    console.log(`[Voxrate] Submitted job ${jobId}: ${reviews.length} reviews`)
+    console.log(`[Voxrate] Submitted job ${jobId}: ${(reviews || []).length} reviews`)
   } catch (e) {
     console.error('[Voxrate] Submit failed:', e)
   }
 }
 
+// Legacy — kept for safety
 function cleanupTab(tabId) {
-  if (tabId) {
-    chrome.tabs.remove(tabId).catch(() => {})
-  }
-  activeJobTabId = null
-  activeJobId = null
+  if (tabId) chrome.tabs.remove(tabId).catch(() => {})
+  cleanupState()
 }

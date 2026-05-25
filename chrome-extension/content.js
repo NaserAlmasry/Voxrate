@@ -1,56 +1,56 @@
 // Voxrate Extension — Amazon Review Content Script
-// Injected into hidden Amazon review tabs to parse and return all reviews.
+// Auto-injected by manifest on amazon.*/product-reviews/* pages.
+// Initiates contact with background — background never messages us first,
+// so "Frame with ID 0 was removed" errors are impossible.
 
 ;(async () => {
-  // Wait for START_SCRAPE message from background.js
-  const config = await new Promise((resolve) => {
-    chrome.runtime.onMessage.addListener(function handler(msg) {
-      if (msg.type === 'START_SCRAPE') {
-        chrome.runtime.onMessage.removeListener(handler)
-        resolve(msg)
-      }
+  // Ask background: "is there a job for this tab?"
+  let job = null
+  try {
+    const response = await new Promise((resolve) => {
+      chrome.runtime.sendMessage({ type: 'CONTENT_READY', url: location.href }, (res) => {
+        if (chrome.runtime.lastError) resolve(null)
+        else resolve(res)
+      })
     })
-  })
+    job = response?.job || null
+  } catch {
+    return
+  }
 
-  const { jobId, asin, marketplace, maxReviews } = config
+  if (!job) return // this tab isn't a Voxrate scrape tab — do nothing
 
-  // Check if Amazon is showing a login wall
-  if (isLoginWall()) {
+  const { id: jobId, asin, marketplace, maxReviews } = job
+
+  // Check login wall
+  if (isLoginWall(document)) {
     chrome.runtime.sendMessage({ type: 'AMAZON_NOT_LOGGED_IN', jobId })
     return
   }
 
   const allReviews = []
-  let pageNumber = 1
+  const maxPages = Math.ceil((maxReviews || 150) / 10)
   const tld = marketplace.replace('amazon.', '')
-  const maxPages = Math.ceil(maxReviews / 10)
 
   // Parse first page (already loaded)
-  const firstPageReviews = parseReviews(document, asin, marketplace)
-  allReviews.push(...firstPageReviews)
+  allReviews.push(...parseReviews(document, asin, marketplace))
 
   // Paginate through remaining pages
-  while (allReviews.length < maxReviews && pageNumber < maxPages) {
-    const hasNext = hasNextPage(document)
-    if (!hasNext) break
+  let pageNumber = 1
+  while (allReviews.length < (maxReviews || 150) && pageNumber < maxPages) {
+    if (!hasNextPage(document)) break
 
     pageNumber++
-    const nextUrl = buildReviewUrl(asin, tld, pageNumber)
+    const nextUrl = `https://www.amazon.${tld}/product-reviews/${asin}?pageNumber=${pageNumber}&reviewerType=all_reviews&sortBy=recent`
 
     try {
       const html = await fetchPage(nextUrl)
       const doc = new DOMParser().parseFromString(html, 'text/html')
-
-      if (isLoginWallDoc(doc)) {
-        // Hit login wall mid-pagination — return what we have
-        break
-      }
-
-      const pageReviews = parseReviews(doc, asin, marketplace)
-      if (pageReviews.length === 0) break
-      allReviews.push(...pageReviews)
-    } catch (e) {
-      console.warn('[Voxrate] Page fetch error:', e)
+      if (isLoginWall(doc)) break
+      const batch = parseReviews(doc, asin, marketplace)
+      if (batch.length === 0) break
+      allReviews.push(...batch)
+    } catch {
       break
     }
   }
@@ -74,34 +74,17 @@
 
 // ── Helpers ───────────────────────────────────────────────────────
 
-function isLoginWall() {
-  return isLoginWallDoc(document)
-}
-
-function isLoginWallDoc(doc) {
-  // Amazon redirects to sign-in page or shows an auth overlay
+function isLoginWall(doc) {
   const url = doc.location?.href || ''
   if (url.includes('/ap/signin') || url.includes('/gp/sign-in')) return true
-  const body = doc.body?.innerText || ''
-  if (body.includes('Sign in to see reviews') || body.includes('Sign in to filter reviews')) return true
-  // Check for the reviews container — if absent, we're on the wrong page
-  const reviewsContainer = doc.querySelector('#cm_cr-review_list, [data-hook="review"]')
   const signInForm = doc.querySelector('form[name="signIn"], #ap_signin_form, input[name="email"]')
-  if (signInForm && !reviewsContainer) return true
+  const reviewList = doc.querySelector('#cm_cr-review_list, [data-hook="review"]')
+  if (signInForm && !reviewList) return true
   return false
 }
 
 function hasNextPage(doc) {
-  // Look for "Next page" pagination link
-  const nextBtn = doc.querySelector('li.a-last a, [data-hook="pagination-bar"] .a-last a')
-  if (nextBtn) return true
-  // Alternative: look for the next page link by text
-  const links = Array.from(doc.querySelectorAll('a'))
-  return links.some(a => /next page/i.test(a.textContent || ''))
-}
-
-function buildReviewUrl(asin, tld, pageNumber) {
-  return `https://www.amazon.${tld}/product-reviews/${asin}?pageNumber=${pageNumber}&reviewerType=all_reviews&sortBy=recent`
+  return !!doc.querySelector('li.a-last a, [data-hook="pagination-bar"] .a-last a')
 }
 
 async function fetchPage(url) {
@@ -111,55 +94,40 @@ async function fetchPage(url) {
 }
 
 function parseReviews(doc, asin, marketplace) {
-  const reviewEls = doc.querySelectorAll('[data-hook="review"]')
   const reviews = []
-
-  reviewEls.forEach((el, i) => {
+  doc.querySelectorAll('[data-hook="review"]').forEach((el, i) => {
     try {
       const id = el.id || `${asin}-${Date.now()}-${i}`
 
-      // Rating: "4.0 out of 5 stars"
       const ratingEl = el.querySelector('i[data-hook="review-star-rating"], i[data-hook="cmps-review-star-rating"]')
       const ratingTitle = ratingEl?.querySelector('.a-icon-alt')?.textContent || ratingEl?.title || ''
       const ratingMatch = ratingTitle.match(/^([\d.]+)/)
       const rating = ratingMatch ? Math.round(parseFloat(ratingMatch[1])) : 0
       if (rating < 1 || rating > 5) return
 
-      // Title
       const titleEl = el.querySelector('[data-hook="review-title"] span:not(.a-icon-alt)')
       const title = titleEl?.textContent?.trim() || ''
 
-      // Body
       const bodyEl = el.querySelector('[data-hook="review-body"] span')
       const body = bodyEl?.textContent?.trim() || ''
-      if (body.length < 20) return // too short to be useful
+      if (body.length < 20) return
 
-      // Date
       const dateEl = el.querySelector('[data-hook="review-date"]')
       const date = dateEl?.textContent?.trim() || ''
 
-      // Verified purchase
-      const verifiedEl = el.querySelector('[data-hook="avp-badge"]')
-      const verified = !!verifiedEl
+      const verified = !!el.querySelector('[data-hook="avp-badge"]')
+      const vine = !!el.querySelector('[data-hook="vine-badge"]')
 
-      // Vine
-      const vineEl = el.querySelector('[data-hook="vine-badge"]')
-      const vine = !!vineEl
-
-      // Helpful votes: "X people found this helpful"
-      const helpfulEl = el.querySelector('[data-hook="helpful-vote-statement"]')
-      const helpfulText = helpfulEl?.textContent || ''
+      const helpfulText = el.querySelector('[data-hook="helpful-vote-statement"]')?.textContent || ''
       const helpfulMatch = helpfulText.match(/(\d[\d,]*)/)
       const helpful = helpfulMatch ? parseInt(helpfulMatch[1].replace(/,/g, '')) : 0
 
-      // Country from domain
       const country = marketplace.replace('amazon.', '')
 
       reviews.push({ id, rating, title, body, date, verified, vine, helpful, country })
-    } catch (e) {
-      // skip malformed review element
+    } catch {
+      // skip malformed element
     }
   })
-
   return reviews
 }
