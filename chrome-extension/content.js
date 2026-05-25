@@ -132,7 +132,12 @@ function isLoginWall(doc) {
 
 function parseReviews(doc, asin, marketplace) {
   const reviews = []
-  doc.querySelectorAll('[data-hook="review"]').forEach((el, i) => {
+  const containers = doc.querySelectorAll(
+    '[data-hook="review"], ' +
+    '#cm-cr-dp-review-list > li[id], ' +
+    '#cm-cr-global-review-list > li[id]'
+  )
+  containers.forEach((el, i) => {
     try {
       const id = el.id || `${asin}-${Date.now()}-${i}`
 
@@ -147,7 +152,7 @@ function parseReviews(doc, asin, marketplace) {
       const titleEl = el.querySelector('[data-hook="review-title"] > span:not([class]), [data-hook="review-title"] span:not(.a-icon-alt)')
       const title   = (titleEl?.innerText || titleEl?.textContent || '').trim()
 
-      const bodyEl = el.querySelector('[data-hook="review-body"] span')
+      const bodyEl = el.querySelector('[data-hook="review-body"] span, .review-text span, .review-text')
       const body   = (bodyEl?.innerText || bodyEl?.textContent || '').trim()
       if (body.length < 3) return
 
