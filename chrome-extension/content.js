@@ -24,6 +24,7 @@
     newOnes.forEach(r => state.seenIds.push(r.id))
 
     const nextHref = getNextPageHref()
+    bgLog(state.jobId, `Next from page ${state.page}: ${nextHref || 'none'}`)
     const done = newOnes.length === 0
                || state.reviews.length >= state.maxReviews
                || state.page >= state.maxPages
