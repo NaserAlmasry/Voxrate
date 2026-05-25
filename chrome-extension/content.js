@@ -71,91 +71,40 @@
     return
   }
 
-  // Detect pagination style
-  const showMoreBtn = findShowMoreButton()
-  const nextLink    = getNextPageHref()
-  bgLog(jobId, `Pagination detect: showMore=${!!showMoreBtn} nextLink=${!!nextLink} url=${location.href.slice(0,80)}`)
+  const nextHref = getNextPageHref()
+  bgLog(jobId, `Next page: ${nextHref || 'none'}`)
 
-  if (showMoreBtn) {
-    // ── AJAX "Show more" style ──────────────────────────────────────
-    bgLog(jobId, 'Using AJAX show-more pagination')
-    const allReviews = [...page1]
-    const seenIds    = new Set(page1.map(r => r.id))
-
-    let clicks = 0
-    while (allReviews.length < max && clicks < 9) {
-      const btn = findShowMoreButton()
-      if (!btn) break
-
-      const countBefore = document.querySelectorAll('[data-hook="review"]').length
-      btn.click()
-      clicks++
-
-      // Wait for new reviews to appear in DOM (up to 8 seconds)
-      const loaded = await waitForMoreReviews(countBefore, 8000)
-      if (!loaded) { bgLog(jobId, 'Show-more timed out'); break }
-
-      const batch   = parseReviews(document, asin, marketplace)
-      const newOnes = batch.filter(r => !seenIds.has(r.id))
-      bgLog(jobId, `Show-more click ${clicks}: ${newOnes.length} new`)
-      if (newOnes.length === 0) break
-      newOnes.forEach(r => { allReviews.push(r); seenIds.add(r.id) })
-    }
-
-    finish(jobId, asin, allReviews)
-  } else {
-    // ── Traditional URL pagination — follow Amazon's own Next link ──
-    const nextHref = getNextPageHref()
-    if (!nextHref) {
-      bgLog(jobId, 'No next page link found — only 1 page')
-      finish(jobId, asin, page1)
-      return
-    }
-    bgLog(jobId, `Using URL pagination, next: ${nextHref}`)
-    const state = {
-      jobId, asin, marketplace,
-      maxReviews: max, maxPages,
-      reviews:  page1,
-      seenIds:  page1.map(r => r.id),
-      page: 2,
-    }
-    sessionStorage.setItem('voxrate_job', JSON.stringify(state))
-    location.assign(nextHref)
+  if (!nextHref) {
+    finish(jobId, asin, page1)
+    return
   }
+
+  const state = {
+    jobId, asin, marketplace,
+    maxReviews: max, maxPages,
+    reviews:  page1,
+    seenIds:  page1.map(r => r.id),
+    page: 2,
+  }
+  sessionStorage.setItem('voxrate_job', JSON.stringify(state))
+  location.assign(nextHref)
 })()
 
 // ── Helpers ───────────────────────────────────────────────────────
 
-function findShowMoreButton() {
-  // Try known data-hook / data-action selectors first
-  const byHook = document.querySelector(
-    '[data-hook="show-more-reviews-button"], ' +
-    '[data-hook="show-more-reviews-button"] a, ' +
-    '[data-action="reviews:show-more-reviews"], ' +
-    '[data-action="reviews:reload-on-click-show-more-reviews"], ' +
-    'a[data-hook="load-more-reviews"]'
-  )
-  if (byHook) return byHook
-
-  // Text-content fallback — catches any button/link/span with "more review" text
-  const all = document.querySelectorAll('a, button, span[data-action], input[type="submit"]')
-  for (const el of all) {
-    const txt = el.textContent?.toLowerCase() || ''
-    if (txt.includes('more review') && !txt.includes('see all')) return el
-  }
-  return null
-}
-
 function getNextPageHref() {
-  const el = document.querySelector(
+  // Traditional Next button
+  const traditional = document.querySelector(
     'li.a-last:not(.a-disabled) a, ' +
-    '.a-pagination li.a-last:not(.a-disabled) a, ' +
-    '[data-hook="pagination-bar"] li.a-last:not(.a-disabled) a'
+    '.a-pagination li.a-last:not(.a-disabled) a'
   )
-  if (!el) return null
-  const href = el.getAttribute('href')
-  if (!href) return null
-  return href.startsWith('http') ? href : `https://www.amazon.com${href}`
+  if (traditional) return traditional.href || null
+
+  // "Show 10 more reviews" link (data-hook="show-more-button")
+  const showMore = document.querySelector('a[data-hook="show-more-button"]')
+  if (showMore) return showMore.href || null
+
+  return null
 }
 
 function finish(jobId, asin, reviews) {
@@ -168,16 +117,6 @@ function finish(jobId, asin, reviews) {
   })
 }
 
-function waitForMoreReviews(countBefore, timeout) {
-  return new Promise((resolve) => {
-    const start = Date.now()
-    const check = setInterval(() => {
-      const current = document.querySelectorAll('[data-hook="review"]').length
-      if (current > countBefore) { clearInterval(check); resolve(true) }
-      else if (Date.now() - start > timeout) { clearInterval(check); resolve(false) }
-    }, 300)
-  })
-}
 
 function bgLog(jobId, msg) {
   console.log(`[Voxrate] ${msg}`)
