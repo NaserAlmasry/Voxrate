@@ -1,8 +1,52 @@
 // Voxrate Extension — Amazon Review Content Script
 // Auto-injected by manifest on amazon.*/product-reviews/* pages.
-// Initiates contact with background — no "frame removed" errors possible.
+// Uses real tab navigation (not fetch) so Amazon can't detect programmatic requests.
 
 ;(async () => {
+  // ── Resume an in-progress scrape (page 2+) ───────────────────────
+  const saved = sessionStorage.getItem('voxrate_job')
+  if (saved) {
+    let state
+    try { state = JSON.parse(saved) } catch { sessionStorage.removeItem('voxrate_job'); return }
+
+    if (isLoginWall(document)) {
+      sessionStorage.removeItem('voxrate_job')
+      chrome.runtime.sendMessage({ type: 'AMAZON_NOT_LOGGED_IN', jobId: state.jobId })
+      return
+    }
+
+    const batch   = parseReviews(document, state.asin, state.marketplace)
+    const newOnes = batch.filter(r => !state.seenIds.includes(r.id))
+    bgLog(state.jobId, `Page ${state.page}: ${batch.length} reviews, ${newOnes.length} new`)
+
+    state.reviews.push(...newOnes)
+    newOnes.forEach(r => state.seenIds.push(r.id))
+
+    const done = newOnes.length === 0
+               || state.reviews.length >= state.maxReviews
+               || state.page >= state.maxPages
+
+    if (done) {
+      sessionStorage.removeItem('voxrate_job')
+      bgLog(state.jobId, `Done: ${state.reviews.length} unique reviews collected`)
+      chrome.runtime.sendMessage({
+        type: 'REVIEWS_DONE',
+        jobId: state.jobId,
+        asin:  state.asin,
+        reviews: state.reviews,
+        amazonLoggedIn: true,
+      })
+    } else {
+      state.page++
+      sessionStorage.setItem('voxrate_job', JSON.stringify(state))
+      const tld     = state.marketplace.replace('amazon.', '')
+      const nextUrl = `https://www.amazon.${tld}/product-reviews/${state.asin}/ref=cm_cr_arp_d_paging_btm_next_${state.page}?ie=UTF8&reviewerType=all_reviews&pageNumber=${state.page}`
+      location.assign(nextUrl)
+    }
+    return
+  }
+
+  // ── First page — ask background for a job ────────────────────────
   let job = null
   try {
     const response = await new Promise((resolve) => {
@@ -16,7 +60,7 @@
     return
   }
 
-  if (!job) return // not a Voxrate scrape tab — do nothing
+  if (!job) return
 
   const { id: jobId, asin, marketplace, maxReviews } = job
 
@@ -25,57 +69,47 @@
     return
   }
 
-  const allReviews = []
-  const seenIds    = new Set()
-  const maxPages   = Math.ceil((maxReviews || 150) / 10)
-  const tld        = marketplace.replace('amazon.', '')
+  const page1   = parseReviews(document, asin, marketplace)
+  const maxPages = Math.ceil((maxReviews || 150) / 10)
+  bgLog(jobId, `Page 1: ${page1.length} reviews`)
 
-  const page1 = parseReviews(document, asin, marketplace)
-  page1.forEach(r => seenIds.add(r.id))
-  log(jobId, `Page 1: ${page1.length} reviews`)
-  allReviews.push(...page1)
+  const canContinue = page1.length >= 10 && maxPages > 1
 
-  let pageNumber = 1
-
-  while (allReviews.length < (maxReviews || 150) && pageNumber < maxPages) {
-    pageNumber++
-    const nextUrl = `https://www.amazon.${tld}/product-reviews/${asin}/ref=cm_cr_arp_d_viewopt_srt?ie=UTF8&reviewerType=all_reviews&sortBy=recent&pageNumber=${pageNumber}`
-    log(jobId, `Fetching page ${pageNumber}`)
-
-    try {
-      const html  = await fetchPage(nextUrl)
-      const doc   = new DOMParser().parseFromString(html, 'text/html')
-      if (isLoginWall(doc)) { log(jobId, `Login wall on page ${pageNumber}`); break }
-      const batch = parseReviews(doc, asin, marketplace)
-      if (batch.length === 0) break
-      const newOnes = batch.filter(r => !seenIds.has(r.id))
-      log(jobId, `Page ${pageNumber}: ${batch.length} reviews, ${newOnes.length} new`)
-      if (newOnes.length === 0) break  // Amazon looped back to page 1
-      newOnes.forEach(r => seenIds.add(r.id))
-      allReviews.push(...newOnes)
-    } catch (e) {
-      log(jobId, `Fetch error page ${pageNumber}: ${e.message}`)
-      break
-    }
+  if (!canContinue) {
+    bgLog(jobId, `Done: ${page1.length} unique reviews collected`)
+    chrome.runtime.sendMessage({
+      type: 'REVIEWS_DONE',
+      jobId,
+      asin,
+      reviews: page1,
+      amazonLoggedIn: true,
+    })
+    return
   }
 
-  log(jobId, `Done: ${allReviews.length} unique reviews collected`)
-
-  chrome.runtime.sendMessage({
-    type: 'REVIEWS_DONE',
+  // Save state and navigate to page 2
+  const state = {
     jobId,
     asin,
-    reviews: allReviews,
-    amazonLoggedIn: true,
-  })
+    marketplace,
+    maxReviews: maxReviews || 150,
+    maxPages,
+    reviews:  page1,
+    seenIds:  page1.map(r => r.id),
+    page: 2,
+  }
+  sessionStorage.setItem('voxrate_job', JSON.stringify(state))
+  const tld     = marketplace.replace('amazon.', '')
+  const nextUrl = `https://www.amazon.${tld}/product-reviews/${asin}/ref=cm_cr_arp_d_paging_btm_next_2?ie=UTF8&reviewerType=all_reviews&pageNumber=2`
+  location.assign(nextUrl)
 })()
 
-function log(jobId, msg) {
+// ── Helpers ───────────────────────────────────────────────────────
+
+function bgLog(jobId, msg) {
   console.log(`[Voxrate] ${msg}`)
   chrome.runtime.sendMessage({ type: 'CONTENT_LOG', jobId, msg }).catch(() => {})
 }
-
-// ── Helpers ───────────────────────────────────────────────────────
 
 function isLoginWall(doc) {
   const url = doc.location?.href || ''
@@ -84,32 +118,6 @@ function isLoginWall(doc) {
   const reviewList = doc.querySelector('#cm_cr-review_list, [data-hook="review"]')
   if (signInForm && !reviewList) return true
   return false
-}
-
-function hasNextPage(doc) {
-  // li.a-last WITHOUT a-disabled class means "Next" exists and is clickable
-  const pagination = doc.querySelector(
-    'li.a-last:not(.a-disabled) a, ' +
-    '.a-pagination li.a-last:not(.a-disabled) a, ' +
-    '[data-hook="pagination-bar"] li.a-last:not(.a-disabled) a'
-  )
-  return !!pagination
-}
-
-async function fetchPage(url) {
-  const res = await fetch(url, {
-    credentials: 'include',
-    headers: {
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-      'Accept-Language': 'en-US,en;q=0.9',
-      'Referer': location.href,
-      'Sec-Fetch-Dest': 'document',
-      'Sec-Fetch-Mode': 'navigate',
-      'Sec-Fetch-Site': 'same-origin',
-    },
-  })
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  return res.text()
 }
 
 function parseReviews(doc, asin, marketplace) {
