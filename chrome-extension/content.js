@@ -108,26 +108,26 @@ const STAR_FILTERS = ['five_star', 'four_star', 'three_star', 'two_star', 'one_s
   page1.forEach(r => { allReviews.push(r); seenIds.add(r.id) })
   chrome.runtime.sendMessage({ type: 'CONTENT_LOG', msg: `Page 1 (all): ${page1.length} reviews` })
 
-  // Per-filter quotas mirror the backend rebalance targets:
-  // 1★30% 2★20% 3★10% 4★10% 5★30% — ensures negative reviews aren't crowded out
-  // by a product with 500+ five-star reviews consuming the entire page budget.
-  const filterQuota = {
-    five_star:   Math.ceil(max * 0.30),
-    four_star:   Math.ceil(max * 0.10),
-    three_star:  Math.ceil(max * 0.10),
-    two_star:    Math.ceil(max * 0.20),
-    one_star:    Math.ceil(max * 0.30),
-  }
+  // Collect negative reviews first — they're the most valuable for complaints analysis
+  // and often limited in supply. Dynamic rolling quotas: each filter's allocation is
+  // recalculated from the remaining budget so depleted filters roll unused slots forward.
+  const FILTER_ORDER   = ['one_star', 'two_star', 'five_star', 'four_star', 'three_star']
+  const FILTER_WEIGHTS = { one_star: 3, two_star: 2, five_star: 2, four_star: 1, three_star: 1 }
+  let budget = max - page1.length
 
-  for (const filter of STAR_FILTERS) {
-    if (allReviews.length >= max) break
+  for (let fi = 0; fi < FILTER_ORDER.length; fi++) {
+    if (budget <= 0) break
+    const filter = FILTER_ORDER[fi]
+
+    // Quota = proportional share of remaining budget across remaining filters
+    const remainingWeight = FILTER_ORDER.slice(fi).reduce((s, f) => s + FILTER_WEIGHTS[f], 0)
+    const quota = Math.round(budget * FILTER_WEIGHTS[filter] / remainingWeight)
 
     let page          = 1
     let nextPageToken = null
     let filterCount   = 0
-    const quota       = filterQuota[filter]
 
-    while (page <= 30 && allReviews.length < max && filterCount < quota) {
+    while (page <= 30 && filterCount < quota) {
       let html = null
       for (let attempt = 1; attempt <= 3; attempt++) {
         try {
@@ -151,6 +151,7 @@ const STAR_FILTERS = ['five_star', 'four_star', 'three_star', 'two_star', 'one_s
 
       newOnes.forEach(r => { allReviews.push(r); seenIds.add(r.id) })
       filterCount += newOnes.length
+      budget      -= newOnes.length
 
       nextPageToken = extractNextPageTokenFromDoc(doc)
       if (!nextPageToken) break
