@@ -30,29 +30,22 @@
   const tld        = marketplace.replace('amazon.', '')
 
   const page1 = parseReviews(document, asin, marketplace)
-  log(jobId, `Page 1: ${page1.length} reviews, hasNextPage=${hasNextPage(document)}`)
+  log(jobId, `Page 1: ${page1.length} reviews`)
   allReviews.push(...page1)
 
-  // Track currentDoc so hasNextPage checks the most recently fetched page
-  let currentDoc  = document
-  let pageNumber  = 1
+  let pageNumber = 1
 
   while (allReviews.length < (maxReviews || 150) && pageNumber < maxPages) {
-    if (!hasNextPage(currentDoc)) {
-      log(jobId, `No next page at page ${pageNumber}, stopping`)
-      break
-    }
-
     pageNumber++
     const nextUrl = `https://www.amazon.${tld}/product-reviews/${asin}?pageNumber=${pageNumber}&reviewerType=all_reviews&sortBy=recent`
     log(jobId, `Fetching page ${pageNumber}`)
 
     try {
       const html = await fetchPage(nextUrl)
-      currentDoc  = new DOMParser().parseFromString(html, 'text/html')
-      if (isLoginWall(currentDoc)) { log(jobId, `Login wall on page ${pageNumber}`); break }
-      const batch = parseReviews(currentDoc, asin, marketplace)
-      log(jobId, `Page ${pageNumber}: ${batch.length} reviews, hasNextPage=${hasNextPage(currentDoc)}`)
+      const doc  = new DOMParser().parseFromString(html, 'text/html')
+      if (isLoginWall(doc)) { log(jobId, `Login wall on page ${pageNumber}`); break }
+      const batch = parseReviews(doc, asin, marketplace)
+      log(jobId, `Page ${pageNumber}: ${batch.length} reviews`)
       if (batch.length === 0) break
       allReviews.push(...batch)
     } catch (e) {
