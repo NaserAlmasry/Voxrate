@@ -17,14 +17,55 @@ let stats = { jobsToday: 0, lastAsin: null, lastJobAt: null }
 chrome.runtime.onInstalled.addListener(() => {
   setupAlarm()
   loadStats()
+  registerVisibilitySpoofer()
   poll()
 })
 
 chrome.runtime.onStartup.addListener(() => {
   setupAlarm()
   loadStats()
+  registerVisibilitySpoofer()
   poll()
 })
+
+// Register visibilitySpoofer.js in the MAIN world at document_start.
+// This must run before Amazon's JS reads document.visibilityState, otherwise
+// Amazon detects the hidden background tab and returns the same reviews for
+// every page (bot-detection based on Page Visibility API).
+function registerVisibilitySpoofer() {
+  const SPOOFER_ID = 'voxrate-visibility-spoofer'
+  const amazonMatches = [
+    'https://www.amazon.com/product-reviews/*',
+    'https://www.amazon.co.uk/product-reviews/*',
+    'https://www.amazon.de/product-reviews/*',
+    'https://www.amazon.fr/product-reviews/*',
+    'https://www.amazon.it/product-reviews/*',
+    'https://www.amazon.es/product-reviews/*',
+    'https://www.amazon.ca/product-reviews/*',
+    'https://www.amazon.com.au/product-reviews/*',
+    'https://www.amazon.co.jp/product-reviews/*',
+    'https://www.amazon.in/product-reviews/*',
+    'https://www.amazon.com.mx/product-reviews/*',
+    'https://www.amazon.com.br/product-reviews/*',
+  ]
+  // Unregister first (handles extension update — old registration may exist)
+  chrome.scripting.unregisterContentScripts({ ids: [SPOOFER_ID] }, () => {
+    chrome.runtime.lastError // consume
+    chrome.scripting.registerContentScripts([{
+      id:      SPOOFER_ID,
+      matches: amazonMatches,
+      js:      ['visibilitySpoofer.js'],
+      runAt:   'document_start',
+      world:   'MAIN',
+    }], () => {
+      if (chrome.runtime.lastError) {
+        console.warn('[Voxrate] visibilitySpoofer registration failed:', chrome.runtime.lastError.message)
+      } else {
+        console.log('[Voxrate] visibilitySpoofer registered (MAIN world, document_start)')
+      }
+    })
+  })
+}
 
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === POLL_ALARM) poll()
