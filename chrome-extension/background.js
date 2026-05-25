@@ -220,8 +220,8 @@ async function startJob(job, token) {
   activeTimeoutId = setTimeout(() => {
     if (activeJobId !== job.id) return
     console.warn('[Voxrate] Job hard timeout')
-    submitJob(job.id, [], false, token, 'timeout') // false — login state unknown on timeout
-    if (activeJobTabId) chrome.tabs.remove(activeJobTabId).catch(() => {})
+    submitJob(job.id, [], false, token, 'timeout')
+    closeJobTab(activeJobTabId)
     stats.jobsToday++
     stats.lastAsin  = asin
     stats.lastJobAt = new Date().toISOString()
@@ -229,24 +229,18 @@ async function startJob(job, token) {
     cleanupState()
   }, 120000)
 
-  // Use callback form — avoids Promise rejection that Chrome intercepts before our catch.
-  // chrome.runtime.lastError is set for real failures; frame errors are Amazon redirects
-  // and are recoverable (tab was created, content.js will inject and send CONTENT_READY).
-  chrome.tabs.create({ url, active: false }, (tab) => {
+  // Open in a minimized window so the tab reports visibilityState='visible' (active tab
+  // within a minimized window) while not disrupting the user's screen.
+  chrome.windows.create({ url, state: 'minimized', focused: false }, (win) => {
     const err = chrome.runtime.lastError
     if (err) {
-      if (err.message?.includes('Frame')) {
-        console.log('[Voxrate] Amazon redirect during tab create — waiting for CONTENT_READY')
-        // Tab was created despite the error; ASIN-match in CONTENT_READY will recover tab ID
-      } else {
-        console.error('[Voxrate] Could not create tab:', err.message)
-        submitJob(job.id, [], false, token, err.message)
-        cleanupState()
-      }
+      console.error('[Voxrate] Could not create window:', err.message)
+      submitJob(job.id, [], false, token, err.message)
+      cleanupState()
       return
     }
-    activeJobTabId = tab.id
-    console.log(`[Voxrate] Tab ${tab.id} opened for ${asin}`)
+    activeJobTabId = win.tabs[0].id
+    console.log(`[Voxrate] Minimized window tab ${win.tabs[0].id} opened for ${asin}`)
   })
 }
 
@@ -258,9 +252,9 @@ async function handleReviewsDone(msg) {
 
   const token = activeJobToken
   const tabId = activeJobTabId
-  cleanupState() // clears timeout before submit so it can't double-fire
+  cleanupState()
   await submitJob(jobId, reviews, amazonLoggedIn, token, null)
-  if (tabId) chrome.tabs.remove(tabId).catch(() => {})
+  closeJobTab(tabId)
 
   stats.jobsToday++
   stats.lastAsin  = asin
@@ -274,7 +268,16 @@ async function handleAmazonNotLoggedIn(jobId) {
   const tabId = activeJobTabId
   cleanupState()
   await submitJob(jobId, [], false, token, 'amazon_not_logged_in')
-  if (tabId) chrome.tabs.remove(tabId).catch(() => {})
+  closeJobTab(tabId)
+}
+
+function closeJobTab(tabId) {
+  if (!tabId) return
+  // Close the whole window — the tab lives in a dedicated minimized window
+  chrome.tabs.get(tabId, (tab) => {
+    if (chrome.runtime.lastError || !tab) return
+    chrome.windows.remove(tab.windowId).catch(() => {})
+  })
 }
 
 function cleanupState() {
