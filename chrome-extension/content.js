@@ -81,11 +81,23 @@ function isLoginWall(doc) {
 }
 
 function hasNextPage(doc) {
-  return !!doc.querySelector('li.a-last a, [data-hook="pagination-bar"] .a-last a')
+  // li.a-last WITHOUT a-disabled class means "Next" exists and is clickable
+  const pagination = doc.querySelector(
+    'li.a-last:not(.a-disabled) a, ' +
+    '.a-pagination li.a-last:not(.a-disabled) a, ' +
+    '[data-hook="pagination-bar"] li.a-last:not(.a-disabled) a'
+  )
+  return !!pagination
 }
 
 async function fetchPage(url) {
-  const res = await fetch(url, { credentials: 'include' })
+  const res = await fetch(url, {
+    credentials: 'include',
+    headers: {
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'en-US,en;q=0.9',
+    },
+  })
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   return res.text()
 }
