@@ -81,7 +81,7 @@ const STAR_FILTERS = ['five_star', 'four_star', 'three_star', 'two_star', 'one_s
 
   // Amazon injects the CSRF token into a <meta name="anti-csrftoken-a2z"> tag
   // dynamically via a lazy /render XHR after page load — wait up to 8s for it.
-  const csrfResult = await waitForCsrfToken(8000)
+  const csrfResult = await waitForCsrfToken(tld)
   const csrfToken = csrfResult?.token || null
   chrome.runtime.sendMessage({ type: 'CONTENT_LOG', msg: `csrfToken: ${csrfToken ? `found (${csrfResult.source}) prefix=${csrfToken.slice(0,8)}` : 'NOT FOUND'}` })
 
@@ -251,39 +251,25 @@ function extractNextPageTokenFromDoc(doc) {
 // /render XHR after page load. We observe the DOM for up to `timeoutMs`
 // and also poll other locations as fallbacks.
 
-function waitForCsrfToken(timeoutMs) {
-  return new Promise((resolve) => {
-    // Check immediately first — but only trust meta tag immediately.
-    // Other sources (a-state, vote-action) may not be reliable; wait for meta.
-    const metaToken = document.querySelector('meta[name="anti-csrftoken-a2z"]')?.content
-    if (metaToken && metaToken.length >= 10) { resolve({ token: metaToken, source: 'meta-immediate' }); return }
+async function waitForCsrfToken(tld) {
+  // 1. Check DOM immediately (works in foreground tabs where Rufus already fired)
+  const immediate = extractCsrfToken()
+  if (immediate) return immediate
 
-    let resolved = false
-    const done = (result) => {
-      if (resolved) return
-      resolved = true
-      observer.disconnect()
-      clearInterval(poll)
-      clearTimeout(timer)
-      resolve(result)
-    }
-
-    // MutationObserver: fires as soon as the meta tag is injected anywhere in the document
-    const observer = new MutationObserver(() => {
-      const result = extractCsrfToken()
-      if (result) done(result)
+  // 2. Fetch the Rufus render endpoint directly — it returns the CSRF meta tag in
+  //    its HTML response and requires only session cookies (no prior CSRF needed).
+  //    This works reliably in background tabs where Amazon's lazy loader never fires.
+  try {
+    const res = await fetch(`https://www.amazon.${tld}/rufus/cl/render?ref=nl_cl_dsk_rend`, {
+      credentials: 'include',
+      signal: AbortSignal.timeout(8000),
     })
-    observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true })
+    const html = await res.text()
+    const m = html.match(/anti-csrftoken-a2z[^>]*content="([^"]+)"/)
+    if (m && m[1].length >= 10) return { token: m[1], source: 'rufus-fetch' }
+  } catch {}
 
-    // Polling fallback every 500ms (catches attribute mutations MutationObserver may miss)
-    const poll = setInterval(() => {
-      const result = extractCsrfToken()
-      if (result) done(result)
-    }, 500)
-
-    // Timeout — give up and return null, falling back to nav approach
-    const timer = setTimeout(() => done(null), timeoutMs)
-  })
+  return null
 }
 
 // ── Extract anti-CSRF token (synchronous, checks current DOM state) ───────────
