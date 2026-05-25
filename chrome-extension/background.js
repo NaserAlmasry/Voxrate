@@ -4,7 +4,7 @@
 
 const API_BASE = 'https://voxrate.app/api/extension'
 const POLL_ALARM = 'voxrate-poll'
-const POLL_INTERVAL_MINUTES = 0.083 // ~5 seconds (minimum chrome.alarms resolution is 0.5m in prod, but works in dev)
+const POLL_INTERVAL_MINUTES = 0.5 // 30 seconds — Chrome's minimum reliable alarm period for unpacked extensions
 
 // ── State (in-memory; rebuilt on SW wake) ────────────────────────
 let activeJobTabId = null
@@ -16,11 +16,13 @@ let stats = { jobsToday: 0, lastAsin: null, lastJobAt: null }
 chrome.runtime.onInstalled.addListener(() => {
   setupAlarm()
   loadStats()
+  poll() // immediate first poll
 })
 
 chrome.runtime.onStartup.addListener(() => {
   setupAlarm()
   loadStats()
+  poll() // immediate first poll
 })
 
 // Wake on alarm
