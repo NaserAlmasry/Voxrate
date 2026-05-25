@@ -1,10 +1,8 @@
 // Voxrate Extension — Amazon Review Content Script
 // Auto-injected by manifest on amazon.*/product-reviews/* pages.
-// Initiates contact with background — background never messages us first,
-// so "Frame with ID 0 was removed" errors are impossible.
+// Initiates contact with background — no "frame removed" errors possible.
 
 ;(async () => {
-  // Ask background: "is there a job for this tab?"
   let job = null
   try {
     const response = await new Promise((resolve) => {
@@ -18,36 +16,36 @@
     return
   }
 
-  if (!job) return // this tab isn't a Voxrate scrape tab — do nothing
+  if (!job) return // not a Voxrate scrape tab — do nothing
 
   const { id: jobId, asin, marketplace, maxReviews } = job
 
-  // Check login wall
   if (isLoginWall(document)) {
     chrome.runtime.sendMessage({ type: 'AMAZON_NOT_LOGGED_IN', jobId })
     return
   }
 
   const allReviews = []
-  const maxPages = Math.ceil((maxReviews || 150) / 10)
-  const tld = marketplace.replace('amazon.', '')
+  const maxPages   = Math.ceil((maxReviews || 150) / 10)
+  const tld        = marketplace.replace('amazon.', '')
 
-  // Parse first page (already loaded)
   allReviews.push(...parseReviews(document, asin, marketplace))
 
-  // Paginate through remaining pages
-  let pageNumber = 1
+  // Track currentDoc so hasNextPage checks the most recently fetched page
+  let currentDoc  = document
+  let pageNumber  = 1
+
   while (allReviews.length < (maxReviews || 150) && pageNumber < maxPages) {
-    if (!hasNextPage(document)) break
+    if (!hasNextPage(currentDoc)) break
 
     pageNumber++
     const nextUrl = `https://www.amazon.${tld}/product-reviews/${asin}?pageNumber=${pageNumber}&reviewerType=all_reviews&sortBy=recent`
 
     try {
       const html = await fetchPage(nextUrl)
-      const doc = new DOMParser().parseFromString(html, 'text/html')
-      if (isLoginWall(doc)) break
-      const batch = parseReviews(doc, asin, marketplace)
+      currentDoc  = new DOMParser().parseFromString(html, 'text/html')
+      if (isLoginWall(currentDoc)) break
+      const batch = parseReviews(currentDoc, asin, marketplace)
       if (batch.length === 0) break
       allReviews.push(...batch)
     } catch {
@@ -55,8 +53,7 @@
     }
   }
 
-  // Deduplicate by ID
-  const seen = new Set()
+  const seen    = new Set()
   const deduped = allReviews.filter(r => {
     if (seen.has(r.id)) return false
     seen.add(r.id)
@@ -99,28 +96,28 @@ function parseReviews(doc, asin, marketplace) {
     try {
       const id = el.id || `${asin}-${Date.now()}-${i}`
 
-      const ratingEl = el.querySelector('i[data-hook="review-star-rating"], i[data-hook="cmps-review-star-rating"]')
+      const ratingEl    = el.querySelector('i[data-hook="review-star-rating"], i[data-hook="cmps-review-star-rating"]')
       const ratingTitle = ratingEl?.querySelector('.a-icon-alt')?.textContent || ratingEl?.title || ''
       const ratingMatch = ratingTitle.match(/^([\d.]+)/)
-      const rating = ratingMatch ? Math.round(parseFloat(ratingMatch[1])) : 0
+      const rating      = ratingMatch ? Math.round(parseFloat(ratingMatch[1])) : 0
       if (rating < 1 || rating > 5) return
 
       const titleEl = el.querySelector('[data-hook="review-title"] span:not(.a-icon-alt)')
-      const title = titleEl?.textContent?.trim() || ''
+      const title   = titleEl?.textContent?.trim() || ''
 
       const bodyEl = el.querySelector('[data-hook="review-body"] span')
-      const body = bodyEl?.textContent?.trim() || ''
+      const body   = bodyEl?.textContent?.trim() || ''
       if (body.length < 20) return
 
       const dateEl = el.querySelector('[data-hook="review-date"]')
-      const date = dateEl?.textContent?.trim() || ''
+      const date   = dateEl?.textContent?.trim() || ''
 
       const verified = !!el.querySelector('[data-hook="avp-badge"]')
-      const vine = !!el.querySelector('[data-hook="vine-badge"]')
+      const vine     = !!el.querySelector('[data-hook="vine-badge"]')
 
-      const helpfulText = el.querySelector('[data-hook="helpful-vote-statement"]')?.textContent || ''
+      const helpfulText  = el.querySelector('[data-hook="helpful-vote-statement"]')?.textContent || ''
       const helpfulMatch = helpfulText.match(/(\d[\d,]*)/)
-      const helpful = helpfulMatch ? parseInt(helpfulMatch[1].replace(/,/g, '')) : 0
+      const helpful      = helpfulMatch ? parseInt(helpfulMatch[1].replace(/,/g, '')) : 0
 
       const country = marketplace.replace('amazon.', '')
 

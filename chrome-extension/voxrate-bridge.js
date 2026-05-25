@@ -12,4 +12,4 @@ window.addEventListener('message', (event) => {
 })
 
 // Tell the page the extension is installed (version handshake)
-window.postMessage({ type: 'VOXRATE_EXTENSION_INSTALLED', version: '1.0.0' }, '*')
+window.postMessage({ type: 'VOXRATE_EXTENSION_INSTALLED', version: '1.0.0' }, 'https://voxrate.app')

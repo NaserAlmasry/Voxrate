@@ -5,10 +5,11 @@ const POLL_ALARM = 'voxrate-poll'
 const POLL_INTERVAL_MINUTES = 0.5 // 30 seconds
 
 // ── State ────────────────────────────────────────────────────────
-let activeJobTabId = null
-let activeJobId = null
-let activeJob = null        // full job object — content.js pulls this
-let activeJobToken = null
+let activeJobTabId  = null
+let activeJobId     = null
+let activeJob       = null
+let activeJobToken  = null
+let activeTimeoutId = null  // hoisted so cleanupState can cancel it
 let stats = { jobsToday: 0, lastAsin: null, lastJobAt: null }
 
 // ── Bootstrap ────────────────────────────────────────────────────
@@ -56,14 +57,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   // content.js loads on Amazon review page and asks: "do you have a job for me?"
-  // Match by tab ID, or by ASIN if tab ID hasn't been stored yet (race condition safety).
+  // Content script initiates — background never messages into a tab — no frame errors possible.
   if (msg.type === 'CONTENT_READY') {
     const senderTabId = sender.tab?.id
     const matchByTab  = activeJobTabId && senderTabId === activeJobTabId
     const matchByAsin = activeJob && msg.url && msg.url.includes(activeJob.asin)
 
     if (activeJob && (matchByTab || matchByAsin)) {
-      // Record tab ID in case we got here via ASIN match before tabs.create resolved
       if (senderTabId && !activeJobTabId) activeJobTabId = senderTabId
       console.log(`[Voxrate] Content script ready — sending job ${activeJob.id}`)
       sendResponse({ job: activeJob })
@@ -98,7 +98,7 @@ async function loadStats() {
   } else {
     stats = {
       jobsToday: stored.statsJobsToday || 0,
-      lastAsin: stored.statsLastAsin || null,
+      lastAsin:  stored.statsLastAsin  || null,
       lastJobAt: stored.statsLastJobAt || null,
     }
   }
@@ -107,9 +107,9 @@ async function loadStats() {
 async function saveStats() {
   await chrome.storage.local.set({
     statsJobsToday: stats.jobsToday,
-    statsLastAsin: stats.lastAsin,
+    statsLastAsin:  stats.lastAsin,
     statsLastJobAt: stats.lastJobAt,
-    statsDate: new Date().toDateString(),
+    statsDate:      new Date().toDateString(),
   })
 }
 
@@ -119,18 +119,19 @@ async function getStatus() {
   const stored = await chrome.storage.local.get(['extensionToken', 'statsJobsToday', 'statsLastAsin', 'statsLastJobAt', 'statsDate'])
   const today = new Date().toDateString()
   return {
-    connected: !!stored.extensionToken,
-    busy: activeJobTabId !== null,
-    jobsToday: stored.statsDate === today ? (stored.statsJobsToday || 0) : 0,
-    lastAsin: stored.statsLastAsin || null,
-    lastJobAt: stored.statsLastJobAt || null,
+    connected:  !!stored.extensionToken,
+    busy:       activeJobTabId !== null,
+    jobsToday:  stored.statsDate === today ? (stored.statsJobsToday || 0) : 0,
+    lastAsin:   stored.statsLastAsin  || null,
+    lastJobAt:  stored.statsLastJobAt || null,
   }
 }
 
 // ── Poll loop ─────────────────────────────────────────────────────
 
 async function poll() {
-  if (activeJobTabId !== null) return
+  // Guard on both — activeJobTabId isn't set until tabs.create resolves
+  if (activeJobId !== null || activeJobTabId !== null) return
 
   const { extensionToken } = await chrome.storage.local.get('extensionToken')
   if (!extensionToken) return
@@ -160,8 +161,8 @@ async function poll() {
 // ── Job execution ─────────────────────────────────────────────────
 
 async function startJob(job, token) {
-  activeJobId = job.id
-  activeJob = job
+  activeJobId    = job.id
+  activeJob      = job
   activeJobToken = token
 
   const { asin, marketplace } = job
@@ -169,26 +170,25 @@ async function startJob(job, token) {
 
   console.log(`[Voxrate] Starting job ${job.id}: ${asin}`)
 
-  // Hard timeout — backend waits 100s, we give 120s
-  const hardTimeoutId = setTimeout(() => {
+  // Hoisted timeout — cleared in cleanupState() so it never leaks
+  activeTimeoutId = setTimeout(() => {
     if (activeJobId !== job.id) return
     console.warn('[Voxrate] Job hard timeout')
-    submitJob(job.id, [], true, token, 'timeout')
-    if (activeJobTabId) cleanupTab(activeJobTabId)
+    submitJob(job.id, [], false, token, 'timeout') // false — login state unknown on timeout
+    if (activeJobTabId) chrome.tabs.remove(activeJobTabId).catch(() => {})
     stats.jobsToday++
-    stats.lastAsin = asin
+    stats.lastAsin  = asin
     stats.lastJobAt = new Date().toISOString()
     saveStats()
+    cleanupState()
   }, 120000)
 
   try {
     const tab = await chrome.tabs.create({ url, active: false })
     activeJobTabId = tab.id
     console.log(`[Voxrate] Tab ${tab.id} opened for ${asin}`)
-    // content.js auto-injects via manifest and will send CONTENT_READY when ready.
-    // We just wait — no sendMessage, no frame errors.
+    // content.js auto-injects via manifest — we just wait for CONTENT_READY
   } catch (err) {
-    clearTimeout(hardTimeoutId)
     console.error('[Voxrate] Could not create tab:', err)
     submitJob(job.id, [], false, token, err.message)
     cleanupState()
@@ -202,14 +202,13 @@ async function handleReviewsDone(msg) {
   if (jobId !== activeJobId) return
 
   const token = activeJobToken
-  await submitJob(jobId, reviews, amazonLoggedIn, token, null)
-
   const tabId = activeJobTabId
-  cleanupState()
+  cleanupState() // clears timeout before submit so it can't double-fire
+  await submitJob(jobId, reviews, amazonLoggedIn, token, null)
   if (tabId) chrome.tabs.remove(tabId).catch(() => {})
 
   stats.jobsToday++
-  stats.lastAsin = asin
+  stats.lastAsin  = asin
   stats.lastJobAt = new Date().toISOString()
   saveStats()
 }
@@ -224,10 +223,14 @@ async function handleAmazonNotLoggedIn(jobId) {
 }
 
 function cleanupState() {
-  activeJobTabId = null
-  activeJobId = null
-  activeJob = null
-  activeJobToken = null
+  if (activeTimeoutId !== null) {
+    clearTimeout(activeTimeoutId)
+    activeTimeoutId = null
+  }
+  activeJobTabId  = null
+  activeJobId     = null
+  activeJob       = null
+  activeJobToken  = null
 }
 
 // ── Submit ────────────────────────────────────────────────────────
@@ -244,10 +247,4 @@ async function submitJob(jobId, reviews, amazonLoggedIn, token, error) {
   } catch (e) {
     console.error('[Voxrate] Submit failed:', e)
   }
-}
-
-// Legacy — kept for safety
-function cleanupTab(tabId) {
-  if (tabId) chrome.tabs.remove(tabId).catch(() => {})
-  cleanupState()
 }
