@@ -125,7 +125,7 @@ function parseReviews(doc, asin, marketplace) {
 
       const bodyEl = el.querySelector('[data-hook="review-body"] span')
       const body   = bodyEl?.textContent?.trim() || ''
-      if (body.length < 20) return
+      if (body.length < 3) return
 
       const dateEl = el.querySelector('[data-hook="review-date"]')
       const date   = dateEl?.textContent?.trim() || ''
