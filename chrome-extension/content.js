@@ -153,14 +153,10 @@ const STAR_FILTERS = ['five_star', 'four_star', 'three_star', 'two_star', 'one_s
 // ── AJAX POST to Amazon's internal reviews endpoint ───────────────
 
 async function fetchReviewsViaAjax(asin, tld, filter, page, nextPageToken, csrfToken, refererUrl) {
-  // Parameters match Amazon's own show-more button POST (captured from DevTools Network tab).
-  // shouldAppend=true for page 2+ (appending results), false for page 1 (fresh start).
-  // canShowIntHeader=true — must be boolean string, not "undefined".
-  // formatType/mediaType must be non-empty; empty strings cause 403.
   const body = new URLSearchParams({
     sortBy:           'recent',
     reviewerType:     'all_reviews',
-    formatType:       'current_format',
+    formatType:       '',
     mediaType:        'all_reviews',
     filterByStar:     filter,
     pageNumber:       String(page),
@@ -175,7 +171,7 @@ async function fetchReviewsViaAjax(asin, tld, filter, page, nextPageToken, csrfT
   })
   if (nextPageToken) body.set('nextPageToken', nextPageToken)
 
-  const res = await fetch(`https://www.amazon.${tld}/hz/reviews-render/ajax/reviews/get/`, {
+  const res = await fetch(`https://www.amazon.${tld}/portal/customer-reviews/ajax/reviews/get/`, {
     method:      'POST',
     credentials: 'include',
     headers: {
