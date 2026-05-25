@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Voxrate</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      width: 300px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0f0f0f;
+      color: #f0f0f0;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 16px 18px 12px;
+      border-bottom: 1px solid #222;
+    }
+
+    .logo {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      color: #fff;
+    }
+
+    .logo span { color: #f97316; }
+
+    .card {
+      padding: 14px 18px;
+      border-bottom: 1px solid #1a1a1a;
+    }
+
+    .status-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .dot.green { background: #22c55e; box-shadow: 0 0 6px #22c55e88; }
+    .dot.red   { background: #ef4444; }
+    .dot.amber { background: #f59e0b; }
+
+    .label {
+      font-size: 11px;
+      color: #666;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .value {
+      font-size: 13px;
+      color: #d4d4d4;
+    }
+
+    .value.muted { color: #555; }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      padding: 14px 18px;
+      border-bottom: 1px solid #1a1a1a;
+    }
+
+    .stat { }
+
+    .stat-number {
+      font-size: 22px;
+      font-weight: 700;
+      color: #f97316;
+      line-height: 1;
+    }
+
+    .stat-label {
+      font-size: 11px;
+      color: #555;
+      margin-top: 2px;
+    }
+
+    .footer {
+      padding: 14px 18px;
+    }
+
+    .btn {
+      display: block;
+      width: 100%;
+      padding: 9px 0;
+      border-radius: 7px;
+      font-size: 13px;
+      font-weight: 600;
+      text-align: center;
+      cursor: pointer;
+      border: none;
+      text-decoration: none;
+      transition: opacity 0.15s;
+    }
+
+    .btn:hover { opacity: 0.85; }
+
+    .btn-primary {
+      background: #f97316;
+      color: #fff;
+    }
+
+    .btn-ghost {
+      background: #1e1e1e;
+      color: #888;
+      margin-top: 8px;
+      font-size: 12px;
+    }
+
+    .busy-indicator {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: #f97316;
+      padding: 10px 18px 0;
+    }
+
+    .spinner {
+      width: 10px;
+      height: 10px;
+      border: 2px solid #f9731633;
+      border-top-color: #f97316;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #setup-view { padding: 18px; }
+
+    .setup-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #fff;
+      margin-bottom: 6px;
+    }
+
+    .setup-desc {
+      font-size: 12px;
+      color: #666;
+      line-height: 1.5;
+      margin-bottom: 14px;
+    }
+
+    .token-input {
+      width: 100%;
+      padding: 8px 10px;
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 6px;
+      color: #f0f0f0;
+      font-size: 12px;
+      font-family: monospace;
+      margin-bottom: 10px;
+      outline: none;
+    }
+
+    .token-input:focus { border-color: #f97316; }
+
+    .error-msg {
+      font-size: 11px;
+      color: #ef4444;
+      margin-top: -6px;
+      margin-bottom: 8px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">Vox<span>rate</span></div>
+</div>
+
+<!-- Setup view (no token yet) -->
+<div id="setup-view" style="display:none;">
+  <div class="setup-title">Connect to Voxrate</div>
+  <div class="setup-desc">
+    Open <strong style="color:#f97316">voxrate.app/settings/extension</strong> and your token will be captured automatically.<br><br>
+    Or paste it manually below:
+  </div>
+  <input type="text" class="token-input" id="token-input" placeholder="vox_xxxxxxxxxxxxxxxx" />
+  <div class="error-msg" id="token-error" style="display:none;">Invalid token. Check voxrate.app/settings/extension</div>
+  <button class="btn btn-primary" id="connect-btn">Connect</button>
+  <a href="https://voxrate.app/settings/extension" target="_blank" class="btn btn-ghost">Get my token →</a>
+</div>
+
+<!-- Main view (connected) -->
+<div id="main-view" style="display:none;">
+  <div class="card">
+    <div class="label">Extension</div>
+    <div class="status-row">
+      <div class="dot green" id="conn-dot"></div>
+      <div class="value" id="conn-label">Connected</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="label">Amazon</div>
+    <div class="status-row">
+      <div class="dot green" id="amazon-dot"></div>
+      <div class="value" id="amazon-label">Logged in ✓</div>
+    </div>
+  </div>
+
+  <div id="busy-row" class="busy-indicator" style="display:none;">
+    <div class="spinner"></div>
+    <span>Scraping reviews…</span>
+  </div>
+
+  <div class="stat-grid">
+    <div class="stat">
+      <div class="stat-number" id="jobs-today">0</div>
+      <div class="stat-label">products today</div>
+    </div>
+    <div class="stat">
+      <div id="last-asin" class="value muted" style="font-size:11px; margin-top:2px;">No jobs yet</div>
+      <div class="stat-label">last product</div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <a href="https://voxrate.app" target="_blank" class="btn btn-primary">Open Voxrate</a>
+    <button class="btn btn-ghost" id="disconnect-btn">Disconnect</button>
+  </div>
+</div>
+
+<script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,45 @@
+{
+  "manifest_version": 3,
+  "name": "Voxrate Reviews Scraper",
+  "version": "1.0.0",
+  "description": "Scrapes Amazon reviews for Voxrate AI analysis — works because you're already logged in.",
+  "permissions": ["storage", "tabs", "alarms", "scripting"],
+  "host_permissions": [
+    "https://voxrate.app/*",
+    "https://*.amazon.com/*",
+    "https://*.amazon.co.uk/*",
+    "https://*.amazon.de/*",
+    "https://*.amazon.fr/*",
+    "https://*.amazon.it/*",
+    "https://*.amazon.es/*",
+    "https://*.amazon.ca/*",
+    "https://*.amazon.com.au/*",
+    "https://*.amazon.co.jp/*",
+    "https://*.amazon.in/*",
+    "https://*.amazon.com.mx/*",
+    "https://*.amazon.com.br/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://voxrate.app/*"],
+      "js": ["voxrate-bridge.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
