@@ -23,7 +23,9 @@ const STAR_FILTERS = ['five_star', 'four_star', 'three_star', 'two_star', 'one_s
     newOnes.forEach(r => state.seenIds.push(r.id))
 
     const reachedMax  = state.reviews.length >= state.maxReviews
-    const noMore      = newOnes.length === 0 || !hasNextPage(document)
+    const nextPageExists = hasNextPage(document)
+    const noMore      = newOnes.length === 0 || !nextPageExists || state.currentPage >= 10
+    console.log(`[Voxrate] hasNextPage=${nextPageExists} newOnes=${newOnes.length} page=${state.currentPage}`)
     const tld         = state.marketplace.replace('amazon.', '')
 
     if (reachedMax) {
@@ -106,7 +108,13 @@ function filterUrl(tld, asin, filter, page) {
 }
 
 function hasNextPage(doc) {
-  return !!doc.querySelector('li.a-last:not(.a-disabled) a')
+  // Try multiple selectors Amazon uses across layouts
+  return !!(
+    doc.querySelector('li.a-last:not(.a-disabled) a') ||
+    doc.querySelector('[data-hook="pagination-bar"] li.a-last:not(.a-disabled) a') ||
+    doc.querySelector('a[data-hook="pagination-next"]') ||
+    doc.querySelector('.a-pagination .a-last:not(.a-disabled) a')
+  )
 }
 
 function finish(jobId, asin, reviews) {
