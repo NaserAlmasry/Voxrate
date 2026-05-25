@@ -81,8 +81,9 @@ const STAR_FILTERS = ['five_star', 'four_star', 'three_star', 'two_star', 'one_s
 
   // Amazon injects the CSRF token into a <meta name="anti-csrftoken-a2z"> tag
   // dynamically via a lazy /render XHR after page load — wait up to 8s for it.
-  const csrfToken = await waitForCsrfToken(8000)
-  chrome.runtime.sendMessage({ type: 'CONTENT_LOG', msg: `csrfToken found: ${!!csrfToken}` })
+  const csrfResult = await waitForCsrfToken(8000)
+  const csrfToken = csrfResult?.token || null
+  chrome.runtime.sendMessage({ type: 'CONTENT_LOG', msg: `csrfToken: ${csrfToken ? `found (${csrfResult.source}) prefix=${csrfToken.slice(0,8)}` : 'NOT FOUND'}` })
 
   if (!csrfToken) {
     // No CSRF — nav fallback (max ~50 reviews: 5 filters × 2 pages)
@@ -252,31 +253,32 @@ function extractNextPageTokenFromDoc(doc) {
 
 function waitForCsrfToken(timeoutMs) {
   return new Promise((resolve) => {
-    // Check immediately first
-    const immediate = extractCsrfToken()
-    if (immediate) { resolve(immediate); return }
+    // Check immediately first — but only trust meta tag immediately.
+    // Other sources (a-state, vote-action) may not be reliable; wait for meta.
+    const metaToken = document.querySelector('meta[name="anti-csrftoken-a2z"]')?.content
+    if (metaToken && metaToken.length >= 10) { resolve({ token: metaToken, source: 'meta-immediate' }); return }
 
     let resolved = false
-    const done = (token) => {
+    const done = (result) => {
       if (resolved) return
       resolved = true
       observer.disconnect()
       clearInterval(poll)
       clearTimeout(timer)
-      resolve(token)
+      resolve(result)
     }
 
     // MutationObserver: fires as soon as the meta tag is injected anywhere in the document
     const observer = new MutationObserver(() => {
-      const token = extractCsrfToken()
-      if (token) done(token)
+      const result = extractCsrfToken()
+      if (result) done(result)
     })
     observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true })
 
     // Polling fallback every 500ms (catches attribute mutations MutationObserver may miss)
     const poll = setInterval(() => {
-      const token = extractCsrfToken()
-      if (token) done(token)
+      const result = extractCsrfToken()
+      if (result) done(result)
     }, 500)
 
     // Timeout — give up and return null, falling back to nav approach
@@ -291,30 +293,33 @@ function waitForCsrfToken(timeoutMs) {
 function extractCsrfToken() {
   // Primary: meta tag injected by Amazon's lazy render response (confirmed 2025)
   const metaToken = document.querySelector('meta[name="anti-csrftoken-a2z"]')?.content
-  if (metaToken && metaToken.length >= 10) return metaToken
-
-  // Fallback: a-state JSON blobs
-  for (const script of document.querySelectorAll('script[type="a-state"]')) {
-    try {
-      const data = JSON.parse(script.textContent)
-      if (typeof data.csrfToken === 'string' && data.csrfToken.length >= 10) return data.csrfToken
-      if (typeof data.lazyWidgetCsrfToken === 'string' && data.lazyWidgetCsrfToken.length >= 10) return data.lazyWidgetCsrfToken
-    } catch {}
-  }
+  if (metaToken && metaToken.length >= 10) return { token: metaToken, source: 'meta' }
 
   // Fallback: data attribute
   const elToken = document.querySelector('[data-anti-csrftoken-a2z]')?.getAttribute('data-anti-csrftoken-a2z')
-  if (elToken && elToken.length >= 10) return elToken
+  if (elToken && elToken.length >= 10) return { token: elToken, source: 'data-attr' }
 
   // Fallback: csrfT embedded in review vote-action data attributes.
-  // Each review on the page has a csrfT token in its vote action JSON —
-  // these are session-scoped and accepted by the reviews AJAX endpoint.
   const voteEl = document.querySelector('[data-reviews\\:vote-action], [data-action="reviews:vote-action"]')
   if (voteEl) {
     try {
       const raw = voteEl.getAttribute('data-reviews:vote-action') || voteEl.getAttribute('data-a-csa')
       const data = JSON.parse(raw || '{}')
-      if (data.csrfT && data.csrfT.length >= 10) return decodeURIComponent(data.csrfT)
+      if (data.csrfT && data.csrfT.length >= 10) return { token: decodeURIComponent(data.csrfT), source: 'vote-action' }
+    } catch {}
+  }
+
+  // Fallback: a-state JSON blobs — only use csrfToken fields that look like
+  // real tokens (base64 with AAAAAGo pattern), not internal identifiers.
+  for (const script of document.querySelectorAll('script[type="a-state"]')) {
+    try {
+      const data = JSON.parse(script.textContent)
+      for (const key of ['csrfToken', 'lazyWidgetCsrfToken']) {
+        const val = data[key]
+        if (typeof val === 'string' && val.length >= 10 && /AAAAA/.test(val)) {
+          return { token: val, source: `a-state:${key}` }
+        }
+      }
     } catch {}
   }
 
