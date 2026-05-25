@@ -183,23 +183,25 @@ async function startJob(job, token) {
     cleanupState()
   }, 120000)
 
-  try {
-    const tab = await chrome.tabs.create({ url, active: false })
+  // Use callback form — avoids Promise rejection that Chrome intercepts before our catch.
+  // chrome.runtime.lastError is set for real failures; frame errors are Amazon redirects
+  // and are recoverable (tab was created, content.js will inject and send CONTENT_READY).
+  chrome.tabs.create({ url, active: false }, (tab) => {
+    const err = chrome.runtime.lastError
+    if (err) {
+      if (err.message?.includes('Frame')) {
+        console.log('[Voxrate] Amazon redirect during tab create — waiting for CONTENT_READY')
+        // Tab was created despite the error; ASIN-match in CONTENT_READY will recover tab ID
+      } else {
+        console.error('[Voxrate] Could not create tab:', err.message)
+        submitJob(job.id, [], false, token, err.message)
+        cleanupState()
+      }
+      return
+    }
     activeJobTabId = tab.id
     console.log(`[Voxrate] Tab ${tab.id} opened for ${asin}`)
-    // content.js auto-injects via manifest — we just wait for CONTENT_READY
-  } catch (err) {
-    if (err.message?.includes('Frame with ID 0 was removed')) {
-      // Amazon redirected before tabs.create resolved. The tab was created and
-      // content.js will still inject. CONTENT_READY ASIN-match will recover tab ID.
-      console.log('[Voxrate] Amazon redirect during tab create — waiting for CONTENT_READY')
-    } else {
-      // Real failure — tab was never created
-      console.error('[Voxrate] Could not create tab:', err)
-      submitJob(job.id, [], false, token, err.message)
-      cleanupState()
-    }
-  }
+  })
 }
 
 // ── Handlers called by content.js messages ───────────────────────
