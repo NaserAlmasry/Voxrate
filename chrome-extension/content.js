@@ -1,57 +1,11 @@
 // Voxrate Extension — Amazon Review Content Script
-// Handles both Amazon pagination styles:
-//   1. Traditional (pageNumber URL param) — navigate tab per page
-//   2. AJAX "Show more reviews" button — click in-page
+// Uses Amazon's internal AJAX endpoint directly — same call the Next button makes.
+// No tab navigation needed: runs entirely on page 1.
 
 ;(async () => {
-  // ── Resume a navigation-based scrape (page 2+) ───────────────────
-  const saved = sessionStorage.getItem('voxrate_job')
-  if (saved) {
-    let state
-    try { state = JSON.parse(saved) } catch { sessionStorage.removeItem('voxrate_job'); return }
+  // Clear any stale sessionStorage from previous navigation-based approach
+  sessionStorage.removeItem('voxrate_job')
 
-    if (isLoginWall(document)) {
-      sessionStorage.removeItem('voxrate_job')
-      chrome.runtime.sendMessage({ type: 'AMAZON_NOT_LOGGED_IN', jobId: state.jobId })
-      return
-    }
-
-    const batch   = parseReviews(document, state.asin, state.marketplace)
-    const newOnes = batch.filter(r => !state.seenIds.includes(r.id))
-    bgLog(state.jobId, `Page ${state.page}: ${batch.length} reviews, ${newOnes.length} new`)
-
-    state.reviews.push(...newOnes)
-    newOnes.forEach(r => state.seenIds.push(r.id))
-
-    const exhausted = newOnes.length === 0
-    const reachedMax = state.reviews.length >= state.maxReviews || state.page >= state.maxPages
-
-    if (reachedMax) {
-      sessionStorage.removeItem('voxrate_job')
-      finish(state.jobId, state.asin, state.reviews)
-    } else if (exhausted && !state.triedHelpful) {
-      // Switch to helpful sort to get older reviews not in recent sort
-      bgLog(state.jobId, `Recent sort exhausted at ${state.reviews.length} reviews — switching to helpful sort`)
-      state.triedHelpful = true
-      state.page = 1
-      sessionStorage.setItem('voxrate_job', JSON.stringify(state))
-      const tld = state.marketplace.replace('amazon.', '')
-      location.assign(`https://www.amazon.${tld}/product-reviews/${state.asin}?reviewerType=all_reviews&sortBy=helpful&pageNumber=1`)
-    } else if (exhausted) {
-      sessionStorage.removeItem('voxrate_job')
-      finish(state.jobId, state.asin, state.reviews)
-    } else {
-      state.page++
-      sessionStorage.setItem('voxrate_job', JSON.stringify(state))
-      const sort = state.triedHelpful ? 'helpful' : 'recent'
-      const nextHref = buildPageUrl(state.asin, state.marketplace, state.page, sort)
-      bgLog(state.jobId, `Navigating to page ${state.page} (${sort}): ${nextHref}`)
-      location.assign(nextHref)
-    }
-    return
-  }
-
-  // ── First page — get job from background ─────────────────────────
   let job = null
   try {
     const response = await new Promise((resolve) => {
@@ -72,64 +26,93 @@
     return
   }
 
-  const page1    = parseReviews(document, asin, marketplace)
   const max      = maxReviews || 100
   const maxPages = Math.min(10, Math.ceil(max / 10))
+  const tld      = marketplace.replace('amazon.', '')
+
+  const allReviews = []
+  const seenIds    = new Set()
+
+  // Page 1 — already loaded in tab
+  const page1 = parseReviews(document, asin, marketplace)
+  page1.forEach(r => { allReviews.push(r); seenIds.add(r.id) })
   bgLog(jobId, `Page 1: ${page1.length} reviews`)
 
-  if (page1.length === 0 || maxPages <= 1) {
-    finish(jobId, asin, page1)
-    return
+  // Pages 2+ — call Amazon's AJAX endpoint directly
+  for (let page = 2; page <= maxPages && allReviews.length < max; page++) {
+    try {
+      const html = await fetchReviewPage(tld, asin, page, 'recent')
+      const doc  = new DOMParser().parseFromString(html, 'text/html')
+
+      if (isLoginWall(doc)) { bgLog(jobId, 'Login wall'); break }
+
+      const batch   = parseReviews(doc, asin, marketplace)
+      const newOnes = batch.filter(r => !seenIds.has(r.id))
+      bgLog(jobId, `Page ${page} (recent): ${batch.length} reviews, ${newOnes.length} new`)
+
+      if (newOnes.length === 0) break
+      newOnes.forEach(r => { allReviews.push(r); seenIds.add(r.id) })
+    } catch (e) {
+      bgLog(jobId, `Page ${page} error: ${e.message}`)
+      break
+    }
   }
 
-  const nextHref = getNextPageHref()
-  bgLog(jobId, `Next page: ${nextHref || 'none'}`)
+  // If still need more, try helpful sort (surfaces older highly-voted reviews)
+  if (allReviews.length < max) {
+    bgLog(jobId, `Switching to helpful sort (have ${allReviews.length} so far)`)
+    for (let page = 1; page <= maxPages && allReviews.length < max; page++) {
+      try {
+        const html = await fetchReviewPage(tld, asin, page, 'helpful')
+        const doc  = new DOMParser().parseFromString(html, 'text/html')
 
-  if (!nextHref) {
-    finish(jobId, asin, page1)
-    return
+        if (isLoginWall(doc)) break
+
+        const batch   = parseReviews(doc, asin, marketplace)
+        const newOnes = batch.filter(r => !seenIds.has(r.id))
+        bgLog(jobId, `Page ${page} (helpful): ${batch.length} reviews, ${newOnes.length} new`)
+
+        if (newOnes.length === 0) break
+        newOnes.forEach(r => { allReviews.push(r); seenIds.add(r.id) })
+      } catch (e) {
+        bgLog(jobId, `Helpful page ${page} error: ${e.message}`)
+        break
+      }
+    }
   }
 
-  const state = {
-    jobId, asin, marketplace,
-    maxReviews: max, maxPages,
-    reviews:  page1,
-    seenIds:  page1.map(r => r.id),
-    page: 2,
-  }
-  sessionStorage.setItem('voxrate_job', JSON.stringify(state))
-  location.assign(nextHref)
+  bgLog(jobId, `Done: ${allReviews.length} unique reviews`)
+  chrome.runtime.sendMessage({
+    type: 'REVIEWS_DONE',
+    jobId, asin,
+    reviews: allReviews,
+    amazonLoggedIn: true,
+  })
 })()
 
 // ── Helpers ───────────────────────────────────────────────────────
 
-function buildPageUrl(asin, marketplace, page, sort) {
-  const tld = marketplace.replace('amazon.', '')
-  const sortParam = sort === 'helpful' ? 'sortBy=helpful&' : 'sortBy=recent&'
-  return `https://www.amazon.${tld}/product-reviews/${asin}/ref=cm_cr_arp_d_paging_btm_${page}?ie=UTF8&reviewerType=all_reviews&${sortParam}pageNumber=${page}`
-}
-
-function getNextPageHref() {
-  // Only used for page 1 → page 2 detection (does a next page exist at all?)
-  const traditional = document.querySelector('li.a-last:not(.a-disabled) a')
-  if (traditional?.href && !traditional.href.startsWith('javascript:')) return traditional.href
-
-  const showMore = document.querySelector('a[data-hook="show-more-button"]')
-  if (showMore?.href && !showMore.href.startsWith('javascript:')) return showMore.href
-
-  return null
-}
-
-function finish(jobId, asin, reviews) {
-  bgLog(jobId, `Done: ${reviews.length} unique reviews collected`)
-  chrome.runtime.sendMessage({
-    type: 'REVIEWS_DONE',
-    jobId, asin,
-    reviews,
-    amazonLoggedIn: true,
+async function fetchReviewPage(tld, asin, pageNumber, sortBy) {
+  const res = await fetch(`https://www.amazon.${tld}/hz/reviews-render/ajax/reviews/get/`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+      'X-Requested-With': 'XMLHttpRequest',
+    },
+    body: new URLSearchParams({
+      asin,
+      pageNumber: String(pageNumber),
+      pageSize: '10',
+      reviewerType: 'all_reviews',
+      sortBy,
+      shouldAppend: 'undefined',
+      reftag: `cm_cr_arp_d_paging_btm_next_${pageNumber}`,
+    }),
   })
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  return res.text()
 }
-
 
 function bgLog(jobId, msg) {
   console.log(`[Voxrate] ${msg}`)
@@ -179,9 +162,7 @@ function parseReviews(doc, asin, marketplace) {
       const country = marketplace.replace('amazon.', '')
 
       reviews.push({ id, rating, title, body, date, verified, vine, helpful, country })
-    } catch {
-      // skip malformed element
-    }
+    } catch { }
   })
   return reviews
 }
