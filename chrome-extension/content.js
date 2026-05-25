@@ -23,9 +23,11 @@
     state.reviews.push(...newOnes)
     newOnes.forEach(r => state.seenIds.push(r.id))
 
+    const nextHref = getNextPageHref()
     const done = newOnes.length === 0
                || state.reviews.length >= state.maxReviews
                || state.page >= state.maxPages
+               || !nextHref
 
     if (done) {
       sessionStorage.removeItem('voxrate_job')
@@ -33,7 +35,7 @@
     } else {
       state.page++
       sessionStorage.setItem('voxrate_job', JSON.stringify(state))
-      navigateTo(state.asin, state.marketplace, state.page)
+      location.assign(nextHref)
     }
     return
   }
@@ -108,8 +110,14 @@
 
     finish(jobId, asin, allReviews)
   } else {
-    // ── Traditional URL pagination — navigate tab ───────────────────
-    bgLog(jobId, 'Using URL pagination')
+    // ── Traditional URL pagination — follow Amazon's own Next link ──
+    const nextHref = getNextPageHref()
+    if (!nextHref) {
+      bgLog(jobId, 'No next page link found — only 1 page')
+      finish(jobId, asin, page1)
+      return
+    }
+    bgLog(jobId, `Using URL pagination, next: ${nextHref}`)
     const state = {
       jobId, asin, marketplace,
       maxReviews: max, maxPages,
@@ -118,19 +126,22 @@
       page: 2,
     }
     sessionStorage.setItem('voxrate_job', JSON.stringify(state))
-    navigateTo(asin, marketplace, 2)
+    location.assign(nextHref)
   }
 })()
 
 // ── Helpers ───────────────────────────────────────────────────────
 
-function navigateTo(asin, marketplace, page) {
-  const tld = marketplace.replace('amazon.', '')
-  location.assign(
-    `https://www.amazon.${tld}/product-reviews/${asin}` +
-    `/ref=cm_cr_arp_d_paging_btm_next_${page}` +
-    `?ie=UTF8&reviewerType=all_reviews&sortBy=recent&pageNumber=${page}`
+function getNextPageHref() {
+  const el = document.querySelector(
+    'li.a-last:not(.a-disabled) a, ' +
+    '.a-pagination li.a-last:not(.a-disabled) a, ' +
+    '[data-hook="pagination-bar"] li.a-last:not(.a-disabled) a'
   )
+  if (!el) return null
+  const href = el.getAttribute('href')
+  if (!href) return null
+  return href.startsWith('http') ? href : `https://www.amazon.com${href}`
 }
 
 function finish(jobId, asin, reviews) {
