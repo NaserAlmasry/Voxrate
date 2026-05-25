@@ -171,7 +171,7 @@ async function startJob(job, token) {
   activeJobToken = token
 
   const { asin, marketplace } = job
-  const url = `https://www.${marketplace}/product-reviews/${asin}/ref=cm_cr_dp_d_show_all_top?_encoding=UTF8&ie=UTF8&reviewerType=all_reviews`
+  const url = `https://www.${marketplace}/product-reviews/${asin}?pageNumber=1&reviewerType=all_reviews&sortBy=recent`
 
   console.log(`[Voxrate] Starting job ${job.id}: ${asin}`)
 
