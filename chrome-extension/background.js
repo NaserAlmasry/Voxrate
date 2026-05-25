@@ -82,6 +82,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     handleAmazonNotLoggedIn(msg.jobId)
     return
   }
+
+  if (msg.type === 'CONTENT_LOG') {
+    console.log(`[Voxrate:content] ${msg.msg}`)
+    return
+  }
 })
 
 function setupAlarm() {
