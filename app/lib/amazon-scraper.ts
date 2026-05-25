@@ -479,14 +479,15 @@ async function fetchOnePageFiltered(asin: string, domain: string, rating: string
   }
 }
 
-// Per-plan review caps — keeps scraping cost under 30% of plan revenue.
-// Pro: 150 reviews = $0.225 max. Starter/Growth: 120 = $0.18 max.
+// Per-plan review caps. LLM sees a smart sample of ~130 reviews regardless of cap —
+// higher cap just gives the sampler a better pool to choose from, especially for
+// large products (1000+ reviews) where the most useful signal is spread across pages.
 function brightDataMaxReviews(
   _breakdown: { one: number; two: number; three: number; four: number; five: number },
   totalReviews: number,
   plan: string,
 ): number {
-  const cap = plan === 'pro' ? 150 : 120
+  const cap = plan === 'pro' ? 300 : 200
   return Math.min(totalReviews, cap)
 }
 
