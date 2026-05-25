@@ -75,7 +75,7 @@ const STAR_FILTERS = ['five_star', 'four_star', 'three_star', 'two_star', 'one_s
     return
   }
 
-  const max        = maxReviews || 100
+  const max        = maxReviews || 500
   const tld        = marketplace.replace('amazon.', '')
   const refererUrl = `https://www.amazon.${tld}/product-reviews/${asin}`
 
@@ -114,7 +114,7 @@ const STAR_FILTERS = ['five_star', 'four_star', 'three_star', 'two_star', 'one_s
     let page          = 1
     let nextPageToken = null
 
-    while (page <= 10 && allReviews.length < max) {
+    while (page <= 30 && allReviews.length < max) {
       let html = null
       for (let attempt = 1; attempt <= 3; attempt++) {
         try {

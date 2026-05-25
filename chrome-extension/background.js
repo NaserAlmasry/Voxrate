@@ -219,7 +219,7 @@ async function startJob(job, token) {
 
   // Use chrome.alarms for timeout — setTimeout is killed when the service worker suspends.
   // 5 minutes covers AJAX path (100+ reviews) and nav fallback (5 filters × 2 pages).
-  chrome.alarms.create(JOB_TIMEOUT_ALARM, { delayInMinutes: 5 })
+  chrome.alarms.create(JOB_TIMEOUT_ALARM, { delayInMinutes: 10 })
 
   chrome.tabs.create({ url, active: false }, (tab) => {
     const err = chrome.runtime.lastError
