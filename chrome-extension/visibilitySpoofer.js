@@ -6,6 +6,7 @@
   try {
     Object.defineProperty(document, 'visibilityState', { get: () => 'visible', configurable: false })
     Object.defineProperty(document, 'hidden',          { get: () => false,     configurable: false })
+    document.hasFocus = () => true
     // Swallow visibilitychange events before page scripts see them
     document.addEventListener('visibilitychange', (e) => { e.stopImmediatePropagation() }, true)
   } catch { /* already defined non-configurable — ignore */ }

@@ -228,8 +228,7 @@ async function startJob(job, token) {
         console.log('[Voxrate] Amazon redirect during tab create — waiting for CONTENT_READY')
       } else {
         console.error('[Voxrate] Could not create tab:', err.message)
-        submitJob(job.id, [], false, token, err.message)
-        cleanupState()
+        submitJob(job.id, [], false, token, err.message).then(() => cleanupState()).catch(() => cleanupState())
       }
       return
     }
@@ -241,7 +240,7 @@ async function startJob(job, token) {
 // ── Handlers called by content.js messages ───────────────────────
 
 async function handleJobTimeout() {
-  if (activeJobId === null) return
+  if (activeJobId === null || !activeJob) return
   const { id: jobId, asin } = activeJob
   const token = activeJobToken
   const tabId = activeJobTabId
@@ -259,11 +258,13 @@ async function handleReviewsDone(msg) {
   const { jobId, reviews, amazonLoggedIn, asin } = msg
   if (jobId !== activeJobId) return
 
-  // Capture state before clearing — poll() must not start until submit completes
   const token = activeJobToken
   const tabId = activeJobTabId
-  cleanupState()  // clear immediately so poll guard stays consistent
+  // Cancel the timeout alarm immediately so handleJobTimeout can't fire during submit,
+  // but keep activeJobId live so poll() cannot start a new job during the 15s submit window.
+  chrome.alarms.clear(JOB_TIMEOUT_ALARM)
   await submitJob(jobId, reviews, amazonLoggedIn, token, null)
+  cleanupState()
   if (tabId) chrome.tabs.remove(tabId).catch(() => {})
 
   stats.jobsToday++
@@ -276,8 +277,9 @@ async function handleAmazonNotLoggedIn(jobId) {
   if (jobId !== activeJobId) return
   const token = activeJobToken
   const tabId = activeJobTabId
-  cleanupState()
+  chrome.alarms.clear(JOB_TIMEOUT_ALARM)
   await submitJob(jobId, [], false, token, 'amazon_not_logged_in')
+  cleanupState()
   if (tabId) chrome.tabs.remove(tabId).catch(() => {})
 }
 
