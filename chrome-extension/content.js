@@ -126,7 +126,10 @@ const STAR_FILTERS = ['five_star', 'four_star', 'three_star', 'two_star', 'one_s
         }
       }
 
-      if (!html) break
+      if (!html) {
+        chrome.runtime.sendMessage({ type: 'CONTENT_LOG', msg: `AJAX ${filter} p${page}: empty turbo response — breaking` })
+        break
+      }
 
       const doc     = new DOMParser().parseFromString(html, 'text/html')
       const batch   = parseReviews(doc, asin, marketplace)
@@ -191,6 +194,7 @@ async function fetchReviewsViaAjax(asin, tld, filter, page, nextPageToken, csrfT
   }
 
   const text = await res.text()
+  chrome.runtime.sendMessage({ type: 'CONTENT_LOG', msg: `turbo raw (${text.length} chars): ${text.slice(0, 300)}` })
   return parseTurboResponse(text)
 }
 
