@@ -70,7 +70,7 @@
   }
 
   const page1   = parseReviews(document, asin, marketplace)
-  const maxPages = Math.ceil((maxReviews || 150) / 10)
+  const maxPages = Math.min(10, Math.ceil((maxReviews || 100) / 10))
   bgLog(jobId, `Page 1: ${page1.length} reviews`)
 
   const canContinue = page1.length >= 10 && maxPages > 1
@@ -127,16 +127,18 @@ function parseReviews(doc, asin, marketplace) {
       const id = el.id || `${asin}-${Date.now()}-${i}`
 
       const ratingEl    = el.querySelector('i[data-hook="review-star-rating"], i[data-hook="cmps-review-star-rating"]')
-      const ratingTitle = ratingEl?.querySelector('.a-icon-alt')?.textContent || ratingEl?.title || ''
+      const ratingTitle = ratingEl?.querySelector('.a-icon-alt')?.innerText
+                       || ratingEl?.querySelector('.a-icon-alt')?.textContent
+                       || ratingEl?.title || ''
       const ratingMatch = ratingTitle.match(/^([\d.]+)/)
       const rating      = ratingMatch ? Math.round(parseFloat(ratingMatch[1])) : 0
       if (rating < 1 || rating > 5) return
 
-      const titleEl = el.querySelector('[data-hook="review-title"] span:not(.a-icon-alt)')
-      const title   = titleEl?.textContent?.trim() || ''
+      const titleEl = el.querySelector('[data-hook="review-title"] > span:not([class]), [data-hook="review-title"] span:not(.a-icon-alt)')
+      const title   = titleEl?.innerText?.trim() || titleEl?.textContent?.trim() || ''
 
       const bodyEl = el.querySelector('[data-hook="review-body"] span')
-      const body   = bodyEl?.textContent?.trim() || ''
+      const body   = (bodyEl?.innerText || bodyEl?.textContent || '').trim()
       if (body.length < 3) return
 
       const dateEl = el.querySelector('[data-hook="review-date"]')
