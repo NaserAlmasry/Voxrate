@@ -39,7 +39,7 @@
 
   while (allReviews.length < (maxReviews || 150) && pageNumber < maxPages) {
     pageNumber++
-    const nextUrl = `https://www.amazon.${tld}/product-reviews/${asin}?pageNumber=${pageNumber}&reviewerType=all_reviews&sortBy=recent`
+    const nextUrl = `https://www.amazon.${tld}/product-reviews/${asin}/ref=cm_cr_arp_d_paging_btm_next_${pageNumber}?ie=UTF8&reviewerType=all_reviews&sortBy=recent&pageNumber=${pageNumber}`
     log(jobId, `Fetching page ${pageNumber}`)
 
     try {
@@ -102,6 +102,7 @@ async function fetchPage(url) {
     headers: {
       'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
       'Accept-Language': 'en-US,en;q=0.9',
+      'Referer': location.href,
     },
   })
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
