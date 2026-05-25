@@ -147,21 +147,22 @@ const STAR_FILTERS = ['five_star', 'four_star', 'three_star', 'two_star', 'one_s
 // ── AJAX POST to Amazon's internal reviews endpoint ───────────────
 
 async function fetchReviewsViaAjax(asin, tld, filter, page, nextPageToken, csrfToken, refererUrl) {
-  // Param list matches what Amazon's own JS sends — confirmed from network captures.
-  // shouldAppend=undefined (literal string) — sending "false" resets the server-side cursor.
-  // scope is omitted — not present in real requests and causes issues.
+  // Parameters match Amazon's own show-more button POST (captured from DevTools Network tab).
+  // shouldAppend=true for page 2+ (appending results), false for page 1 (fresh start).
+  // canShowIntHeader=true — must be boolean string, not "undefined".
+  // formatType/mediaType must be non-empty; empty strings cause 403.
   const body = new URLSearchParams({
-    sortBy:           '',
+    sortBy:           'recent',
     reviewerType:     'all_reviews',
-    formatType:       '',
-    mediaType:        '',
+    formatType:       'current_format',
+    mediaType:        'all_reviews',
     filterByStar:     filter,
     pageNumber:       String(page),
     filterByLanguage: '',
     filterByKeyword:  '',
-    shouldAppend:     'undefined',
+    shouldAppend:     nextPageToken ? 'true' : 'false',
     deviceType:       'desktop',
-    canShowIntHeader: 'undefined',
+    canShowIntHeader: 'true',
     reftag:           `cm_cr_arp_d_paging_btm_next_${page}`,
     pageSize:         '10',
     asin,
@@ -176,13 +177,15 @@ async function fetchReviewsViaAjax(asin, tld, filter, page, nextPageToken, csrfT
       'anti-csrftoken-a2z': csrfToken,
       'x-requested-with':   'XMLHttpRequest',
       'Accept':             'text/html,*/*',
-      'Origin':             `https://www.amazon.${tld}`,
-      'Referer':            refererUrl,
     },
     body: body.toString(),
   })
 
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  if (!res.ok) {
+    // Log response body on 403 to diagnose what Amazon is rejecting
+    const errBody = await res.text().catch(() => '')
+    throw new Error(`HTTP ${res.status} — ${errBody.slice(0, 300)}`)
+  }
 
   const text = await res.text()
   return parseTurboResponse(text)
@@ -249,8 +252,15 @@ function extractCsrfToken() {
   for (const script of document.querySelectorAll('script[type="a-state"]')) {
     try {
       const data = JSON.parse(script.textContent)
-      if (typeof data.csrfToken === 'string' && data.csrfToken.length >= 10) return data.csrfToken
-      if (typeof data.lazyWidgetCsrfToken === 'string' && data.lazyWidgetCsrfToken.length >= 10) return data.lazyWidgetCsrfToken
+      const key = (() => { try { return JSON.parse(script.dataset.aState || '{}').key } catch { return '?' } })()
+      if (typeof data.csrfToken === 'string' && data.csrfToken.length >= 10) {
+        console.log('[Voxrate] csrfToken source a-state key:', key, '| token prefix:', data.csrfToken.slice(0, 12))
+        return data.csrfToken
+      }
+      if (typeof data.lazyWidgetCsrfToken === 'string' && data.lazyWidgetCsrfToken.length >= 10) {
+        console.log('[Voxrate] lazyWidgetCsrfToken source a-state key:', key, '| token prefix:', data.lazyWidgetCsrfToken.slice(0, 12))
+        return data.lazyWidgetCsrfToken
+      }
     } catch {}
   }
 
