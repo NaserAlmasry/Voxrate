@@ -190,8 +190,8 @@ async function fetchFromExtension(
 
   console.log(`[Extension] Job ${jobId} created for ${asin} — waiting for extension`)
 
-  // Poll for result every 2s, timeout after 60s
-  const deadline = Date.now() + 60_000
+  // Poll for result every 2s, timeout after 100s
+  const deadline = Date.now() + 100_000
   while (Date.now() < deadline) {
     await new Promise(r => setTimeout(r, 2000))
 
@@ -226,7 +226,7 @@ async function fetchFromExtension(
     .update({ status: 'failed', error: 'Timed out waiting for extension' })
     .eq('id', jobId)
 
-  console.warn('[Extension] Job timed out after 60s — falling back')
+  console.warn('[Extension] Job timed out after 100s — falling back')
   return null
 }
 

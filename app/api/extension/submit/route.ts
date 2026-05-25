@@ -42,10 +42,10 @@ export async function POST(req: NextRequest) {
 
   const supabase = adminClient()
 
-  // Verify job belongs to this user
+  // Verify job belongs to this user (accept even if backend already marked it failed/timed out)
   const { data: job } = await supabase
     .from('extension_jobs')
-    .select('id, asin, marketplace, user_id')
+    .select('id, asin, marketplace, user_id, status')
     .eq('id', jobId)
     .eq('user_id', session.user_id)
     .single()
