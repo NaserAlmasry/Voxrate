@@ -145,25 +145,49 @@ async function poll() {
 async function startJob(job, token) {
   activeJobId = job.id
   const { asin, marketplace, maxReviews } = job
-  const tld = marketplace.replace('amazon.', '')
   const url = `https://www.${marketplace}/product-reviews/${asin}?pageNumber=1&reviewerType=all_reviews&sortBy=recent`
 
   console.log(`[Voxrate] Starting job ${job.id}: ${asin} on ${marketplace}`)
 
   let tabId
+  const hardTimeoutId = setTimeout(() => {
+    if (activeJobId === job.id) {
+      console.warn('[Voxrate] Job hard timeout')
+      submitJob(job.id, [], true, token, 'timeout')
+      if (tabId) cleanupTab(tabId)
+      stats.jobsToday++
+      stats.lastAsin = asin
+      stats.lastJobAt = new Date().toISOString()
+      saveStats()
+    }
+  }, 120000)
+
   try {
     const tab = await chrome.tabs.create({ url, active: false })
     tabId = tab.id
     activeJobTabId = tabId
 
-    // Wait for tab to finish loading
-    await waitForTabLoad(tabId)
+    // Wait for the tab to fully load AND verify it landed on an Amazon page
+    await waitForTabStable(tabId, marketplace)
 
-    // Inject content script and start scraping
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      files: ['content.js'],
-    })
+    // Inject content script — retry once if frame was replaced during navigation
+    let injected = false
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        await chrome.scripting.executeScript({ target: { tabId }, files: ['content.js'] })
+        injected = true
+        break
+      } catch (e) {
+        if (attempt === 0 && e.message.includes('Frame')) {
+          // Frame was replaced by a redirect — wait for the next stable load
+          await waitForTabStable(tabId, marketplace)
+        } else {
+          throw e
+        }
+      }
+    }
+
+    if (!injected) throw new Error('Could not inject content script after redirect')
 
     // Send job config to content script
     await chrome.tabs.sendMessage(tabId, {
@@ -174,48 +198,46 @@ async function startJob(job, token) {
       maxReviews: maxReviews || 150,
     })
 
-    // content.js will message back REVIEWS_DONE or AMAZON_NOT_LOGGED_IN
-    // 120s hard timeout — backend waits 100s, give extension 20s extra
-    setTimeout(() => {
-      if (activeJobId === job.id) {
-        console.warn('[Voxrate] Job hard timeout — submitting empty result')
-        submitJob(job.id, [], true, token, 'timeout')
-        cleanupTab(tabId)
-        // Update stats so popup stops showing "Scraping reviews…"
-        stats.jobsToday++
-        stats.lastAsin = job.asin
-        stats.lastJobAt = new Date().toISOString()
-        saveStats()
-      }
-    }, 120000)
-
   } catch (err) {
+    clearTimeout(hardTimeoutId)
     console.error('[Voxrate] Job start error:', err)
     await submitJob(job.id, [], false, token, err.message)
     if (tabId) cleanupTab(tabId)
   }
 }
 
-function waitForTabLoad(tabId) {
+// Waits for the tab to reach 'complete' status on an Amazon domain.
+// Handles redirects by waiting for the NEXT complete event if the URL isn't Amazon yet.
+function waitForTabStable(tabId, marketplace) {
   return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error('Tab load timeout')), 35000)
-
-    function finish() {
-      clearTimeout(timeout)
+    const timeout = setTimeout(() => {
       chrome.tabs.onUpdated.removeListener(listener)
-      resolve()
+      reject(new Error('Tab load timeout after 35s'))
+    }, 35000)
+
+    function check(tab) {
+      if (!tab || chrome.runtime.lastError) return
+      if (tab.status === 'complete' && tab.url && tab.url.includes(marketplace)) {
+        clearTimeout(timeout)
+        chrome.tabs.onUpdated.removeListener(listener)
+        resolve()
+      }
+      // If status=complete but wrong URL (redirect), keep listening for next load
     }
 
-    function listener(id, info) {
-      if (id === tabId && info.status === 'complete') finish()
+    function listener(id, info, tab) {
+      if (id !== tabId) return
+      if (info.status === 'complete') {
+        chrome.tabs.get(tabId, check)
+      }
     }
 
     chrome.tabs.onUpdated.addListener(listener)
 
-    // Tab may have already loaded before we attached the listener
+    // Check current state immediately in case tab already loaded
     chrome.tabs.get(tabId, (tab) => {
       if (chrome.runtime.lastError) return
-      if (tab.status === 'complete') finish()
+      check(tab)
     })
   })
 }
