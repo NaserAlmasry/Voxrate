@@ -23,12 +23,9 @@
     state.reviews.push(...newOnes)
     newOnes.forEach(r => state.seenIds.push(r.id))
 
-    const nextHref = getNextPageHref()
-    bgLog(state.jobId, `Next from page ${state.page}: ${nextHref || 'none'}`)
     const done = newOnes.length === 0
                || state.reviews.length >= state.maxReviews
                || state.page >= state.maxPages
-               || !nextHref
 
     if (done) {
       sessionStorage.removeItem('voxrate_job')
@@ -36,6 +33,8 @@
     } else {
       state.page++
       sessionStorage.setItem('voxrate_job', JSON.stringify(state))
+      const nextHref = buildPageUrl(state.asin, state.marketplace, state.page)
+      bgLog(state.jobId, `Navigating to page ${state.page}: ${nextHref}`)
       location.assign(nextHref)
     }
     return
@@ -93,17 +92,19 @@
 
 // ── Helpers ───────────────────────────────────────────────────────
 
-function getNextPageHref() {
-  // Traditional Next button
-  const traditional = document.querySelector(
-    'li.a-last:not(.a-disabled) a, ' +
-    '.a-pagination li.a-last:not(.a-disabled) a'
-  )
-  if (traditional) return traditional.href || null
+function buildPageUrl(asin, marketplace, page) {
+  const tld = marketplace.replace('amazon.', '')
+  // Use Amazon's own ref pattern — paging_btm_N is what Amazon generates per page
+  return `https://www.amazon.${tld}/product-reviews/${asin}/ref=cm_cr_arp_d_paging_btm_${page}`
+}
 
-  // "Show 10 more reviews" link (data-hook="show-more-button")
+function getNextPageHref() {
+  // Only used for page 1 → page 2 detection (does a next page exist at all?)
+  const traditional = document.querySelector('li.a-last:not(.a-disabled) a')
+  if (traditional?.href && !traditional.href.startsWith('javascript:')) return traditional.href
+
   const showMore = document.querySelector('a[data-hook="show-more-button"]')
-  if (showMore) return showMore.href || null
+  if (showMore?.href && !showMore.href.startsWith('javascript:')) return showMore.href
 
   return null
 }
