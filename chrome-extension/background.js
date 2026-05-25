@@ -173,14 +173,19 @@ async function startJob(job, token) {
     })
 
     // content.js will message back REVIEWS_DONE or AMAZON_NOT_LOGGED_IN
-    // Set a 90-second timeout as safety net
+    // 120s hard timeout — backend waits 100s, give extension 20s extra
     setTimeout(() => {
       if (activeJobId === job.id) {
-        console.warn('[Voxrate] Job timeout — submitting empty result')
+        console.warn('[Voxrate] Job hard timeout — submitting empty result')
         submitJob(job.id, [], true, token, 'timeout')
         cleanupTab(tabId)
+        // Update stats so popup stops showing "Scraping reviews…"
+        stats.jobsToday++
+        stats.lastAsin = job.asin
+        stats.lastJobAt = new Date().toISOString()
+        saveStats()
       }
-    }, 90000)
+    }, 120000)
 
   } catch (err) {
     console.error('[Voxrate] Job start error:', err)
@@ -191,13 +196,24 @@ async function startJob(job, token) {
 
 function waitForTabLoad(tabId) {
   return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error('Tab load timeout')), 30000)
-    chrome.tabs.onUpdated.addListener(function listener(id, info) {
-      if (id === tabId && info.status === 'complete') {
-        clearTimeout(timeout)
-        chrome.tabs.onUpdated.removeListener(listener)
-        resolve()
-      }
+    const timeout = setTimeout(() => reject(new Error('Tab load timeout')), 35000)
+
+    function finish() {
+      clearTimeout(timeout)
+      chrome.tabs.onUpdated.removeListener(listener)
+      resolve()
+    }
+
+    function listener(id, info) {
+      if (id === tabId && info.status === 'complete') finish()
+    }
+
+    chrome.tabs.onUpdated.addListener(listener)
+
+    // Tab may have already loaded before we attached the listener
+    chrome.tabs.get(tabId, (tab) => {
+      if (chrome.runtime.lastError) return
+      if (tab.status === 'complete') finish()
     })
   })
 }
