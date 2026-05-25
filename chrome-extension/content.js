@@ -23,18 +23,29 @@
     state.reviews.push(...newOnes)
     newOnes.forEach(r => state.seenIds.push(r.id))
 
-    const done = newOnes.length === 0
-               || state.reviews.length >= state.maxReviews
-               || state.page >= state.maxPages
+    const exhausted = newOnes.length === 0
+    const reachedMax = state.reviews.length >= state.maxReviews || state.page >= state.maxPages
 
-    if (done) {
+    if (reachedMax) {
+      sessionStorage.removeItem('voxrate_job')
+      finish(state.jobId, state.asin, state.reviews)
+    } else if (exhausted && !state.triedHelpful) {
+      // Switch to helpful sort to get older reviews not in recent sort
+      bgLog(state.jobId, `Recent sort exhausted at ${state.reviews.length} reviews — switching to helpful sort`)
+      state.triedHelpful = true
+      state.page = 1
+      sessionStorage.setItem('voxrate_job', JSON.stringify(state))
+      const tld = state.marketplace.replace('amazon.', '')
+      location.assign(`https://www.amazon.${tld}/product-reviews/${state.asin}?reviewerType=all_reviews&sortBy=helpful&pageNumber=1`)
+    } else if (exhausted) {
       sessionStorage.removeItem('voxrate_job')
       finish(state.jobId, state.asin, state.reviews)
     } else {
       state.page++
       sessionStorage.setItem('voxrate_job', JSON.stringify(state))
-      const nextHref = buildPageUrl(state.asin, state.marketplace, state.page)
-      bgLog(state.jobId, `Navigating to page ${state.page}: ${nextHref}`)
+      const sort = state.triedHelpful ? 'helpful' : 'recent'
+      const nextHref = buildPageUrl(state.asin, state.marketplace, state.page, sort)
+      bgLog(state.jobId, `Navigating to page ${state.page} (${sort}): ${nextHref}`)
       location.assign(nextHref)
     }
     return
@@ -92,10 +103,10 @@
 
 // ── Helpers ───────────────────────────────────────────────────────
 
-function buildPageUrl(asin, marketplace, page) {
+function buildPageUrl(asin, marketplace, page, sort) {
   const tld = marketplace.replace('amazon.', '')
-  // Use Amazon's own ref pattern — paging_btm_N is what Amazon generates per page
-  return `https://www.amazon.${tld}/product-reviews/${asin}/ref=cm_cr_arp_d_paging_btm_${page}`
+  const sortParam = sort === 'helpful' ? 'sortBy=helpful&' : 'sortBy=recent&'
+  return `https://www.amazon.${tld}/product-reviews/${asin}/ref=cm_cr_arp_d_paging_btm_${page}?ie=UTF8&reviewerType=all_reviews&${sortParam}pageNumber=${page}`
 }
 
 function getNextPageHref() {
