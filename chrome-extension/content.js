@@ -23,9 +23,8 @@ const STAR_FILTERS = ['five_star', 'four_star', 'three_star', 'two_star', 'one_s
     newOnes.forEach(r => state.seenIds.push(r.id))
 
     const reachedMax  = state.reviews.length >= state.maxReviews
-    const nextPageExists = hasNextPage(document)
-    const noMore      = newOnes.length === 0 || !nextPageExists || state.currentPage >= 10
-    chrome.runtime.sendMessage({ type: 'CONTENT_LOG', msg: `Filter ${state.currentFilter} p${state.currentPage}: ${newOnes.length} new, hasNext=${nextPageExists}` })
+    const noMore = newOnes.length === 0 || state.currentPage >= 10
+    chrome.runtime.sendMessage({ type: 'CONTENT_LOG', msg: `Filter ${state.currentFilter} p${state.currentPage}: ${newOnes.length} new, noMore=${noMore}` })
     const tld         = state.marketplace.replace('amazon.', '')
 
     if (reachedMax) {
