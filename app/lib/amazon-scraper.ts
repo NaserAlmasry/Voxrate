@@ -487,7 +487,7 @@ function brightDataMaxReviews(
   totalReviews: number,
   plan: string,
 ): number {
-  const cap = plan === 'pro' ? 300 : 200
+  const cap = 500
   return Math.min(totalReviews, cap)
 }
 
