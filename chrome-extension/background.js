@@ -2,14 +2,14 @@
 
 const API_BASE = 'https://voxrate.app/api/extension'
 const POLL_ALARM = 'voxrate-poll'
-const POLL_INTERVAL_MINUTES = 0.5 // 30 seconds
+const JOB_TIMEOUT_ALARM = 'voxrate-job-timeout'
+const POLL_INTERVAL_MINUTES = 1 // Chrome enforces minimum 1 minute for installed extensions
 
 // ── State ────────────────────────────────────────────────────────
-let activeJobTabId  = null
-let activeJobId     = null
-let activeJob       = null
-let activeJobToken  = null
-let activeTimeoutId = null  // hoisted so cleanupState can cancel it
+let activeJobTabId = null
+let activeJobId    = null
+let activeJob      = null
+let activeJobToken = null
 let stats = { jobsToday: 0, lastAsin: null, lastJobAt: null }
 
 // ── Bootstrap ────────────────────────────────────────────────────
@@ -69,6 +69,7 @@ function registerVisibilitySpoofer() {
 
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === POLL_ALARM) poll()
+  if (alarm.name === JOB_TIMEOUT_ALARM) handleJobTimeout()
 })
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -216,18 +217,9 @@ async function startJob(job, token) {
 
   console.log(`[Voxrate] Starting job ${job.id}: ${asin}`)
 
-  // Hoisted timeout — cleared in cleanupState() so it never leaks
-  activeTimeoutId = setTimeout(() => {
-    if (activeJobId !== job.id) return
-    console.warn('[Voxrate] Job hard timeout')
-    submitJob(job.id, [], false, token, 'timeout')
-    if (activeJobTabId) chrome.tabs.remove(activeJobTabId).catch(() => {})
-    stats.jobsToday++
-    stats.lastAsin  = asin
-    stats.lastJobAt = new Date().toISOString()
-    saveStats()
-    cleanupState()
-  }, 120000)
+  // Use chrome.alarms for timeout — setTimeout is killed when the service worker suspends.
+  // 5 minutes covers AJAX path (100+ reviews) and nav fallback (5 filters × 2 pages).
+  chrome.alarms.create(JOB_TIMEOUT_ALARM, { delayInMinutes: 5 })
 
   chrome.tabs.create({ url, active: false }, (tab) => {
     const err = chrome.runtime.lastError
@@ -236,8 +228,7 @@ async function startJob(job, token) {
         console.log('[Voxrate] Amazon redirect during tab create — waiting for CONTENT_READY')
       } else {
         console.error('[Voxrate] Could not create tab:', err.message)
-        submitJob(job.id, [], false, token, err.message)
-        cleanupState()
+        submitJob(job.id, [], false, token, err.message).then(() => cleanupState()).catch(() => cleanupState())
       }
       return
     }
@@ -248,14 +239,32 @@ async function startJob(job, token) {
 
 // ── Handlers called by content.js messages ───────────────────────
 
+async function handleJobTimeout() {
+  if (activeJobId === null || !activeJob) return
+  const { id: jobId, asin } = activeJob
+  const token = activeJobToken
+  const tabId = activeJobTabId
+  console.warn('[Voxrate] Job hard timeout')
+  cleanupState()
+  await submitJob(jobId, [], false, token, 'timeout')
+  if (tabId) chrome.tabs.remove(tabId).catch(() => {})
+  stats.jobsToday++
+  stats.lastAsin  = asin
+  stats.lastJobAt = new Date().toISOString()
+  saveStats()
+}
+
 async function handleReviewsDone(msg) {
   const { jobId, reviews, amazonLoggedIn, asin } = msg
   if (jobId !== activeJobId) return
 
   const token = activeJobToken
   const tabId = activeJobTabId
-  cleanupState()
+  // Cancel the timeout alarm immediately so handleJobTimeout can't fire during submit,
+  // but keep activeJobId live so poll() cannot start a new job during the 15s submit window.
+  chrome.alarms.clear(JOB_TIMEOUT_ALARM)
   await submitJob(jobId, reviews, amazonLoggedIn, token, null)
+  cleanupState()
   if (tabId) chrome.tabs.remove(tabId).catch(() => {})
 
   stats.jobsToday++
@@ -268,20 +277,18 @@ async function handleAmazonNotLoggedIn(jobId) {
   if (jobId !== activeJobId) return
   const token = activeJobToken
   const tabId = activeJobTabId
-  cleanupState()
+  chrome.alarms.clear(JOB_TIMEOUT_ALARM)
   await submitJob(jobId, [], false, token, 'amazon_not_logged_in')
+  cleanupState()
   if (tabId) chrome.tabs.remove(tabId).catch(() => {})
 }
 
 function cleanupState() {
-  if (activeTimeoutId !== null) {
-    clearTimeout(activeTimeoutId)
-    activeTimeoutId = null
-  }
-  activeJobTabId  = null
-  activeJobId     = null
-  activeJob       = null
-  activeJobToken  = null
+  chrome.alarms.clear(JOB_TIMEOUT_ALARM)
+  activeJobTabId = null
+  activeJobId    = null
+  activeJob      = null
+  activeJobToken = null
 }
 
 // ── Submit ────────────────────────────────────────────────────────
