@@ -40,7 +40,7 @@
       state.page++
       sessionStorage.setItem('voxrate_job', JSON.stringify(state))
       const tld     = state.marketplace.replace('amazon.', '')
-      const nextUrl = `https://www.amazon.${tld}/product-reviews/${state.asin}/ref=cm_cr_arp_d_paging_btm_next_${state.page}?ie=UTF8&reviewerType=all_reviews&pageNumber=${state.page}`
+      const nextUrl = `https://www.amazon.${tld}/product-reviews/${state.asin}/ref=cm_cr_arp_d_paging_btm_next_${state.page}?ie=UTF8&reviewerType=all_reviews&sortBy=recent&pageNumber=${state.page}`
       location.assign(nextUrl)
     }
     return
@@ -100,7 +100,7 @@
   }
   sessionStorage.setItem('voxrate_job', JSON.stringify(state))
   const tld     = marketplace.replace('amazon.', '')
-  const nextUrl = `https://www.amazon.${tld}/product-reviews/${asin}/ref=cm_cr_arp_d_paging_btm_next_2?ie=UTF8&reviewerType=all_reviews&pageNumber=2`
+  const nextUrl = `https://www.amazon.${tld}/product-reviews/${asin}/ref=cm_cr_arp_d_paging_btm_next_2?ie=UTF8&reviewerType=all_reviews&sortBy=recent&pageNumber=2`
   location.assign(nextUrl)
 })()
 
