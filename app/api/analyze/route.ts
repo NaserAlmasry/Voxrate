@@ -669,7 +669,7 @@ export async function POST(request: NextRequest) {
 
       const isFreeUser   = !isAdminUser && plan === 'free'
       const scrapeResult = await withRetry(
-        () => isFreeUser ? scrapeAmazonFree(productUrl) : scrapeAmazon(productUrl, plan),
+        () => isFreeUser ? scrapeAmazonFree(productUrl) : scrapeAmazon(productUrl, plan, user.id),
         2,
       )
       const { product: amazonProduct, reviews: rawReviews, qa } = scrapeResult

@@ -7,7 +7,7 @@
 import { useState, useEffect, useRef, Suspense } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/app/lib/supabase/client'
-import { PenLine, LayoutTemplate, Activity, MessageSquare, Crosshair, Eye, BellRing, Home, LayoutGrid, Clock, Settings, Shield, Users, LogOut, ChevronLeft, ChevronRight, Menu, X, Gift, Search } from 'lucide-react'
+import { PenLine, LayoutTemplate, Activity, MessageSquare, Crosshair, Eye, BellRing, Home, LayoutGrid, Clock, Settings, Shield, Users, LogOut, ChevronLeft, ChevronRight, Menu, X, Gift, Search, Puzzle } from 'lucide-react'
 import CheckoutRedirectHandler from '@/app/components/CheckoutRedirectHandler'
 import OnboardingModal from '@/app/components/OnboardingModal'
 import ErrorBoundary from '@/app/components/ErrorBoundary'
@@ -92,6 +92,11 @@ const NAV_GROUPS: NavGroup[] = [
         label: 'Settings',
         href: '/dashboard/settings',
         icon: <Settings size={18} />,
+      },
+      {
+        label: 'Extension',
+        href: '/dashboard/settings/extension',
+        icon: <Puzzle size={18} />,
       },
     ],
   },

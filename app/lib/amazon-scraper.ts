@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { AmazonScrapeResult, AmazonProduct, AmazonReview, AmazonQA } from './amazon-types'
 import { fetchFromRailway } from './railway-scraper'
+import crypto from 'crypto'
 
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
 
@@ -141,7 +142,95 @@ const DOMAIN_MAP: Record<string, string> = {
   'amazon.pl':     'PL',
 }
 
-export async function scrapeAmazon(input: string, plan = 'starter'): Promise<AmazonScrapeResult> {
+// ── Chrome Extension scraper ──────────────────────────────────────
+// Creates a job in extension_jobs, waits up to 60s for the extension to
+// complete it, then returns the reviews. Returns null if no extension is
+// connected or if it times out.
+
+async function fetchFromExtension(
+  asin: string,
+  marketplace: string,
+  maxReviews: number,
+  userId: string,
+): Promise<AmazonReview[] | null> {
+  const supabase = getAdminClient()
+
+  // Check if user has an active extension session (heartbeat within 30s)
+  const recentThreshold = new Date(Date.now() - 30_000).toISOString()
+  const { data: session } = await supabase
+    .from('extension_sessions')
+    .select('user_id')
+    .eq('user_id', userId)
+    .gte('last_seen_at', recentThreshold)
+    .single()
+
+  if (!session) {
+    console.log('[Extension] No active extension session for user — skipping')
+    return null
+  }
+
+  // Create a pending job
+  const jobId = crypto.randomUUID()
+  const { error: insertErr } = await supabase
+    .from('extension_jobs')
+    .insert({
+      id: jobId,
+      user_id: userId,
+      asin,
+      marketplace,
+      max_reviews: maxReviews,
+      status: 'pending',
+      created_at: new Date().toISOString(),
+    })
+
+  if (insertErr) {
+    console.warn('[Extension] Failed to create job:', insertErr.message)
+    return null
+  }
+
+  console.log(`[Extension] Job ${jobId} created for ${asin} — waiting for extension`)
+
+  // Poll for result every 2s, timeout after 60s
+  const deadline = Date.now() + 60_000
+  while (Date.now() < deadline) {
+    await new Promise(r => setTimeout(r, 2000))
+
+    const { data: job } = await supabase
+      .from('extension_jobs')
+      .select('status, reviews, error')
+      .eq('id', jobId)
+      .single()
+
+    if (!job) break
+
+    if (job.status === 'completed' || job.status === 'partial') {
+      const reviews = (job.reviews as AmazonReview[]) ?? []
+      console.log(`[Extension] Job ${jobId} done: ${reviews.length} reviews`)
+      return reviews
+    }
+
+    if (job.status === 'amazon_not_logged_in') {
+      console.warn('[Extension] Amazon login wall — user needs to log in')
+      throw new Error('amazon_not_logged_in')
+    }
+
+    if (job.status === 'failed') {
+      console.warn('[Extension] Job failed:', job.error)
+      return null
+    }
+  }
+
+  // Timeout — mark job failed so it doesn't linger
+  await supabase
+    .from('extension_jobs')
+    .update({ status: 'failed', error: 'Timed out waiting for extension' })
+    .eq('id', jobId)
+
+  console.warn('[Extension] Job timed out after 60s — falling back')
+  return null
+}
+
+export async function scrapeAmazon(input: string, plan = 'starter', userId?: string): Promise<AmazonScrapeResult> {
   const { asin, marketplace } = parseInput(input)
   console.log(`[Scraper] ASIN: ${asin} | Marketplace: ${marketplace}`)
 
@@ -189,8 +278,23 @@ export async function scrapeAmazon(input: string, plan = 'starter'): Promise<Ama
   const maxReviews = brightDataMaxReviews(productData.ratingBreakdown, productData.totalReviews, plan)
   const tld        = marketplace.replace('amazon.', '')
 
-  // Primary: Railway scraper (direct HTML pagination via BrightData residential proxies)
-  if (process.env.RAILWAY_SCRAPER_URL) {
+  // Primary: Chrome Extension (user's own logged-in browser — bypasses all Amazon blocks)
+  if (userId) {
+    try {
+      const extReviews = await fetchFromExtension(asin, marketplace, maxReviews, userId)
+      if (extReviews && extReviews.length > 0) {
+        allReviews      = rebalanceReviews(extReviews, productData.ratingBreakdown)
+        scraperProvider = 'extension'
+        console.log(`[Scraper] Extension succeeded with ${allReviews.length} reviews`)
+      }
+    } catch (err: any) {
+      if (err.message === 'amazon_not_logged_in') throw err // propagate — frontend should show login prompt
+      console.warn(`[Scraper] Extension failed: ${err.message}`)
+    }
+  }
+
+  // Secondary: Railway scraper (direct HTML pagination via BrightData residential proxies)
+  if (allReviews.length === 0 && process.env.RAILWAY_SCRAPER_URL) {
     try {
       const reviewUrl = `https://www.amazon.${tld}/product-reviews/${asin}?reviewerType=all_reviews&sortBy=recent`
       const raw       = await fetchFromRailway(reviewUrl, maxReviews, asin, marketplace)
@@ -222,6 +326,25 @@ export async function scrapeAmazon(input: string, plan = 'starter'): Promise<Ama
       }
     } catch (err: any) {
       console.warn(`[Scraper] BrightData fallback failed: ${err.message}`)
+    }
+  }
+
+  // Final fallback: Canopy API (free, star-filtered, up to ~130 reviews)
+  if (allReviews.length === 0 && CANOPY_KEYS.length > 0) {
+    try {
+      const pageAlloc = allocatePages(productData.ratingBreakdown)
+      totalAllocatedPages = Object.values(pageAlloc).reduce((a, b) => a + b, 0)
+      const raw   = await fetchAllReviews(asin, domain, pageAlloc)
+      const valid = filterReviews(raw, 'canopy')
+      if (valid.length > 0) {
+        allReviews      = valid
+        scraperProvider = 'canopy'
+        console.log(`[Scraper] Canopy fallback succeeded with ${allReviews.length} reviews (${totalAllocatedPages} pages)`)
+      } else {
+        console.warn('[Scraper] Canopy fallback returned 0 valid reviews')
+      }
+    } catch (err: any) {
+      console.warn(`[Scraper] Canopy fallback failed: ${err.message}`)
     }
   }
 
