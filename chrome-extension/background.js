@@ -28,12 +28,10 @@ chrome.runtime.onStartup.addListener(() => {
   poll()
 })
 
-// Register visibilitySpoofer.js in the MAIN world at document_start.
-// This must run before Amazon's JS reads document.visibilityState, otherwise
-// Amazon detects the hidden background tab and returns the same reviews for
-// every page (bot-detection based on Page Visibility API).
+// Register tabHelper.js in the MAIN world at document_start so Amazon
+// pages load correctly in background tabs.
 function registerVisibilitySpoofer() {
-  const SPOOFER_ID = 'voxrate-visibility-spoofer'
+  const SPOOFER_ID = 'voxrate-tab-helper'
   const amazonMatches = [
     'https://www.amazon.com/product-reviews/*',
     'https://www.amazon.co.uk/product-reviews/*',
@@ -54,7 +52,7 @@ function registerVisibilitySpoofer() {
     chrome.scripting.registerContentScripts([{
       id:      SPOOFER_ID,
       matches: amazonMatches,
-      js:      ['visibilitySpoofer.js'],
+      js:      ['tabHelper.js'],
       runAt:   'document_start',
       world:   'MAIN',
     }], () => {

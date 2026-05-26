@@ -45,6 +45,7 @@ function DashboardHomeInner() {
   const [simulatingUser, setSimulatingUser] = useState(false)
   const [userPlan, setUserPlan] = useState('free')
   const [isAdminUser, setIsAdminUser] = useState(false)
+  const [extensionInstalled, setExtensionInstalled] = useState<boolean | null>(null)
   const [showSpyPanel, setShowSpyPanel] = useState(false)
   const [spyUrl, setSpyUrl] = useState('')
   const [spyOwnReportId, setSpyOwnReportId] = useState('')
@@ -60,6 +61,21 @@ function DashboardHomeInner() {
 
   // Abort any in-flight request on unmount
   useEffect(() => () => { controllerRef.current?.abort() }, [])
+
+  // Detect extension install via postMessage handshake
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === 'VOXRATE_EXTENSION_INSTALLED') {
+        setExtensionInstalled(true)
+        window.removeEventListener('message', handler)
+      }
+    }
+    window.addEventListener('message', handler)
+    setTimeout(() => {
+      setExtensionInstalled(prev => prev === null ? false : prev)
+      window.removeEventListener('message', handler)
+    }, 1500)
+  }, [])
   const [showCancelWarning, setShowCancelWarning] = useState(false)
   const [isCsv, setIsCsv] = useState(false)
   const cancelledRef = useRef(false)
@@ -357,6 +373,11 @@ function DashboardHomeInner() {
     if (!url.trim()) return
     const isValidAmazon = /amazon\.(com|co\.uk|de|co\.jp|ca|com\.au|fr|it|es|com\.mx|nl|se|pl)(\/|$)/.test(url) || /^[A-Z0-9]{10}$/i.test(url.trim())
     if (!isValidAmazon) { setError('Please paste a valid Amazon URL or ASIN (e.g. B073JYC4XM)'); return }
+    // Paid users need the extension installed to scrape reviews
+    if (!isAdminUser && userPlan !== 'free' && extensionInstalled === false) {
+      setError('__EXTENSION_REQUIRED__')
+      return
+    }
     cancelledRef.current = false
     await checkCache(url)
     setLoading(true); setError(''); setShowCancelWarning(false)
@@ -532,12 +553,23 @@ function DashboardHomeInner() {
         <div className="px-5 pt-5 pb-4 border-b border-neutral-100 bg-gradient-to-r from-orange-50/60 to-white">
           <p className="text-xs font-semibold text-orange-500 uppercase tracking-widest mb-3">New analysis</p>
 
-          {error && (
+          {error === '__EXTENSION_REQUIRED__' ? (
+            <div className="mb-4 p-3.5 bg-orange-50 border border-orange-200 rounded-xl text-xs">
+              <p className="font-semibold text-orange-800 mb-1 flex items-center gap-1.5">
+                <AlertTriangle size={13} className="flex-shrink-0" />
+                Chrome extension required
+              </p>
+              <p className="text-orange-700 mb-2.5">You need to install the Voxrate Chrome extension to analyze products. It scrapes Amazon reviews using your own logged-in session.</p>
+              <a href="/dashboard/settings/extension" className="inline-flex items-center gap-1 px-3 py-1.5 bg-orange-500 text-white rounded-lg font-semibold hover:bg-orange-600 transition-colors">
+                Download extension →
+              </a>
+            </div>
+          ) : error ? (
             <div className="mb-4 flex items-center gap-2 p-3 bg-red-50 text-red-600 text-xs rounded-xl border border-red-100">
               <AlertTriangle size={13} />
               {error}
             </div>
-          )}
+          ) : null}
 
           {cachedReport && !loading && (
             <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">

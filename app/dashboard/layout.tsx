@@ -7,7 +7,7 @@
 import { useState, useEffect, useRef, Suspense } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/app/lib/supabase/client'
-import { PenLine, LayoutTemplate, Activity, MessageSquare, Crosshair, Eye, BellRing, Home, LayoutGrid, Clock, Settings, Shield, Users, LogOut, ChevronLeft, ChevronRight, Menu, X, Gift, Search, Puzzle } from 'lucide-react'
+import { PenLine, LayoutTemplate, Activity, Crosshair, BellRing, Home, LayoutGrid, Clock, Settings, Shield, Users, LogOut, ChevronLeft, ChevronRight, Menu, X, Gift, Search, Puzzle, Wrench } from 'lucide-react'
 import CheckoutRedirectHandler from '@/app/components/CheckoutRedirectHandler'
 import OnboardingModal from '@/app/components/OnboardingModal'
 import ErrorBoundary from '@/app/components/ErrorBoundary'
@@ -34,10 +34,15 @@ const NAV_GROUPS: NavGroup[] = [
         href: '/dashboard/grade',
         icon: <Activity size={18} />,
       },
+    ],
+  },
+  {
+    section: 'Protect',
+    items: [
       {
-        label: 'Reply to Reviews',
-        href: '/dashboard/reply',
-        icon: <MessageSquare size={18} />,
+        label: 'Toolkit',
+        href: '/dashboard/toolkit',
+        icon: <Wrench size={18} />,
       },
     ],
   },
@@ -48,11 +53,6 @@ const NAV_GROUPS: NavGroup[] = [
         label: 'Competitor',
         href: '/dashboard/competitor',
         icon: <Crosshair size={18} />,
-      },
-      {
-        label: 'Watchlist',
-        href: '/dashboard/watchlist',
-        icon: <Eye size={18} />,
       },
       {
         label: 'Sentiment Alerts',

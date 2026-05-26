@@ -32,8 +32,11 @@ const MISTRAL_API_URL      = 'https://api.mistral.ai/v1/chat/completions'
 const MISTRAL_MODEL_LATEST = 'mistral-large-latest'
 const MISTRAL_MODEL_2411   = 'mistral-large-2411'
 const GROQ_MODEL           = 'llama-3.3-70b-versatile'
+const CEREBRAS_API_URL     = 'https://api.cerebras.ai/v1/chat/completions'
+const CEREBRAS_MODEL       = 'gpt-oss-120b'
 const GITHUB_API_URL       = 'https://models.inference.ai.azure.com/chat/completions'
-const GITHUB_MODEL         = 'gpt-4o-mini'
+const GITHUB_MODEL_GEMINI  = 'gemini-3.5-flash'
+const GITHUB_MODEL_MINI    = 'gpt-4o-mini'
 
 export type Message = { role: 'system' | 'user' | 'assistant'; content: string }
 
@@ -105,14 +108,37 @@ async function callGroq(messages: Message[], maxTokens: number): Promise<string>
   return res.choices[0]?.message?.content || ''
 }
 
-async function callGitHub(messages: Message[], maxTokens: number): Promise<string> {
+async function callCerebras(messages: Message[], maxTokens: number): Promise<string> {
+  const key = process.env.CEREBRAS_API_KEY
+  if (!key) throw new Error('CEREBRAS_API_KEY not set')
+
+  const res = await fetch(CEREBRAS_API_URL, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+    body:    JSON.stringify({ model: CEREBRAS_MODEL, max_tokens: maxTokens, temperature: 0.1, messages }),
+    signal:  AbortSignal.timeout(30_000),
+  })
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(`Cerebras ${res.status}: ${body.slice(0, 200)}`)
+  }
+  const json  = await res.json()
+  const usage = json.usage
+  if (usage) {
+    console.log(`[Cerebras:${CEREBRAS_MODEL}] prompt:${usage.prompt_tokens} completion:${usage.completion_tokens} total:${usage.total_tokens}`)
+    const _store = _tokenStorage.getStore(); if (_store) _store.count += usage.total_tokens ?? 0
+  }
+  return json.choices?.[0]?.message?.content || ''
+}
+
+async function callGitHub(model: string, messages: Message[], maxTokens: number): Promise<string> {
   const key = process.env.GITHUB_TOKEN
   if (!key) throw new Error('GITHUB_TOKEN not set')
 
   const res = await fetch(GITHUB_API_URL, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-    body:    JSON.stringify({ model: GITHUB_MODEL, max_tokens: maxTokens, temperature: 0.1, messages }),
+    body:    JSON.stringify({ model, max_tokens: maxTokens, temperature: 0.1, messages }),
     signal:  AbortSignal.timeout(30_000),
   })
   if (!res.ok) {
@@ -122,7 +148,7 @@ async function callGitHub(messages: Message[], maxTokens: number): Promise<strin
   const json  = await res.json()
   const usage = json.usage
   if (usage) {
-    console.log(`[GitHub:${GITHUB_MODEL}] prompt:${usage.prompt_tokens} completion:${usage.completion_tokens} total:${usage.total_tokens}`)
+    console.log(`[GitHub:${model}] prompt:${usage.prompt_tokens} completion:${usage.completion_tokens} total:${usage.total_tokens}`)
     const _store = _tokenStorage.getStore(); if (_store) _store.count += usage.total_tokens ?? 0
   }
   return json.choices?.[0]?.message?.content || ''
@@ -152,26 +178,41 @@ export async function callMistralLatest(messages: Message[], maxTokens: number):
       console.warn('[MistralLatest] Failed, falling back to Groq 70b:', err?.message?.slice(0, 100))
     }
 
-    // 2. Try Groq 70b
+    // 2. Try Cerebras gpt-oss-120b (120B params, 3,000 tok/s, 14,400 req/day free)
+    try {
+      return await callCerebras(messages, maxTokens)
+    } catch (err: any) {
+      console.warn('[Cerebras] Failed, falling back to Groq:', err?.message?.slice(0, 100))
+    }
+
+    // 3. Try Groq llama-3.3-70b (70B params, free)
     try {
       return await callGroq(messages, maxTokens)
     } catch (err: any) {
       console.warn('[Groq] Failed, falling back to GitHub gpt-4o-mini:', err?.message?.slice(0, 100))
     }
 
-    // 3. Try GitHub gpt-4o-mini
+    // 4. Try Gemini 3.5 Flash via GitHub Models (beats GPT-4o, same token)
     try {
-      return await callGitHub(messages, maxTokens)
+      return await callGitHub(GITHUB_MODEL_GEMINI, messages, maxTokens)
     } catch (err: any) {
-      console.warn('[GitHub] Failed, falling back to Mistral 2411:', err?.message?.slice(0, 100))
+      console.warn('[Gemini3.5Flash] Failed, falling back to gpt-4o-mini:', err?.message?.slice(0, 100))
     }
 
-    // 4. Try Mistral 2411
+    // 5. Try gpt-4o-mini via GitHub Models (safety net, 150 req/day)
+    try {
+      return await callGitHub(GITHUB_MODEL_MINI, messages, maxTokens)
+    } catch (err: any) {
+      console.warn('[gpt-4o-mini] Failed, falling back to Mistral 2411:', err?.message?.slice(0, 100))
+    }
+
+    // 6. Try Mistral 2411
     try {
       return await callMistral(messages, maxTokens, MISTRAL_MODEL_2411)
     } catch (err: any) {
       console.warn('[Mistral2411] Failed:', err?.message?.slice(0, 100))
       if (attempt === 2) throw err
+      // attempt < 2: all 6 providers failed this round, retry after delay
     }
   }
 

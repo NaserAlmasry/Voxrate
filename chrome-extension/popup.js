@@ -57,7 +57,16 @@ $('connect-btn')?.addEventListener('click', async () => {
   }
 })
 
-$('disconnect-btn')?.addEventListener('click', async () => {
+$('disconnect-btn')?.addEventListener('click', () => {
+  $('disconnect-modal').classList.add('visible')
+})
+
+$('cancel-disconnect')?.addEventListener('click', () => {
+  $('disconnect-modal').classList.remove('visible')
+})
+
+$('confirm-disconnect')?.addEventListener('click', async () => {
+  $('disconnect-modal').classList.remove('visible')
   await chrome.runtime.sendMessage({ type: 'CLEAR_TOKEN' })
   init()
 })

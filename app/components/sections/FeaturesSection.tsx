@@ -1,4 +1,4 @@
-import { Search, Crosshair, Zap, PenLine, MessageCircle, Layers, BarChart2, BellRing } from 'lucide-react'
+import { Search, Crosshair, Zap, PenLine, MessageCircle, Layers, BarChart2, BellRing, Puzzle } from 'lucide-react'
 
 const featureItems: { icon: React.ReactNode; title: string; desc: string; badge: string; soon?: boolean }[] = [
   { icon: <Search className="text-orange-500" size={18} />, title: 'Review Analysis', desc: 'Voxrate turns your reviews into a ranked action plan — complaints by severity, strengths by frequency, with exact step-by-step fixes.', badge: 'Core feature' },
@@ -51,6 +51,23 @@ export default function FeaturesSection() {
               </div>
             ))}
           </div>
+        </div>
+
+        {/* Chrome Extension — full-width highlight card */}
+        <div className="bg-black rounded-2xl p-6 scroll-fade flex flex-col md:flex-row items-start md:items-center gap-5">
+          <div className="w-12 h-12 bg-orange-500/10 rounded-2xl flex items-center justify-center flex-shrink-0">
+            <Puzzle className="text-orange-400" size={22} />
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1">
+              <h3 className="font-semibold text-base text-white">Chrome Extension</h3>
+              <span className="text-[10px] font-semibold text-orange-400 bg-orange-500/10 border border-orange-500/20 px-2 py-0.5 rounded-full">Required for analysis</span>
+            </div>
+            <p className="text-sm text-neutral-400 leading-relaxed">Voxrate scrapes Amazon reviews directly through your own logged-in Amazon session — no rate limits, no third-party scraper costs. One click to install, works silently in the background while you work.</p>
+          </div>
+          <a href="/dashboard/settings/extension" className="flex-shrink-0 px-5 py-2.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold rounded-xl transition-colors whitespace-nowrap">
+            Get the extension →
+          </a>
         </div>
 
       </div>

@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Voxrate Reviews Scraper",
   "version": "1.0.0",
-  "description": "Scrapes Amazon reviews for Voxrate AI analysis — works because you're already logged in.",
+  "description": "Collects Amazon reviews for your Voxrate analysis — uses your existing Amazon session to fetch review data.",
   "permissions": ["storage", "tabs", "alarms", "scripting"],
   "host_permissions": [
     "https://voxrate.app/*",
@@ -49,7 +49,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["visibilitySpoofer.js"],
+      "resources": ["tabHelper.js"],
       "matches": [
         "https://www.amazon.com/*",
         "https://www.amazon.co.uk/*",

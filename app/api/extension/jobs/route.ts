@@ -39,13 +39,13 @@ export async function GET(req: NextRequest) {
     .update({ last_seen_at: new Date().toISOString() })
     .eq('token', token)
 
-  // Mark stale pending jobs as failed (extension was offline)
+  // Mark stale pending/processing jobs as failed (extension crashed or was offline)
   const staleThreshold = new Date(Date.now() - JOB_TIMEOUT_MS).toISOString()
   await supabase
     .from('extension_jobs')
     .update({ status: 'failed', error: 'Extension offline — job timed out' })
     .eq('user_id', session.user_id)
-    .eq('status', 'pending')
+    .in('status', ['pending', 'processing'])
     .lt('created_at', staleThreshold)
 
   // Fetch oldest pending job
