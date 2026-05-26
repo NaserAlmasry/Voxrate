@@ -10,25 +10,20 @@
 
   const asin = asinMatch[1].toUpperCase()
 
-  // Check if overlay is enabled via localStorage
-  let overlayEnabled = false
-  try {
-    overlayEnabled = localStorage.getItem('voxrate_overlay_enabled') === 'true'
-  } catch {}
-
-  // Listen for toggle messages from dashboard
-  window.addEventListener('message', (e) => {
-    if (e.data && e.data.type === 'VOXRATE_OVERLAY_TOGGLE') {
-      overlayEnabled = e.data.enabled
-      if (overlayEnabled) {
-        initOverlay()
-      } else {
-        removeOverlay()
-      }
-    }
+  // Use chrome.storage.local (works cross-origin; localStorage only works same-origin)
+  chrome.storage.local.get('voxrate_overlay_enabled', ({ voxrate_overlay_enabled }) => {
+    if (voxrate_overlay_enabled) initOverlay()
   })
 
-  if (!overlayEnabled) return
+  // React to toggle changes made from any page (dashboard, popup, etc.)
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local' || !('voxrate_overlay_enabled' in changes)) return
+    if (changes.voxrate_overlay_enabled.newValue) {
+      initOverlay()
+    } else {
+      removeOverlay()
+    }
+  })
 
   function removeOverlay() {
     const existing = document.getElementById('voxrate-overlay-panel')
@@ -38,7 +33,6 @@
   function initOverlay() {
     if (document.getElementById('voxrate-overlay-panel')) return
 
-    // Create panel
     const panel = document.createElement('div')
     panel.id = 'voxrate-overlay-panel'
     panel.style.cssText = `
@@ -89,13 +83,11 @@
       document.getElementById('voxrate-toggle').textContent = collapsed ? '+' : '−'
     })
 
-    // Fetch data from background
     chrome.runtime.sendMessage({ type: 'OVERLAY_CHECK', asin }, (response) => {
       if (!response || response.error) {
         body.innerHTML = '<p style="color:#ef4444;font-size:12px;padding:8px 0;">Could not load data. Make sure you\'re logged into Voxrate.</p>'
         return
       }
-
       renderOverlayData(body, response)
     })
   }
@@ -145,17 +137,9 @@
 
     container.innerHTML = html
 
-    // Add "Open in Voxrate" link
     const footer = document.createElement('div')
     footer.style.cssText = 'border-top:1px solid #f3f4f6;padding:8px 0 0;margin-top:8px;'
     footer.innerHTML = `<a href="https://voxrate.app/dashboard/toolkit" target="_blank" style="color:#f97316;font-size:11px;text-decoration:none;font-weight:600;">Open Toolkit →</a>`
     container.appendChild(footer)
-  }
-
-  // Initialize on page load
-  if (document.readyState === 'complete') {
-    initOverlay()
-  } else {
-    window.addEventListener('load', initOverlay, { once: true })
   }
 })()

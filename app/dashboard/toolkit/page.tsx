@@ -187,6 +187,7 @@ function StatusBadge({ status }: { status: FeatureCard['status'] }) {
     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-neutral-100 text-neutral-500">
       <Lock size={10} />
       Needs SC
+      <SCTooltip />
     </span>
   )
 }
@@ -609,8 +610,7 @@ function CompetitorOverlayDrawer() {
   const toggle = () => {
     const next = !overlayEnabled
     setOverlayEnabled(next)
-    try { localStorage.setItem('voxrate_overlay_enabled', String(next)) } catch {}
-    // Notify extension content scripts
+    // Send to extension via voxrate-bridge.js which has access to chrome.storage.local
     window.postMessage({ type: 'VOXRATE_OVERLAY_TOGGLE', enabled: next }, '*')
   }
 
@@ -741,16 +741,52 @@ function SCLockedDrawer({ title }: { title: string }) {
           <Lock size={20} className="text-purple-500" />
         </div>
         <p className="text-sm font-semibold text-neutral-800 mb-1">Seller Central Required</p>
-        <p className="text-sm text-neutral-500 mb-4">{title} reads data directly from your Seller Central account. Install the Voxrate extension and visit your SC account to activate.</p>
+        <p className="text-sm text-neutral-500 mb-4">{title} reads data directly from your Seller Central account via the Voxrate extension.</p>
+        <div className="rounded-xl bg-purple-50 border border-purple-100 p-4 text-left mb-4 space-y-2">
+          <p className="text-xs font-semibold text-purple-700">How to activate in 2 steps:</p>
+          <div className="flex items-start gap-2">
+            <span className="w-5 h-5 rounded-full bg-purple-500 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">1</span>
+            <p className="text-xs text-purple-700">Install or update the Voxrate Chrome extension</p>
+          </div>
+          <div className="flex items-start gap-2">
+            <span className="w-5 h-5 rounded-full bg-purple-500 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">2</span>
+            <p className="text-xs text-purple-700">Visit <strong>sellercentral.amazon.com</strong> while logged in — the extension reads the page silently and syncs your data here</p>
+          </div>
+          <p className="text-xs text-purple-500 pt-1">No credentials are stored. The extension reads your SC page the same way you do, from your browser.</p>
+        </div>
         <a
           href="/dashboard/settings/extension"
           className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-500 text-white text-sm font-semibold hover:bg-purple-600 transition-colors"
         >
-          Set up extension
+          Get the extension
           <ArrowRight size={14} />
         </a>
       </div>
     </div>
+  )
+}
+
+function SCTooltip() {
+  const [visible, setVisible] = useState(false)
+  return (
+    <span className="relative inline-flex items-center">
+      <button
+        onMouseEnter={() => setVisible(true)}
+        onMouseLeave={() => setVisible(false)}
+        onFocus={() => setVisible(true)}
+        onBlur={() => setVisible(false)}
+        className="ml-1 w-4 h-4 rounded-full bg-neutral-200 text-neutral-500 text-[9px] font-bold flex items-center justify-center hover:bg-purple-200 hover:text-purple-700 transition-colors focus:outline-none"
+        aria-label="What is Seller Central?"
+        type="button"
+      >?</button>
+      {visible && (
+        <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 z-10 rounded-xl bg-neutral-900 text-white text-xs p-3 shadow-xl pointer-events-none">
+          <span className="font-semibold block mb-1">Needs Seller Central access</span>
+          This feature reads data from your Amazon Seller Central account. Install the Voxrate extension, then visit sellercentral.amazon.com to activate it — no passwords shared.
+          <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-neutral-900" />
+        </span>
+      )}
+    </span>
   )
 }
 
