@@ -60,7 +60,10 @@ function DashboardHomeInner() {
   const controllerRef = useRef<AbortController | null>(null)
 
   // Abort any in-flight request on unmount
-  useEffect(() => () => { controllerRef.current?.abort() }, [])
+  useEffect(() => () => {
+    controllerRef.current?.abort()
+    if (bulkPollRef.current) clearInterval(bulkPollRef.current)
+  }, [])
 
   // Detect extension install via postMessage handshake
   useEffect(() => {
@@ -78,6 +81,13 @@ function DashboardHomeInner() {
   }, [])
   const [showCancelWarning, setShowCancelWarning] = useState(false)
   const [isCsv, setIsCsv] = useState(false)
+  const [bulkMode, setBulkMode] = useState(false)
+  const [bulkAsins, setBulkAsins] = useState(['', '', '', '', ''])
+  const [bulkMarketplace, setBulkMarketplace] = useState('amazon.com')
+  const [bulkJobs, setBulkJobs] = useState<{ asin: string; jobId: string; status: string; reportId?: string; error?: string }[]>([])
+  const [bulkLoading, setBulkLoading] = useState(false)
+  const [bulkError, setBulkError] = useState('')
+  const bulkPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const cancelledRef = useRef(false)
   // Returns the ISO date of the Monday of the current week — used as a stable weekly dismissal key
   const getWeekKey = () => {
@@ -443,6 +453,54 @@ function DashboardHomeInner() {
     }
   }
 
+  const handleBulkAnalyze = async () => {
+    const filled = bulkAsins.filter(a => a.trim())
+    if (filled.length === 0) { setBulkError('Enter at least one ASIN'); return }
+    setBulkError('')
+    setBulkLoading(true)
+    setBulkJobs([])
+    if (bulkPollRef.current) clearInterval(bulkPollRef.current)
+
+    try {
+      const res = await fetch('/api/bulk-analyze', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        body:    JSON.stringify({ asins: filled, marketplace: bulkMarketplace }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setBulkError(data.error || 'Failed to queue jobs.'); setBulkLoading(false); return }
+
+      const initialJobs = (data.jobs as { asin: string; jobId: string }[]).map(j => ({
+        ...j, status: 'pending',
+      }))
+      setBulkJobs(initialJobs)
+
+      const jobIds = initialJobs.map(j => j.jobId)
+      bulkPollRef.current = setInterval(async () => {
+        try {
+          const sr = await fetch(`/api/bulk-analyze/status?jobIds=${jobIds.join(',')}`)
+          const sd = await sr.json()
+          if (!sr.ok) return
+          setBulkJobs(prev => prev.map(j => {
+            const found = sd.statuses?.find((s: { jobId: string }) => s.jobId === j.jobId)
+            if (!found) return j
+            return { ...j, status: found.status, reportId: found.reportId ?? undefined, error: found.error ?? undefined }
+          }))
+          const allDone = sd.statuses?.every((s: { status: string }) =>
+            ['completed', 'partial', 'failed', 'amazon_not_logged_in'].includes(s.status)
+          )
+          if (allDone) {
+            if (bulkPollRef.current) clearInterval(bulkPollRef.current)
+            setBulkLoading(false)
+          }
+        } catch {}
+      }, 4000)
+    } catch {
+      setBulkError('Something went wrong. Please try again.')
+      setBulkLoading(false)
+    }
+  }
+
   const getLoadingMessage = (secs: number) => {
     if (isCsv) return secs < 10 ? 'Reading CSV...' : secs < 30 ? 'Analyzing your reviews...' : 'Building your report...'
     return secs < 20 ? 'Connecting to Amazon...' : secs < 60 ? 'Reading customer reviews...' : secs < 120 ? 'Finding patterns...' : 'Building your report...'
@@ -551,9 +609,25 @@ function DashboardHomeInner() {
       {/* ── Main Input ── */}
       <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden ring-1 ring-orange-100">
         <div className="px-5 pt-5 pb-4 border-b border-neutral-100 bg-gradient-to-r from-orange-50/60 to-white">
-          <p className="text-xs font-semibold text-orange-500 uppercase tracking-widest mb-3">New analysis</p>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs font-semibold text-orange-500 uppercase tracking-widest">New analysis</p>
+            <div className="flex items-center gap-1 bg-neutral-100 rounded-lg p-0.5">
+              <button
+                onClick={() => setBulkMode(false)}
+                className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${!bulkMode ? 'bg-white shadow text-neutral-800' : 'text-neutral-400 hover:text-neutral-600'}`}
+              >
+                Single
+              </button>
+              <button
+                onClick={() => setBulkMode(true)}
+                className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${bulkMode ? 'bg-white shadow text-neutral-800' : 'text-neutral-400 hover:text-neutral-600'}`}
+              >
+                Bulk
+              </button>
+            </div>
+          </div>
 
-          {error === '__EXTENSION_REQUIRED__' ? (
+          {!bulkMode && (error === '__EXTENSION_REQUIRED__' ? (
             <div className="mb-4 p-3.5 bg-orange-50 border border-orange-200 rounded-xl text-xs">
               <p className="font-semibold text-orange-800 mb-1 flex items-center gap-1.5">
                 <AlertTriangle size={13} className="flex-shrink-0" />
@@ -569,16 +643,16 @@ function DashboardHomeInner() {
               <AlertTriangle size={13} />
               {error}
             </div>
-          ) : null}
+          ) : null)}
 
-          {cachedReport && !loading && (
+          {!bulkMode && cachedReport && !loading && (
             <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">
               You already analyzed <strong>{cachedReport.productName}</strong>.{' '}
               <a href={`/dashboard/report/${cachedReport.id}`} className="underline font-medium">View that report →</a>
             </div>
           )}
 
-          {loading && !showCancelWarning && (
+          {!bulkMode && loading && !showCancelWarning && (
             <div className="mb-4 p-4 bg-gradient-to-br from-orange-50 to-amber-50 border border-orange-200 rounded-xl">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
@@ -595,7 +669,7 @@ function DashboardHomeInner() {
             </div>
           )}
 
-          {showCancelWarning && (
+          {!bulkMode && showCancelWarning && (
             <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl text-xs">
               <p className="font-medium text-red-700 mb-2">Cancel this analysis?</p>
               <div className="flex gap-2">
@@ -605,35 +679,103 @@ function DashboardHomeInner() {
             </div>
           )}
 
-          {!loading && (
-            <p className="text-[11px] text-neutral-400 mb-2">
-              Estimated time: <span className="font-medium text-neutral-500">2–4 minutes</span>
-            </p>
+          {bulkMode ? (
+            <div className="space-y-3">
+              {bulkError && (
+                <div className="flex items-center gap-2 p-3 bg-red-50 text-red-600 text-xs rounded-xl border border-red-100">
+                  <AlertTriangle size={13} />{bulkError}
+                </div>
+              )}
+              <div>
+                <label className="block text-xs font-semibold text-neutral-500 mb-1.5">Marketplace</label>
+                <select
+                  value={bulkMarketplace}
+                  onChange={e => setBulkMarketplace(e.target.value)}
+                  disabled={bulkLoading}
+                  className="w-full px-3 py-2.5 text-sm border border-neutral-200 rounded-xl outline-none focus:border-orange-400 bg-white disabled:opacity-50"
+                >
+                  {['amazon.com','amazon.co.uk','amazon.de','amazon.ca','amazon.com.au','amazon.fr','amazon.it','amazon.es','amazon.co.jp'].map(m => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                {bulkAsins.map((asin, i) => (
+                  <input
+                    key={i}
+                    type="text"
+                    value={asin}
+                    onChange={e => setBulkAsins(prev => prev.map((v, j) => j === i ? e.target.value : v))}
+                    placeholder={`ASIN ${i + 1}${i === 0 ? ' (required)' : ' (optional)'}`}
+                    disabled={bulkLoading}
+                    maxLength={10}
+                    className="w-full px-4 py-2.5 text-sm border border-neutral-200 rounded-xl outline-none focus:border-orange-400 transition-colors bg-neutral-50 disabled:opacity-50 font-mono tracking-wider"
+                  />
+                ))}
+              </div>
+              <button
+                onClick={handleBulkAnalyze}
+                disabled={bulkLoading}
+                className="w-full py-3 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold rounded-xl disabled:opacity-40 transition-colors"
+              >
+                {bulkLoading ? 'Queuing…' : `Analyze all →`}
+              </button>
+              {bulkJobs.length > 0 && (
+                <div className="space-y-2 pt-1">
+                  {bulkJobs.map(job => {
+                    const isDone = ['completed','partial'].includes(job.status)
+                    const isFailed = ['failed','amazon_not_logged_in'].includes(job.status)
+                    const isPending = job.status === 'pending'
+                    const isProcessing = job.status === 'processing'
+                    return (
+                      <div key={job.jobId} className="flex items-center justify-between gap-3 px-4 py-2.5 bg-neutral-50 rounded-xl border border-neutral-200">
+                        <p className="text-sm font-mono font-medium text-neutral-700">{job.asin}</p>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs font-semibold ${isDone ? 'text-green-600' : isFailed ? 'text-red-500' : isProcessing ? 'text-orange-500' : 'text-neutral-400'}`}>
+                            {isPending ? 'Queued' : isProcessing ? 'Scraping…' : isDone ? 'Done' : job.status === 'amazon_not_logged_in' ? 'Not logged in' : 'Error'}
+                          </span>
+                          {isDone && job.reportId && (
+                            <a href={`/dashboard/report/${job.reportId}`} className="text-xs text-orange-500 font-semibold hover:underline">View report →</a>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
+              {!loading && (
+                <p className="text-[11px] text-neutral-400 mb-2">
+                  Estimated time: <span className="font-medium text-neutral-500">2–4 minutes</span>
+                </p>
+              )}
+              <div className="flex gap-2">
+                <input
+                  ref={inputRef}
+                  type="url"
+                  value={url}
+                  onChange={e => { setUrl(e.target.value); setError('') }}
+                  onKeyDown={e => e.key === 'Enter' && handleAnalyze()}
+                  placeholder="Paste Amazon URL or ASIN (e.g. B073JYC4XM)"
+                  disabled={loading}
+                  className="flex-1 px-4 py-3 text-sm border border-neutral-200 rounded-xl outline-none focus:border-orange-400 transition-colors bg-neutral-50 disabled:opacity-50"
+                />
+                <button
+                  onClick={handleAnalyze}
+                  disabled={loading}
+                  className="btn-press glow-orange px-5 py-3 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold rounded-xl disabled:opacity-40 whitespace-nowrap shadow-sm"
+                >
+                  {loading ? '...' : 'Analyze →'}
+                </button>
+              </div>
+            </>
           )}
-
-          <div className="flex gap-2">
-            <input
-              ref={inputRef}
-              type="url"
-              value={url}
-              onChange={e => { setUrl(e.target.value); setError('') }}
-              onKeyDown={e => e.key === 'Enter' && handleAnalyze()}
-              placeholder="Paste Amazon URL or ASIN (e.g. B073JYC4XM)"
-              disabled={loading}
-              className="flex-1 px-4 py-3 text-sm border border-neutral-200 rounded-xl outline-none focus:border-orange-400 transition-colors bg-neutral-50 disabled:opacity-50"
-            />
-            <button
-              onClick={handleAnalyze}
-              disabled={loading}
-              className="btn-press glow-orange px-5 py-3 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold rounded-xl disabled:opacity-40 whitespace-nowrap shadow-sm"
-            >
-              {loading ? '...' : 'Analyze →'}
-            </button>
-          </div>
         </div>
 
         {/* CSV Drop Zone */}
-        <div
+        {!bulkMode && <div
           onClick={() => !loading && document.getElementById('csv-dash')?.click()}
           className={`mx-5 my-4 border-2 border-dashed rounded-xl p-5 text-center transition-colors cursor-pointer select-none ${loading ? 'opacity-40 cursor-not-allowed' : 'border-neutral-200 hover:border-orange-300 hover:bg-orange-50/30'}`}
         >
@@ -648,7 +790,7 @@ function DashboardHomeInner() {
           </div>
           <input id="csv-dash" type="file" accept=".csv" className="hidden"
             onChange={e => e.target.files?.[0] && handleCsvFile(e.target.files[0])} />
-        </div>
+        </div>}
       </div>
 
       {/* ── Spy Competitors ── */}

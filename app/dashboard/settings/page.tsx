@@ -22,6 +22,8 @@ export default function SettingsPage() {
   const [isAdmin, setIsAdmin] = useState(false)
   const [authProvider, setAuthProvider] = useState<string>('')
   const [renewalDate, setRenewalDate] = useState('')
+  const [weeklyDigest, setWeeklyDigest] = useState(true)
+  const [digestSaving, setDigestSaving] = useState(false)
   const supabaseRef = useRef(createClient())
   const supabase    = supabaseRef.current
   const toast    = useToast()
@@ -35,10 +37,11 @@ export default function SettingsPage() {
     const date = new Date(user.created_at)
     setJoinedDate(date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }))
 
-    const { data } = await supabase.from('users').select('plan, credits, is_admin, stripe_current_period_end').eq('id', user.id).single()
+    const { data } = await supabase.from('users').select('plan, credits, is_admin, stripe_current_period_end, weekly_digest_enabled').eq('id', user.id).single()
     if (data?.plan) setPlan(data.plan)
     if (data?.credits != null) setCredits(data.credits)
     if (data?.is_admin) setIsAdmin(true)
+    if (data?.weekly_digest_enabled != null) setWeeklyDigest(data.weekly_digest_enabled)
     if (data?.stripe_current_period_end) {
       setRenewalDate(new Date(data.stripe_current_period_end * 1000).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }))
     }
@@ -68,6 +71,17 @@ export default function SettingsPage() {
     } finally {
       setPortalLoading(false)
     }
+  }
+
+  const toggleWeeklyDigest = async (val: boolean) => {
+    setDigestSaving(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      await supabase.from('users').update({ weekly_digest_enabled: val }).eq('id', user.id)
+    }
+    setWeeklyDigest(val)
+    setDigestSaving(false)
+    toast(val ? 'Weekly digest enabled' : 'Weekly digest disabled', 'success')
   }
 
   return (
@@ -232,6 +246,26 @@ export default function SettingsPage() {
           </p>
         </div>
       )}
+
+      {/* Notifications */}
+      <div className="bg-white rounded-2xl border border-neutral-200 p-6">
+        <h2 className="text-sm font-semibold text-neutral-700 mb-4">Notifications</h2>
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-neutral-800">Weekly digest email</p>
+            <p className="text-xs text-neutral-400 mt-0.5">Receive a Monday morning summary of your shop health, alerts, and an AI priority action.</p>
+          </div>
+          <button
+            role="switch"
+            aria-checked={weeklyDigest}
+            disabled={digestSaving}
+            onClick={() => toggleWeeklyDigest(!weeklyDigest)}
+            className={`relative flex-shrink-0 w-11 h-6 rounded-full transition-colors duration-200 focus:outline-none disabled:opacity-50 ${weeklyDigest ? 'bg-orange-500' : 'bg-neutral-200'}`}
+          >
+            <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${weeklyDigest ? 'translate-x-5' : 'translate-x-0'}`} />
+          </button>
+        </div>
+      </div>
 
       {/* Account actions */}
       <div className="bg-white rounded-2xl border border-neutral-200 p-6">

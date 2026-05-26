@@ -21,9 +21,86 @@ function CompetitorPage() {
   const [reportsLoading, setReportsLoading] = useState(true)
   const controllerRef               = useRef<AbortController | null>(null)
   const cancelledRef                = useRef(false)
+  const [bulkMode, setBulkMode]     = useState(false)
+  const [bulkUrls, setBulkUrls]     = useState(['', '', '', '', ''])
+  const [bulkJobs, setBulkJobs]     = useState<{ asin: string; jobId: string; status: string; reportId?: string; error?: string }[]>([])
+  const [bulkLoading, setBulkLoading] = useState(false)
+  const [bulkError, setBulkError]   = useState('')
+  const bulkPollRef                 = useRef<ReturnType<typeof setInterval> | null>(null)
   const router       = useRouter()
   const searchParams = useSearchParams()
   const supabase     = createClient()
+
+  useEffect(() => () => {
+    if (bulkPollRef.current) clearInterval(bulkPollRef.current)
+  }, [])
+
+  const extractAsin = (input: string): string | null => {
+    const trimmed = input.trim().toUpperCase()
+    const fromPath = trimmed.match(/\/(?:DP|GP\/PRODUCT)\/([A-Z0-9]{10})/i)
+    if (fromPath) return fromPath[1].toUpperCase()
+    if (/^[A-Z0-9]{10}$/.test(trimmed)) return trimmed
+    return null
+  }
+
+  const handleBulkAnalyze = async () => {
+    const filled = bulkUrls.filter(u => u.trim())
+    if (filled.length === 0) { setBulkError('Enter at least one URL or ASIN'); return }
+    const asins: string[] = []
+    const invalid: string[] = []
+    for (const u of filled) {
+      const asin = extractAsin(u)
+      if (asin) asins.push(asin)
+      else invalid.push(u.trim())
+    }
+    if (invalid.length > 0) {
+      setBulkError(`Invalid URLs or ASINs: ${invalid.join(', ')}`)
+      return
+    }
+    setBulkError('')
+    setBulkLoading(true)
+    setBulkJobs([])
+    if (bulkPollRef.current) clearInterval(bulkPollRef.current)
+
+    try {
+      const res = await fetch('/api/bulk-analyze', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        body:    JSON.stringify({ asins, marketplace: 'amazon.com' }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setBulkError(data.error || 'Failed to queue jobs.'); setBulkLoading(false); return }
+
+      const initialJobs = (data.jobs as { asin: string; jobId: string }[]).map(j => ({
+        ...j, status: 'pending',
+      }))
+      setBulkJobs(initialJobs)
+
+      const jobIds = initialJobs.map(j => j.jobId)
+      bulkPollRef.current = setInterval(async () => {
+        try {
+          const sr = await fetch(`/api/bulk-analyze/status?jobIds=${jobIds.join(',')}`)
+          const sd = await sr.json()
+          if (!sr.ok) return
+          setBulkJobs(prev => prev.map(j => {
+            const found = sd.statuses?.find((s: { jobId: string }) => s.jobId === j.jobId)
+            if (!found) return j
+            return { ...j, status: found.status, reportId: found.reportId ?? undefined, error: found.error ?? undefined }
+          }))
+          const allDone = sd.statuses?.every((s: { status: string }) =>
+            ['completed', 'partial', 'failed', 'amazon_not_logged_in'].includes(s.status)
+          )
+          if (allDone) {
+            if (bulkPollRef.current) clearInterval(bulkPollRef.current)
+            setBulkLoading(false)
+          }
+        } catch {}
+      }, 4000)
+    } catch {
+      setBulkError('Something went wrong. Please try again.')
+      setBulkLoading(false)
+    }
+  }
 
   useEffect(() => {
     const init = async () => {
@@ -147,80 +224,149 @@ function CompetitorPage() {
 
           {/* Input */}
           <div className="bg-white rounded-2xl border border-neutral-200 p-6 space-y-4">
-            <div>
-              <label className="text-xs font-semibold text-neutral-600 block mb-2">Paste their Amazon listing URL or ASIN</label>
-              <input
-                type="url"
-                value={url}
-                onChange={e => { setUrl(e.target.value); setError('') }}
-                onKeyDown={e => e.key === 'Enter' && !loading && handleAnalyze()}
-                placeholder="Paste competitor's Amazon URL or ASIN"
-                className="w-full text-sm border border-neutral-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:border-transparent transition-all"
-              />
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-neutral-600">
+                {bulkMode ? 'Competitor URLs or ASINs (up to 5)' : 'Paste their Amazon listing URL or ASIN'}
+              </label>
+              <div className="flex items-center gap-1 bg-neutral-100 rounded-lg p-0.5">
+                <button
+                  onClick={() => setBulkMode(false)}
+                  className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${!bulkMode ? 'bg-white shadow text-neutral-800' : 'text-neutral-400 hover:text-neutral-600'}`}
+                >
+                  Single
+                </button>
+                <button
+                  onClick={() => setBulkMode(true)}
+                  className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${bulkMode ? 'bg-white shadow text-neutral-800' : 'text-neutral-400 hover:text-neutral-600'}`}
+                >
+                  Multiple
+                </button>
+              </div>
             </div>
-
-            {ownReports.length > 0 && (
+            {bulkMode ? (
+              <div className="space-y-2">
+                {bulkUrls.map((u, i) => (
+                  <input
+                    key={i}
+                    type="text"
+                    value={u}
+                    onChange={e => setBulkUrls(prev => prev.map((v, j) => j === i ? e.target.value : v))}
+                    placeholder={`Competitor ${i + 1}${i === 0 ? ' (required)' : ' (optional)'} — URL or ASIN`}
+                    disabled={bulkLoading}
+                    className="w-full text-sm border border-neutral-200 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:border-transparent transition-all disabled:opacity-50"
+                  />
+                ))}
+                {bulkError && (
+                  <p className="text-xs text-red-600">{bulkError}</p>
+                )}
+                <button
+                  onClick={handleBulkAnalyze}
+                  disabled={bulkLoading}
+                  className="w-full py-3 bg-black text-white text-sm font-medium rounded-xl hover:bg-neutral-800 transition-colors disabled:opacity-50"
+                >
+                  {bulkLoading ? 'Queuing…' : 'Analyze all →'}
+                </button>
+                {bulkJobs.length > 0 && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+                    {bulkJobs.map(job => {
+                      const isDone = ['completed','partial'].includes(job.status)
+                      const isFailed = ['failed','amazon_not_logged_in'].includes(job.status)
+                      const isPending = job.status === 'pending'
+                      const isProcessing = job.status === 'processing'
+                      return (
+                        <div key={job.jobId} className="bg-white rounded-2xl border border-neutral-200 p-4">
+                          <div className="flex items-center justify-between mb-1">
+                            <p className="text-sm font-mono font-semibold text-neutral-800">{job.asin}</p>
+                            <span className={`text-xs font-semibold ${isDone ? 'text-green-600' : isFailed ? 'text-red-500' : isProcessing ? 'text-orange-500' : 'text-neutral-400'}`}>
+                              {isPending ? 'Queued' : isProcessing ? 'Scraping…' : isDone ? 'Done' : job.status === 'amazon_not_logged_in' ? 'Not logged in' : 'Error'}
+                            </span>
+                          </div>
+                          {isDone && job.reportId && (
+                            <a href={`/dashboard/report/${job.reportId}`} className="text-xs text-orange-500 font-semibold hover:underline">View report →</a>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            ) : (
+            <>
               <div>
-                <label className="text-xs font-semibold text-neutral-600 block mb-2">Which of your products does this compete with? <span className="text-neutral-400 font-normal">(optional)</span></label>
-                <div className="space-y-2 max-h-44 overflow-y-auto">
-                  {ownReports.map(r => {
-                    const sel = ownReportId === r.id
-                    return (
-                      <button
-                        key={r.id}
-                        type="button"
-                        disabled={loading}
-                        onClick={() => setOwnReportId(sel ? '' : r.id)}
-                        className={`w-full flex items-center justify-between gap-3 px-4 py-2.5 rounded-xl border text-left transition-colors disabled:opacity-40 ${
-                          sel ? 'border-black bg-neutral-50' : 'border-neutral-200 hover:border-neutral-300 bg-white'
-                        }`}
-                      >
-                        <p className="text-sm font-medium text-neutral-800 truncate">{r.product_name || 'Unnamed'}</p>
-                        {sel && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="flex-shrink-0"><polyline points="20 6 9 17 4 12"/></svg>}
-                      </button>
-                    )
-                  })}
+                <input
+                  type="url"
+                  value={url}
+                  onChange={e => { setUrl(e.target.value); setError('') }}
+                  onKeyDown={e => e.key === 'Enter' && !loading && handleAnalyze()}
+                  placeholder="Paste competitor's Amazon URL or ASIN"
+                  className="w-full text-sm border border-neutral-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-300 focus:border-transparent transition-all"
+                />
+              </div>
+
+              {ownReports.length > 0 && (
+                <div>
+                  <label className="text-xs font-semibold text-neutral-600 block mb-2">Which of your products does this compete with? <span className="text-neutral-400 font-normal">(optional)</span></label>
+                  <div className="space-y-2 max-h-44 overflow-y-auto">
+                    {ownReports.map(r => {
+                      const sel = ownReportId === r.id
+                      return (
+                        <button
+                          key={r.id}
+                          type="button"
+                          disabled={loading}
+                          onClick={() => setOwnReportId(sel ? '' : r.id)}
+                          className={`w-full flex items-center justify-between gap-3 px-4 py-2.5 rounded-xl border text-left transition-colors disabled:opacity-40 ${
+                            sel ? 'border-black bg-neutral-50' : 'border-neutral-200 hover:border-neutral-300 bg-white'
+                          }`}
+                        >
+                          <p className="text-sm font-medium text-neutral-800 truncate">{r.product_name || 'Unnamed'}</p>
+                          {sel && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="flex-shrink-0"><polyline points="20 6 9 17 4 12"/></svg>}
+                        </button>
+                      )
+                    })}
+                  </div>
                 </div>
-              </div>
-            )}
-
-            {error && (
-              <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-100 rounded-xl">
-                <p className="text-xs text-red-600">{error}</p>
-                {error.includes('upgrade') || error.includes('Starter') ? (
-                  <a href="/#pricing" className="text-xs text-orange-600 font-medium underline ml-auto flex-shrink-0">Upgrade →</a>
-                ) : null}
-              </div>
-            )}
-
-            <button
-              onClick={handleAnalyze}
-              disabled={loading || !url.trim()}
-              className="w-full py-3 bg-black text-white text-sm font-medium rounded-xl hover:bg-neutral-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {loading ? (
-                <>
-                  <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83"/>
-                  </svg>
-                  Analyzing competitor... (2-4 min)
-                </>
-              ) : (
-                <>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                    <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>
-                  </svg>
-                  Spy on this listing
-                </>
               )}
-            </button>
-            {loading && (
+
+              {error && (
+                <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-100 rounded-xl">
+                  <p className="text-xs text-red-600">{error}</p>
+                  {error.includes('upgrade') || error.includes('Starter') ? (
+                    <a href="/#pricing" className="text-xs text-orange-600 font-medium underline ml-auto flex-shrink-0">Upgrade →</a>
+                  ) : null}
+                </div>
+              )}
+
               <button
-                onClick={() => { cancelledRef.current = true; controllerRef.current?.abort(); setLoading(false) }}
-                className="w-full py-2 text-xs text-neutral-400 hover:text-red-500 transition-colors"
+                onClick={handleAnalyze}
+                disabled={loading || !url.trim()}
+                className="w-full py-3 bg-black text-white text-sm font-medium rounded-xl hover:bg-neutral-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                Cancel
+                {loading ? (
+                  <>
+                    <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83"/>
+                    </svg>
+                    Analyzing competitor... (2-4 min)
+                  </>
+                ) : (
+                  <>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                      <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>
+                    </svg>
+                    Spy on this listing
+                  </>
+                )}
               </button>
+              {loading && (
+                <button
+                  onClick={() => { cancelledRef.current = true; controllerRef.current?.abort(); setLoading(false) }}
+                  className="w-full py-2 text-xs text-neutral-400 hover:text-red-500 transition-colors"
+                >
+                  Cancel
+                </button>
+              )}
+            </>
             )}
           </div>
 
