@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+﻿import { NextRequest, NextResponse } from 'next/server'
 import { timingSafeEqual } from 'crypto'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { Resend } from 'resend'
@@ -138,7 +138,7 @@ export async function GET(request: NextRequest) {
 
       // Build email HTML
       const trendHtml = thisWeekAvg !== null && lastWeekAvg !== null && thisWeekAvg !== lastWeekAvg
-        ? `<span style="margin-left:8px;font-size:12px;font-weight:600;color:${thisWeekAvg > lastWeekAvg ? '#22c55e' : '#ef4444'};">${thisWeekAvg > lastWeekAvg ? `▲ +${thisWeekAvg - lastWeekAvg}` : `▼ ${thisWeekAvg - lastWeekAvg}`} vs last week</span>`
+        ? `<span style="margin-left:8px;font-size:12px;font-weight:600;color:${thisWeekAvg > lastWeekAvg ? '#22c55e' : '#ef4444'};">${thisWeekAvg > lastWeekAvg ? `â–² +${thisWeekAvg - lastWeekAvg}` : `â–¼ ${thisWeekAvg - lastWeekAvg}`} vs last week</span>`
         : ''
 
       const scoreSection = thisWeekAvg !== null ? `
@@ -215,9 +215,9 @@ export async function GET(request: NextRequest) {
 
       if (resend) {
         await resend.emails.send({
-          from:    'Voxrate <digest@voxrate.app>',
+          from:    'Voxrate <noreply@voxrate.app>',
           to:      email,
-          subject: `Your Voxrate weekly summary — ${dateLabel}`,
+          subject: `Your Voxrate weekly summary â€” ${dateLabel}`,
           html,
         })
         sent++
