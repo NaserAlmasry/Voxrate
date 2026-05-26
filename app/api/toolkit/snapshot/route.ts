@@ -48,6 +48,15 @@ export async function POST(req: NextRequest) {
   const supabase = adminClient()
   const userId = session.user_id
 
+  // Only process watched ASINs
+  const { data: monitored } = await supabase
+    .from('monitored_asins')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('asin', asin)
+    .maybeSingle()
+  if (!monitored) return NextResponse.json({ ok: true, changed: false })
+
   // Get last snapshot
   const { data: prev } = await supabase
     .from('listing_snapshots')
@@ -78,13 +87,22 @@ export async function POST(req: NextRequest) {
 
   // Diff
   const changes: string[] = []
-  if (prev.title && body.title && prev.title !== body.title) changes.push(`Title changed`)
-  if (prev.main_image && body.main_image && prev.main_image !== body.main_image) changes.push(`Main image changed`)
+  const prevTitle = prev.title ?? null
+  const currTitle = body.title ?? null
+  if (prevTitle !== null && prevTitle !== currTitle) changes.push(`Title changed`)
+
+  const prevImage = prev.main_image ?? null
+  const currImage = body.main_image ?? null
+  if (prevImage !== null && prevImage !== currImage) changes.push(`Main image changed`)
+
   if (prev.price != null && body.price != null && Math.abs(prev.price - body.price) > 0.01) {
     changes.push(`Price changed from $${prev.price} to $${body.price}`)
   }
-  if (prev.buy_box_seller && body.buy_box_seller && prev.buy_box_seller !== body.buy_box_seller) {
-    changes.push(`Buy Box seller changed from "${prev.buy_box_seller}" to "${body.buy_box_seller}"`)
+
+  const prevBB = prev.buy_box_seller ?? null
+  const currBB = body.buy_box_seller ?? null
+  if (prevBB !== null && prevBB !== currBB) {
+    changes.push(`Buy Box seller changed from "${prevBB}" to "${currBB ?? 'unknown'}"`)
   }
   if (!prev.is_suppressed && body.is_suppressed) changes.push(`Listing may be suppressed`)
 

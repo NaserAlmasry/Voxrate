@@ -127,6 +127,26 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     console.log(`[Voxrate:content] ${msg.msg}`)
     return
   }
+
+  if (msg.type === 'CONTENT_SNAPSHOT') {
+    handleExtensionPost('/api/toolkit/snapshot', msg.payload)
+    return
+  }
+
+  if (msg.type === 'REVIEW_VELOCITY') {
+    handleExtensionPost('/api/toolkit/velocity', msg.payload)
+    return
+  }
+
+  if (msg.type === 'SC_DATA') {
+    handleExtensionPost('/api/toolkit/sc-scan', { scan_type: msg.scan_type, data: msg.data })
+    return
+  }
+
+  if (msg.type === 'OVERLAY_CHECK') {
+    handleOverlayCheck(msg.asin, sendResponse)
+    return true
+  }
 })
 
 function setupAlarm() {
@@ -287,6 +307,37 @@ function cleanupState() {
   activeJobId    = null
   activeJob      = null
   activeJobToken = null
+}
+
+// ── Extension monitoring helpers ─────────────────────────────────
+
+async function handleExtensionPost(path, body) {
+  const { extensionToken } = await chrome.storage.local.get('extensionToken')
+  if (!extensionToken) return
+  try {
+    await fetch(`https://voxrate.app${path}`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${extensionToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(10000),
+    })
+  } catch {}
+}
+
+async function handleOverlayCheck(asin, sendResponse) {
+  const { extensionToken } = await chrome.storage.local.get('extensionToken')
+  if (!extensionToken) { sendResponse({ alerts: [], analysis: null }); return }
+  try {
+    const res = await fetch(`https://voxrate.app/api/toolkit/overlay?asin=${asin}`, {
+      headers: { 'Authorization': `Bearer ${extensionToken}` },
+      signal: AbortSignal.timeout(8000),
+    })
+    if (!res.ok) { sendResponse({ alerts: [], analysis: null }); return }
+    const data = await res.json()
+    sendResponse(data)
+  } catch {
+    sendResponse({ alerts: [], analysis: null })
+  }
 }
 
 // ── Submit ────────────────────────────────────────────────────────

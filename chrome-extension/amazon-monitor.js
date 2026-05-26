@@ -27,7 +27,7 @@
     const whole = getText('.a-price-whole')
     const fraction = getText('.a-price-fraction')
     if (whole) {
-      const raw = whole.replace(/[^0-9]/, '') + '.' + (fraction || '00')
+      const raw = whole.replace(/[^0-9]/g, '') + '.' + (fraction || '00')
       const parsed = parseFloat(raw)
       return isNaN(parsed) ? null : parsed
     }

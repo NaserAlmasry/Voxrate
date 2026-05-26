@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/app/lib/supabase/client'
 import {
   MessageSquare, AlertTriangle, Search, FileText, TrendingUp,
@@ -380,10 +380,12 @@ function FakeFingerprinterDrawer() {
 function EvidenceBuilderDrawer({ asins, alerts }: { asins: MonitoredAsin[]; alerts: Alert[] }) {
   const [selectedAsin, setSelectedAsin] = useState('')
   const [report, setReport] = useState('')
+  const [noAttacksMsg, setNoAttacksMsg] = useState(false)
 
   const generateReport = () => {
     const attackAlerts = alerts.filter(a => a.type === 'review_attack' && (!selectedAsin || a.asin === selectedAsin))
-    if (attackAlerts.length === 0) return
+    if (attackAlerts.length === 0) { setNoAttacksMsg(true); setReport(''); return }
+    setNoAttacksMsg(false)
 
     const lines = [
       'VOXRATE REVIEW ATTACK EVIDENCE REPORT',
@@ -430,6 +432,9 @@ function EvidenceBuilderDrawer({ asins, alerts }: { asins: MonitoredAsin[]; aler
       >
         Build Evidence Report
       </button>
+      {noAttacksMsg && (
+        <p className="text-sm text-neutral-500 text-center py-2">No review attack alerts found{selectedAsin ? ` for ${selectedAsin}` : ''}. Alerts appear automatically when the extension detects a spike.</p>
+      )}
       {report && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
@@ -459,7 +464,7 @@ function EvidenceBuilderDrawer({ asins, alerts }: { asins: MonitoredAsin[]; aler
 }
 
 function SentimentTrendDrawer() {
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const [data, setData] = useState<Array<{ month: string; avg_score: number; count: number }>>([])
   const [loading, setLoading] = useState(true)
 
@@ -493,7 +498,7 @@ function SentimentTrendDrawer() {
       setLoading(false)
     }
     load()
-  }, [])
+  }, [supabase])
 
   if (loading) return <div className="text-center py-8 text-sm text-neutral-400">Loading sentiment history...</div>
   if (data.length === 0) return (
@@ -752,7 +757,6 @@ function SCLockedDrawer({ title }: { title: string }) {
 // ─── Main page ────────────────────────────────────────────────────
 
 export default function ToolkitPage() {
-  const supabase = createClient()
   const [alerts, setAlerts] = useState<Alert[]>([])
   const [asins, setAsins] = useState<MonitoredAsin[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
@@ -768,19 +772,21 @@ export default function ToolkitPage() {
   const [showAddForm, setShowAddForm] = useState(false)
 
   const loadData = useCallback(async () => {
-    const [alertsRes, asinsRes] = await Promise.all([
-      fetch('/api/toolkit/alerts'),
-      fetch('/api/toolkit/asins'),
-    ])
-    if (alertsRes.ok) {
-      const d = await alertsRes.json()
-      setAlerts(d.alerts || [])
-      setUnreadCount(d.unreadCount || 0)
-    }
-    if (asinsRes.ok) {
-      const d = await asinsRes.json()
-      setAsins(d.asins || [])
-    }
+    try {
+      const [alertsRes, asinsRes] = await Promise.all([
+        fetch('/api/toolkit/alerts'),
+        fetch('/api/toolkit/asins'),
+      ])
+      if (alertsRes.ok) {
+        const d = await alertsRes.json()
+        setAlerts(d.alerts || [])
+        setUnreadCount(d.unreadCount || 0)
+      }
+      if (asinsRes.ok) {
+        const d = await asinsRes.json()
+        setAsins(d.asins || [])
+      }
+    } catch {}
     setLoading(false)
   }, [])
 
@@ -806,23 +812,28 @@ export default function ToolkitPage() {
     if (!addAsinValue.trim()) return
     setAddAsinLoading(true)
     setAddAsinError('')
-    const res = await fetch('/api/toolkit/asins', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ asin: addAsinValue.trim(), product_name: addAsinName.trim() || undefined }),
-    })
-    const data = await res.json()
-    if (!res.ok) { setAddAsinError(data.error || 'Failed'); setAddAsinLoading(false); return }
-    setAsins(prev => [data.asin, ...prev])
-    setAddAsinValue('')
-    setAddAsinName('')
-    setShowAddForm(false)
-    setAddAsinLoading(false)
+    try {
+      const res = await fetch('/api/toolkit/asins', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ asin: addAsinValue.trim(), product_name: addAsinName.trim() || undefined }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setAddAsinError(data.error || 'Failed'); return }
+      setAsins(prev => [data.asin, ...prev])
+      setAddAsinValue('')
+      setAddAsinName('')
+      setShowAddForm(false)
+    } catch {
+      setAddAsinError('Network error. Please try again.')
+    } finally {
+      setAddAsinLoading(false)
+    }
   }
 
   const removeAsin = async (asin: string) => {
-    await fetch(`/api/toolkit/asins?asin=${asin}`, { method: 'DELETE' })
-    setAsins(prev => prev.filter(a => a.asin !== asin))
+    const res = await fetch(`/api/toolkit/asins?asin=${asin}`, { method: 'DELETE' })
+    if (res.ok) setAsins(prev => prev.filter(a => a.asin !== asin))
   }
 
   const renderDrawerContent = (feature: FeatureCard) => {
@@ -940,7 +951,7 @@ export default function ToolkitPage() {
                 {FEATURES.filter(f => group.ids.includes(f.id)).map(feature => {
                   const featureAlertCount = alerts.filter(a => !a.read && (
                     (feature.id === 'attack-detector' && a.type === 'review_attack') ||
-                    (feature.id === 'listing-notifier' && a.type === 'listing_change') ||
+                    (feature.id === 'listing-notifier' && a.type === 'listing_change' && !a.body.includes('Buy Box')) ||
                     (feature.id === 'hijacker-alert' && a.type === 'listing_change' && a.body.includes('Buy Box')) ||
                     (feature.id === 'account-health' && a.type === 'account_health') ||
                     (feature.id === 'stranded-inventory' && a.type === 'stranded_inventory')

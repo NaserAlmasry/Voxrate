@@ -41,10 +41,20 @@ export async function POST(req: NextRequest) {
 
   const { asin, one_star, two_star = 0, three_star = 0, four_star = 0, five_star = 0 } = body
   if (!asin) return NextResponse.json({ error: 'Missing asin' }, { status: 400 })
+  if (typeof one_star !== 'number' || isNaN(one_star)) return NextResponse.json({ error: 'Invalid one_star' }, { status: 400 })
 
   const supabase = adminClient()
   const userId = session.user_id
   const today = new Date().toISOString().split('T')[0]
+
+  // Only process watched ASINs
+  const { data: monitored } = await supabase
+    .from('monitored_asins')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('asin', asin)
+    .maybeSingle()
+  if (!monitored) return NextResponse.json({ ok: true })
   const total = one_star + two_star + three_star + four_star + five_star
 
   await supabase.from('review_velocity').upsert({
@@ -86,7 +96,7 @@ export async function POST(req: NextRequest) {
         .eq('type', 'review_attack')
         .gte('created_at', `${today}T00:00:00Z`)
         .limit(1)
-        .single()
+        .maybeSingle()
 
       if (!existingAlert) {
         const reason = spikeAbsolute

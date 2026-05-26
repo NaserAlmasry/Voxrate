@@ -67,15 +67,27 @@ export async function POST(req: NextRequest) {
       alerts.push({ title: 'Policy Violations Detected', body: `${health.policy_violations} active policy violation(s) found`, severity: 'critical' })
     }
 
+    const today = new Date().toISOString().split('T')[0]
     for (const alert of alerts) {
-      await supabase.from('alerts').insert({
-        user_id: userId,
-        type: 'account_health',
-        severity: alert.severity,
-        title: alert.title,
-        body: alert.body,
-        data,
-      })
+      const { data: existing } = await supabase
+        .from('alerts')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('type', 'account_health')
+        .eq('title', alert.title)
+        .gte('created_at', `${today}T00:00:00Z`)
+        .limit(1)
+        .maybeSingle()
+      if (!existing) {
+        await supabase.from('alerts').insert({
+          user_id: userId,
+          type: 'account_health',
+          severity: alert.severity,
+          title: alert.title,
+          body: alert.body,
+          data,
+        })
+      }
     }
   }
 
@@ -90,7 +102,7 @@ export async function POST(req: NextRequest) {
         .eq('type', 'stranded_inventory')
         .gte('created_at', `${today}T00:00:00Z`)
         .limit(1)
-        .single()
+        .maybeSingle()
 
       if (!existing) {
         await supabase.from('alerts').insert({
