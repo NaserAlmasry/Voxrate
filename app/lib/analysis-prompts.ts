@@ -504,3 +504,44 @@ Return ONLY this JSON — start with { immediately:
   ]
 }`
 }
+
+// ── Executive Summary + Action Plan ──────────────────────────
+
+export const EXECUTIVE_SUMMARY_SYSTEM_PROMPT = `You are a direct business advisor for Amazon sellers. Given product analysis data, write a plain-English executive summary and a 3-item action plan. Return JSON only. Never use phrases like "improve quality", "enhance experience", "address this issue", "consider doing", or any vague business jargon. Be specific — name the actual symptom, the actual fix.`
+
+export function buildExecutiveSummaryPrompt(args: {
+  productTitle: string
+  healthScore: number
+  categoryBenchmark: number
+  negPct: number
+  seoScore: number
+  topComplaints: Array<{ title: string; severity: string }>
+  reviewCount: number
+}): string {
+  const { productTitle, healthScore, categoryBenchmark, negPct, seoScore, topComplaints, reviewCount } = args
+  const diff = healthScore - categoryBenchmark
+  const benchmarkText = diff >= 0 ? `${diff} points above` : `${Math.abs(diff)} points below`
+  const complaintsText = topComplaints.slice(0, 3).map((c, i) => `${i + 1}. [${c.severity}] ${c.title}`).join('\n')
+
+  return `PRODUCT: ${productTitle}
+HEALTH SCORE: ${healthScore}/100 (category avg ~${categoryBenchmark} — ${benchmarkText} average)
+UNHAPPY BUYERS: ${negPct}%
+SEO SCORE: ${seoScore}/100
+REVIEWS ANALYZED: ${reviewCount}
+TOP COMPLAINTS:
+${complaintsText}
+
+Write an executive_summary: 2-3 sentences in plain English. Name the #1 complaint using its exact title. Say whether the health score is above or below category avg. End with the single most impactful action the seller can take this week — be specific about what to change and where.
+
+Write an action_plan: exactly 3 items. Each derived directly from the complaints above. Use a different complaint or angle for each item.
+
+Return ONLY this JSON:
+{
+  "executive_summary": "...",
+  "action_plan": [
+    { "effort": "Easy", "action": "...", "impact": "..." },
+    { "effort": "Medium", "action": "...", "impact": "..." },
+    { "effort": "Hard", "action": "...", "impact": "..." }
+  ]
+}`
+}
