@@ -142,15 +142,14 @@ export async function POST(request: NextRequest) {
             break
           }
 
-          const PLAN_CREDITS: Record<string, number> = {
-            starter: 300,
-            growth:  800,
-            pro:     2000,
+            const PLAN_ANALYSES_MAP: Record<string, { own: number; competitor: number; rolloverCap: number }> = {
+            starter: { own: 25,  competitor: 3,  rolloverCap: 2 },
+            growth:  { own: 60,  competitor: 15, rolloverCap: 2 },
+            pro:     { own: 150, competitor: 40, rolloverCap: 3 },
           }
-          const newPlan = plan
-          const resolvedCredits = credits === 0 ? (PLAN_CREDITS[newPlan] ?? 0) : credits
+          const planAllotment = PLAN_ANALYSES_MAP[plan] ?? PLAN_ANALYSES_MAP.starter
 
-          console.log(`[Webhook] Upgrading user ${userId} to ${plan} + ${resolvedCredits} credits`)
+          console.log(`[Webhook] Upgrading user ${userId} to ${plan} — granting ${planAllotment.own} own + ${planAllotment.competitor} competitor analyses`)
 
           // Fetch subscription to get billing period end date
           let periodEnd: number | null = null
@@ -174,15 +173,15 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Plan update failed' }, { status: 500 })
           }
 
-          if (resolvedCredits > 0 && resolvedCredits <= MAX_SUB_CREDITS) {
-            const { error: rpcError } = await supabase.rpc('add_credits', { p_user_id: userId, p_amount: resolvedCredits })
-            if (rpcError) {
-              console.error(`[Webhook] add_credits RPC failed on subscription:`, rpcError.message)
-              await supabase.from('processed_webhook_events').delete().eq('stripe_event_id', event.id)
-              return NextResponse.json({ error: 'Credit update failed' }, { status: 500 })
-            }
-          } else if (resolvedCredits > MAX_SUB_CREDITS) {
-            console.error(`[Webhook] Suspicious subscription credit amount ${resolvedCredits} — rejected`)
+          // Set analyses remaining (initial checkout: just set, don't roll over)
+          const { error: rpcError } = await supabase.from('users').update({
+            own_analyses_remaining:        planAllotment.own,
+            competitor_analyses_remaining: planAllotment.competitor,
+          }).eq('id', userId)
+          if (rpcError) {
+            console.error(`[Webhook] analyses update failed on subscription:`, rpcError.message)
+            await supabase.from('processed_webhook_events').delete().eq('stripe_event_id', event.id)
+            return NextResponse.json({ error: 'Analyses update failed' }, { status: 500 })
           }
 
           console.log(`[Webhook] ✅ User ${userId} upgraded to ${plan}`)
@@ -233,49 +232,36 @@ export async function POST(request: NextRequest) {
         if (!userId || !plan) break
         if (!['starter', 'growth', 'pro'].includes(plan)) break
 
-        const PLAN_CREDITS: Record<string, number> = { starter: 300, growth: 800, pro: 2000 }
-        const metaCredits = parseInt(subscription.metadata?.credits || '0', 10)
-        // Fall back to plan default if metadata.credits is missing or 0 — prevents users
-        // keeping stale credits from the previous period when metadata is absent.
-        const credits = metaCredits > 0 ? metaCredits : (PLAN_CREDITS[plan] ?? 0)
+        const RENEW_ANALYSES_MAP: Record<string, { own: number; competitor: number; rolloverCap: number }> = {
+          starter: { own: 25,  competitor: 3,  rolloverCap: 2 },
+          growth:  { own: 60,  competitor: 15, rolloverCap: 2 },
+          pro:     { own: 150, competitor: 40, rolloverCap: 3 },
+        }
+        const allotment = RENEW_ANALYSES_MAP[plan] ?? RENEW_ANALYSES_MAP.starter
 
         const periodEnd = (subscription as any).current_period_end ?? null
-        console.log(`[Webhook] Monthly renewal for user ${userId} — adding ${credits} credits`)
+        console.log(`[Webhook] Monthly renewal for user ${userId} — rolling over ${allotment.own} own + ${allotment.competitor} competitor analyses (cap ${allotment.rolloverCap}x)`)
+
         const { error: renewUpdateError } = await supabase.from('users').update({ plan, stripe_current_period_end: periodEnd }).eq('id', userId)
         if (renewUpdateError) {
           console.error(`[Webhook] Renewal plan update failed:`, renewUpdateError.message)
           await supabase.from('processed_webhook_events').delete().eq('stripe_event_id', event.id)
           return NextResponse.json({ error: 'Plan update failed' }, { status: 500 })
         }
-        // On renewal: reset subscription portion to plan_credits, preserve pack_credits.
-        // credits = pack_credits + plan_credits ensures both bugs are closed:
-        //   - Downgrade exploit: subscription portion always resets to plan amount
-        //   - Pack preservation: purchased packs are never wiped by a renewal
-        if (credits > 0 && credits <= 2000) {
-          const { data: currentUser, error: fetchError } = await supabase
-            .from('users')
-            .select('pack_credits')
-            .eq('id', userId)
-            .single()
-          if (fetchError) {
-            console.error(`[Webhook] Could not fetch pack_credits on renewal:`, fetchError.message)
-            await supabase.from('processed_webhook_events').delete().eq('stripe_event_id', event.id)
-            return NextResponse.json({ error: 'Credit update failed' }, { status: 500 })
-          }
-          const packCredits = currentUser?.pack_credits ?? 0
-          const { error: resetError } = await supabase
-            .from('users')
-            .update({ credits: packCredits + credits, competitor_analyses_used: 0 })
-            .eq('id', userId)
-          if (resetError) {
-            console.error(`[Webhook] Credit reset failed on renewal:`, resetError.message)
-            await supabase.from('processed_webhook_events').delete().eq('stripe_event_id', event.id)
-            return NextResponse.json({ error: 'Credit update failed' }, { status: 500 })
-          }
-          console.log(`[Webhook] ✅ Renewal credits set: ${packCredits} (pack) + ${credits} (plan) = ${packCredits + credits}`)
-        } else if (credits > 2000) {
-          console.error(`[Webhook] Suspicious renewal credit amount ${credits} — rejected`)
+
+        // Rollover: add monthly allotment to remaining, cap at rolloverCap × monthly
+        const { error: rolloverError } = await supabase.rpc('renew_analyses_with_rollover', {
+          p_user_id:            userId,
+          p_own_monthly:        allotment.own,
+          p_competitor_monthly: allotment.competitor,
+          p_rollover_cap:       allotment.rolloverCap,
+        })
+        if (rolloverError) {
+          console.error(`[Webhook] Rollover RPC failed on renewal:`, rolloverError.message)
+          await supabase.from('processed_webhook_events').delete().eq('stripe_event_id', event.id)
+          return NextResponse.json({ error: 'Analyses rollover failed' }, { status: 500 })
         }
+        console.log(`[Webhook] ✅ Rollover applied for user ${userId} on plan ${plan}`)
         break
       }
 
@@ -307,14 +293,12 @@ export async function POST(request: NextRequest) {
         }
         if (!userId) break
 
-        console.log(`[Webhook] Subscription cancelled for user ${userId} — downgrading to free, preserving pack credits`)
-        // Fetch pack_credits so purchased packs survive the subscription cancellation
-        const { data: cancelUser } = await supabase.from('users').select('pack_credits').eq('id', userId).single()
-        const packCreditsOnCancel = cancelUser?.pack_credits ?? 0
+        console.log(`[Webhook] Subscription cancelled for user ${userId} — downgrading to free`)
         await supabase.from('users').update({
-          plan:                      'free',
-          credits:                   packCreditsOnCancel,
-          stripe_current_period_end: null,
+          plan:                          'free',
+          own_analyses_remaining:        0,
+          competitor_analyses_remaining: 0,
+          stripe_current_period_end:     null,
         }).eq('id', userId)
         break
       }

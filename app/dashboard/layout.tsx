@@ -111,7 +111,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [userEmail, setUserEmail] = useState('')
   const [plan, setPlan]       = useState('free')
   const [isAdmin, setIsAdmin] = useState(false)
-  const [credits, setCredits] = useState<number | null>(null)
+  const [ownRemaining, setOwnRemaining] = useState<number | null>(null)
   const [showUpgradeBanner, setShowUpgradeBanner] = useState(false)
   const [authChecked, setAuthChecked] = useState(false)
 
@@ -123,10 +123,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const loadPlan = async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    const { data } = await supabase.from('users').select('plan, credits, is_admin').eq('id', user.id).single()
+    const { data } = await supabase.from('users').select('plan, own_analyses_remaining, is_admin').eq('id', user.id).single()
     if (data?.plan) setPlan(data.plan)
     if (data?.is_admin) setIsAdmin(true)
-    if (data?.credits != null) setCredits(data.credits)
+    if (data?.own_analyses_remaining != null) setOwnRemaining(data.own_analyses_remaining)
   }
 
   useEffect(() => {
@@ -159,10 +159,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       attempts++
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { clearInterval(poll); return }
-      const { data } = await supabase.from('users').select('plan, credits').eq('id', user.id).single()
+      const { data } = await supabase.from('users').select('plan, own_analyses_remaining').eq('id', user.id).single()
       if (data?.plan && data.plan !== 'free') {
         setPlan(data.plan)
-        if (data?.credits != null) setCredits(data.credits)
+        if (data?.own_analyses_remaining != null) setOwnRemaining(data.own_analyses_remaining)
         clearInterval(poll)
         bannerTimer = setTimeout(() => setShowUpgradeBanner(false), 4000)
       }
@@ -366,10 +366,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 }`}>
                   {plan.charAt(0).toUpperCase() + plan.slice(1)}
                 </span>
-                {credits !== null && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700">
+                {ownRemaining !== null && plan !== 'free' && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-orange-50 text-orange-700">
                     <span className="w-2 h-2 rounded-full bg-current" />
-                    {credits} cr
+                    {ownRemaining} left
                   </span>
                 )}
               </div>
