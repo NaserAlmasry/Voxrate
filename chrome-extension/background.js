@@ -211,7 +211,15 @@ async function poll() {
       chrome.storage.local.remove('extensionToken')
       return
     }
+    if (res.status === 403) {
+      const body = await res.json().catch(() => ({}))
+      if (body.error === 'trial_expired') {
+        chrome.storage.local.set({ voxrate_trial_expired: true })
+      }
+      return
+    }
     if (!res.ok) return
+    chrome.storage.local.remove('voxrate_trial_expired')
     const data = await res.json()
     job = data.job
   } catch {

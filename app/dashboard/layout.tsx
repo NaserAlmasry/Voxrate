@@ -112,6 +112,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [plan, setPlan]       = useState('free')
   const [isAdmin, setIsAdmin] = useState(false)
   const [ownRemaining, setOwnRemaining] = useState<number | null>(null)
+  const [trialEndsAt, setTrialEndsAt] = useState<string | null>(null)
   const [showUpgradeBanner, setShowUpgradeBanner] = useState(false)
   const [authChecked, setAuthChecked] = useState(false)
 
@@ -123,10 +124,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const loadPlan = async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    const { data } = await supabase.from('users').select('plan, own_analyses_remaining, is_admin').eq('id', user.id).single()
+    const { data } = await supabase.from('users').select('plan, own_analyses_remaining, is_admin, trial_ends_at').eq('id', user.id).single()
     if (data?.plan) setPlan(data.plan)
     if (data?.is_admin) setIsAdmin(true)
     if (data?.own_analyses_remaining != null) setOwnRemaining(data.own_analyses_remaining)
+    if (data?.trial_ends_at) setTrialEndsAt(data.trial_ends_at)
   }
 
   useEffect(() => {
@@ -228,6 +230,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <button onClick={() => setShowUpgradeBanner(false)} aria-label="Dismiss upgrade banner" className="ml-2 text-white/70 hover:text-white">✕</button>
         </div>
       )}
+
+      {/* ── TRIAL BANNER ── */}
+      {plan === 'free' && trialEndsAt && new Date(trialEndsAt) > new Date() && (() => {
+        const daysLeft = Math.ceil((new Date(trialEndsAt).getTime() - Date.now()) / 86_400_000)
+        const urgent = daysLeft <= 3
+        return (
+          <div className={`fixed top-0 inset-x-0 z-50 flex items-center justify-center gap-3 px-6 py-2.5 text-sm font-medium ${urgent ? 'bg-red-500' : 'bg-orange-500'} text-white`}>
+            <span>⏳</span>
+            <span>{daysLeft} day{daysLeft !== 1 ? 's' : ''} left in your free trial</span>
+            <a href="/#pricing" className="underline underline-offset-2 font-bold hover:opacity-90 transition-opacity">
+              Upgrade to keep access →
+            </a>
+          </div>
+        )
+      })()}
 
       {/* ── MOBILE OVERLAY ── */}
       {mobileOpen && (

@@ -33,6 +33,20 @@ export async function GET(req: NextRequest) {
 
   const supabase = adminClient()
 
+  // Check plan access — paid plans OR active trial only
+  const { data: userData } = await supabase
+    .from('users')
+    .select('plan, trial_ends_at')
+    .eq('id', session.user_id)
+    .single()
+
+  const isTrial = userData?.trial_ends_at && new Date(userData.trial_ends_at) > new Date()
+  const hasPaidPlan = userData?.plan && userData.plan !== 'free'
+
+  if (!hasPaidPlan && !isTrial) {
+    return NextResponse.json({ error: 'trial_expired', message: 'Your free trial has ended. Upgrade at voxrate.app to reactivate.' }, { status: 403 })
+  }
+
   // Update heartbeat
   await supabase
     .from('extension_sessions')

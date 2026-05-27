@@ -8,11 +8,22 @@ async function init() {
   if (!status.connected) {
     $('setup-view').style.display = 'block'
     $('main-view').style.display = 'none'
+    $('trial-expired-view').style.display = 'none'
+    return
+  }
+
+  // Check if trial expired
+  const { voxrate_trial_expired } = await chrome.storage.local.get('voxrate_trial_expired')
+  if (voxrate_trial_expired) {
+    $('setup-view').style.display = 'none'
+    $('main-view').style.display = 'none'
+    $('trial-expired-view').style.display = 'block'
     return
   }
 
   $('setup-view').style.display = 'none'
   $('main-view').style.display = 'block'
+  $('trial-expired-view').style.display = 'none'
 
   $('jobs-today').textContent = status.jobsToday
   $('busy-row').style.display = status.busy ? 'flex' : 'none'
