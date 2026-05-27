@@ -256,6 +256,9 @@ export async function POST(request: NextRequest) {
           p_competitor_monthly: allotment.competitor,
           p_rollover_cap:       allotment.rolloverCap,
         })
+
+        // Reset emergency re-analyze override — non-fatal
+        try { await supabase.rpc('reset_reanalyze_override', { p_user_id: userId }) } catch (_) {}
         if (rolloverError) {
           console.error(`[Webhook] Rollover RPC failed on renewal:`, rolloverError.message)
           await supabase.from('processed_webhook_events').delete().eq('stripe_event_id', event.id)

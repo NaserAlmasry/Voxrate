@@ -50,6 +50,26 @@ function severityConfig(s: string) {
 function safeArray(v: any): any[]  { return Array.isArray(v) ? v : [] }
 function safeStr(v: any, fb = '—'): string { return typeof v === 'string' && v.trim() ? v : fb }
 
+const CATEGORY_BENCHMARKS: Record<string, number> = {
+  electronics: 65, computers: 64, camera: 63, audio: 65,
+  home: 62, kitchen: 62, garden: 63, furniture: 61,
+  sports: 67, outdoors: 67, fitness: 66,
+  toys: 63, games: 64,
+  beauty: 64, 'personal care': 63,
+  health: 66, grocery: 66, food: 66,
+  clothing: 60, apparel: 60, shoes: 61,
+  baby: 65, tools: 61, hardware: 61,
+  pet: 68, automotive: 62,
+  books: 72, office: 63,
+}
+function getCategoryBenchmark(category: string): number {
+  const lower = (category || '').toLowerCase()
+  for (const [key, val] of Object.entries(CATEGORY_BENCHMARKS)) {
+    if (lower.includes(key)) return val
+  }
+  return 63
+}
+
 // Escape HTML special chars before injecting LLM content into PDF HTML.
 // Prevents XSS via malicious Amazon review text copied verbatim by the LLM.
 function esc(v: any, fb = '—'): string {
@@ -445,6 +465,7 @@ export default function ReportPage() {
   const [showComparePicker, setShowComparePicker]   = useState(false)
   const [ownReports, setOwnReports]                 = useState<any[]>([])
   const [reanalyzing, setReanalyzing]               = useState(false)
+  const [cooldownInfo, setCooldownInfo]             = useState<{ daysLeft: number; hasOverride: boolean } | null>(null)
   const [ownReportsLoading, setOwnReportsLoading]   = useState(false)
   const loadStartRef                                = useRef<number>(Date.now())
   const ratingTimerRef                              = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -705,18 +726,27 @@ export default function ReportPage() {
     }
   }
 
-  const handleReanalyze = async () => {
+  const handleReanalyze = async (emergency = false) => {
     if (!report?.product_url || reanalyzing) return
     setReanalyzing(true)
+    setCooldownInfo(null)
     try {
       const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-        body: JSON.stringify({ productUrl: report.product_url, reportType: report.report_type || 'own' }),
+        body: JSON.stringify({
+          productUrl:         report.product_url,
+          reportType:         report.report_type || 'own',
+          reAnalyze:          true,
+          emergencyReanalyze: emergency,
+        }),
       })
       const data = await res.json()
       if (res.ok && data.reportId) {
         router.push(`/dashboard/report/${data.reportId}`)
+      } else if (res.status === 429 && data.cooldownDaysLeft) {
+        setCooldownInfo({ daysLeft: data.cooldownDaysLeft, hasOverride: !!data.hasEmergencyOverride })
+        setReanalyzing(false)
       } else {
         toast(data.error || 'Re-analysis failed. Please try again.', 'error')
         setReanalyzing(false)
@@ -976,8 +1006,21 @@ export default function ReportPage() {
         </div>
       )}
 
+      {/* Amazon rate-limit / scrape-blocked banner */}
+      {report.status === 'partial' && (report.total_reviews_analyzed ?? 0) < 10 && !isLimited && (
+        <div className="flex items-start gap-3 px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" className="flex-shrink-0 mt-0.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <div>
+            <p className="text-xs text-blue-800 leading-relaxed">
+              <strong>Amazon returned limited data for this product.</strong> This can happen during high-traffic periods or when Amazon temporarily restricts scraping. Results below are based on {report.total_reviews_analyzed} reviews.
+            </p>
+            <p className="text-xs text-blue-600 mt-1">Re-analyze in a few hours for a full picture — your analysis count won't be deducted again.</p>
+          </div>
+        </div>
+      )}
+
       {/* Resume partial analysis */}
-      {report.status === 'partial' && !loadingSection && !isLimited && (
+      {report.status === 'partial' && (report.total_reviews_analyzed ?? 0) >= 10 && !loadingSection && !isLimited && (
         <div className="flex items-center justify-between gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
           <p className="text-xs text-amber-800">Some sections did not finish loading.</p>
           <button
@@ -1029,17 +1072,33 @@ export default function ReportPage() {
         <div className="flex items-center gap-2 flex-shrink-0">
           {/* Re-analyze button — only on URL-based own reports */}
           {report.report_type !== 'competitor' && report.product_url && !report.product_url.startsWith('csv:') && (
-            <button
-              onClick={handleReanalyze}
-              disabled={reanalyzing}
-              className="px-3 py-2 text-xs font-medium border border-neutral-200 rounded-xl hover:bg-neutral-50 transition-colors flex items-center gap-1.5 disabled:opacity-50"
-              title="Re-analyze this listing to get fresh data (costs 20 credits)"
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                <path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
-              </svg>
-              {reanalyzing ? 'Starting…' : 'Re-analyze · 20cr'}
-            </button>
+            <div className="flex flex-col items-end gap-1">
+              <button
+                onClick={() => handleReanalyze(false)}
+                disabled={reanalyzing}
+                className="px-3 py-2 text-xs font-medium border border-neutral-200 rounded-xl hover:bg-neutral-50 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                title="Re-analyze this listing to get fresh data"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                </svg>
+                {reanalyzing ? 'Starting…' : 'Re-analyze'}
+              </button>
+              {cooldownInfo && (
+                <div className="text-right">
+                  <p className="text-[10px] text-neutral-400">Available in {cooldownInfo.daysLeft}d</p>
+                  {cooldownInfo.hasOverride && (
+                    <button
+                      onClick={() => handleReanalyze(true)}
+                      disabled={reanalyzing}
+                      className="text-[10px] text-orange-500 hover:text-orange-600 underline mt-0.5"
+                    >
+                      Use emergency re-analyze (1 left)
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           )}
 
           {/* Compare button — only on competitor reports */}
@@ -1114,6 +1173,9 @@ export default function ReportPage() {
             <p className="text-xs text-neutral-400">Health</p>
             <p className={`text-2xl font-bold ${sc.text}`}>
               {report.health_score}<span className="text-sm text-neutral-400">/100</span>
+            </p>
+            <p className="text-[9px] text-neutral-400 mt-0.5">
+              avg ~{fr.categoryBenchmark ?? getCategoryBenchmark(fr.bsrCategory || '')}
             </p>
             {scoreHistory.length >= 2 && (() => {
               const prev = scoreHistory[scoreHistory.length - 2].score
@@ -1325,6 +1387,47 @@ export default function ReportPage() {
               )
             })}
           </div>
+        </div>
+      )}
+
+      {/* Executive summary + action plan */}
+      {!isLimited && (fr.summary || safeArray(fr.topActions).length > 0) && (
+        <div className="space-y-3">
+          {fr.summary && (
+            <div className="bg-neutral-900 rounded-2xl border border-neutral-800 overflow-hidden">
+              <div className="px-5 pt-4 pb-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-orange-400 mb-2">Executive Summary</p>
+                <p className="text-sm text-neutral-100 leading-relaxed">{safeStr(fr.summary)}</p>
+              </div>
+            </div>
+          )}
+          {safeArray(fr.topActions).length > 0 && (
+            <div className="bg-white rounded-2xl border border-neutral-200 overflow-hidden">
+              <div className="px-5 pt-4 pb-1 border-b border-neutral-100">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-400">Your Action Plan</h3>
+              </div>
+              <div className="divide-y divide-neutral-100">
+                {safeArray(fr.topActions).map((a: any, i: number) => {
+                  const effort = typeof a === 'object' ? safeStr(a.effort, 'Medium') : 'Medium'
+                  const action = typeof a === 'object' ? safeStr(a.action) : safeStr(String(a))
+                  const impact = typeof a === 'object' ? safeStr(a.impact, '') : ''
+                  const effortColor = effort === 'Easy' ? 'bg-green-100 text-green-700' : effort === 'Hard' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+                  return (
+                    <div key={i} className="flex items-start gap-3 px-5 py-4">
+                      <div className="flex-shrink-0 w-6 h-6 rounded-full bg-orange-500 text-white text-xs font-bold flex items-center justify-center mt-0.5">{i + 1}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full ${effortColor}`}>{effort}</span>
+                        </div>
+                        <p className="text-sm font-medium text-neutral-900 leading-snug">{action}</p>
+                        {impact && <p className="text-xs text-neutral-500 mt-1 leading-relaxed">{impact}</p>}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

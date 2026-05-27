@@ -45,12 +45,38 @@ import { verifyCronRequest } from '@/app/lib/cron-auth'
 import {
   COMPLAINTS_SYSTEM_PROMPT,
   FREE_PREVIEW_SYSTEM_PROMPT,
+  EXECUTIVE_SUMMARY_SYSTEM_PROMPT,
   buildComplaintsPrompt,
   buildComplaintsRetryPrompt,
   buildFreePreviewPrompt,
+  buildExecutiveSummaryPrompt,
 } from '@/app/lib/analysis-prompts'
 
 export const maxDuration = 300
+
+// ── Category benchmark lookup ─────────────────────────────────
+
+const CATEGORY_BENCHMARKS: Record<string, number> = {
+  electronics: 65, computers: 64, camera: 63, audio: 65,
+  home: 62, kitchen: 62, garden: 63, furniture: 61,
+  sports: 67, outdoors: 67, fitness: 66, exercise: 66,
+  toys: 63, games: 64,
+  beauty: 64, 'personal care': 63, cosmetics: 63,
+  health: 66, grocery: 66, food: 66, gourmet: 66,
+  clothing: 60, apparel: 60, shoes: 61, fashion: 60,
+  baby: 65, tools: 61, hardware: 61,
+  pet: 68, automotive: 62,
+  books: 72, music: 70,
+  office: 63, arts: 64,
+}
+
+function getCategoryBenchmark(category: string): number {
+  const lower = (category || '').toLowerCase()
+  for (const [key, val] of Object.entries(CATEGORY_BENCHMARKS)) {
+    if (lower.includes(key)) return val
+  }
+  return 63
+}
 
 // ── Retry wrapper ─────────────────────────────────────────────
 
@@ -258,6 +284,37 @@ Classify each issue as SHIPPING / PRODUCTION / LISTING / DESIGN / COMPATIBILITY 
 
   const topComplaintTitle = complaintsData.complaints?.[0]?.title || 'quality issues'
 
+  // ── Call 2: EXECUTIVE SUMMARY + ACTION PLAN ──────────────────
+  let executiveSummary = ''
+  let actionPlan: any[] = []
+  try {
+    const summaryRaw = await callMistralLatest([
+      { role: 'system' as const, content: EXECUTIVE_SUMMARY_SYSTEM_PROMPT },
+      {
+        role: 'user' as const,
+        content: buildExecutiveSummaryPrompt({
+          productTitle:      product.title,
+          healthScore:       ctx.healthScore,
+          categoryBenchmark: getCategoryBenchmark(product.category || ''),
+          negPct,
+          seoScore:          seoAnalysis.score,
+          topComplaints:     (complaintsData.complaints || []).slice(0, 3).map((c: any) => ({ title: c.title, severity: c.severity })),
+          reviewCount:       reviews.length,
+        }),
+      },
+    ], 900)
+    const parsed = extractJson(summaryRaw) as any
+    if (typeof parsed?.executive_summary === 'string' && parsed.executive_summary.length > 20) {
+      executiveSummary = parsed.executive_summary
+    }
+    if (Array.isArray(parsed?.action_plan)) {
+      actionPlan = parsed.action_plan.slice(0, 3)
+    }
+    console.log(`[Summary] Executive summary generated — ${executiveSummary.length} chars, ${actionPlan.length} actions`)
+  } catch (e) {
+    console.warn('[Summary] Executive summary generation failed:', e)
+  }
+
   const partialReport: any = {
     healthScore:   ctx.healthScore,
     starBreakdown: {
@@ -275,10 +332,10 @@ Classify each issue as SHIPPING / PRODUCTION / LISTING / DESIGN / COMPATIBILITY 
     reviewTemplates: [],
     careGuide:       null,
     quickWin:        null,
-    topActions:      [],
+    topActions:      actionPlan,
     freeSummary:     '',
     keyInsight:      '',
-    summary:         '',
+    summary:         executiveSummary,
     _cache: {
       contextBlock,
       negReviewText,
@@ -291,7 +348,8 @@ Classify each issue as SHIPPING / PRODUCTION / LISTING / DESIGN / COMPATIBILITY 
       negPct,
       topComplaintTitle,
     },
-    _sectionsReady: ['complaints'],
+    categoryBenchmark: getCategoryBenchmark(product.category || ''),
+    _sectionsReady: ['complaints', 'summary', 'topActions'],
   }
 
   return partialReport
@@ -442,6 +500,7 @@ export async function POST(request: NextRequest) {
     const body               = await request.json()
     const rawUrl             = body?.productUrl
     const isReAnalyze        = body?.reAnalyze === true
+    const emergencyReanalyze = body?.emergencyReanalyze === true
     const reportType         = body?.reportType === 'competitor' ? 'competitor' : 'own'
     const ownReportId        = typeof body?.ownReportId === 'string' ? body.ownReportId : null
     const productDescription = typeof body?.productDescription === 'string'
@@ -480,7 +539,7 @@ export async function POST(request: NextRequest) {
 
     const { data: userData } = await supabase
       .from('users')
-      .select('plan, is_admin, own_analyses_remaining, competitor_analyses_remaining')
+      .select('plan, is_admin, own_analyses_remaining, competitor_analyses_remaining, reanalyze_overrides')
       .eq('id', user.id)
       .single()
 
@@ -488,6 +547,7 @@ export async function POST(request: NextRequest) {
     const plan                         = userData?.plan    || 'free'
     const ownRemaining                 = userData?.own_analyses_remaining ?? 0
     const competitorRemaining          = userData?.competitor_analyses_remaining ?? 0
+    const reanalyzeOverrides           = userData?.reanalyze_overrides ?? 0
 
     // Dedup: prevent same user+product within 60 seconds (double-click protection)
     {
@@ -559,10 +619,23 @@ export async function POST(request: NextRequest) {
         if (lastReport?.last_analyzed_at) {
           const daysSince = (Date.now() - new Date(lastReport.last_analyzed_at).getTime()) / 86_400_000
           if (daysSince < cooldownDays) {
-            return NextResponse.json(
-              { error: `Re-analyze available in ${Math.ceil(cooldownDays - daysSince)} day(s).${plan !== 'pro' ? ' Pro plan removes this cooldown.' : ''}` },
-              { status: 429 },
-            )
+            if (emergencyReanalyze && reanalyzeOverrides > 0) {
+              // Burn one emergency override — non-fatal if it fails
+              await supabase
+                .from('users')
+                .update({ reanalyze_overrides: reanalyzeOverrides - 1 })
+                .eq('id', user.id)
+                .catch((e: any) => console.warn('[Analyze] override decrement failed:', e?.message))
+            } else {
+              return NextResponse.json(
+                {
+                  error: `Re-analyze available in ${Math.ceil(cooldownDays - daysSince)} day(s).${plan !== 'pro' ? ' Pro plan removes this cooldown.' : ''}`,
+                  cooldownDaysLeft: Math.ceil(cooldownDays - daysSince),
+                  hasEmergencyOverride: reanalyzeOverrides > 0,
+                },
+                { status: 429 },
+              )
+            }
           }
         }
       }
@@ -694,9 +767,10 @@ export async function POST(request: NextRequest) {
             hasAplus:            amazonProduct.hasAplus,
             bsr:                 amazonProduct.bsr,
             bsrCategory:         amazonProduct.bsrCategory,
-            verifiedHealthScore: ctx.verifiedHealthScore,
-            rawHealthScore:      ctx.rawHealthScore,
-            fakeReviewFlag:      ctx.fakeReviewFlag,
+            verifiedHealthScore:  ctx.verifiedHealthScore,
+            rawHealthScore:       ctx.rawHealthScore,
+            fakeReviewFlag:       ctx.fakeReviewFlag,
+            categoryBenchmark:    getCategoryBenchmark(amazonProduct.category || ''),
             unansweredQAGaps:    qa.filter(q => q.answer === null).map(q => q.question).slice(0, 5),
             recentSales:         amazonProduct.recentSales,
             }
