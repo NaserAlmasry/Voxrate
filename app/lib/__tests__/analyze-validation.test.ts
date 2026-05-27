@@ -206,12 +206,12 @@ describe('POST /api/analyze — input validation and credit-gating', () => {
     mockScrapeAmazon.mockResolvedValue(FAKE_SCRAPE_RESULT)
     mockScrapeAmazonFree.mockResolvedValue(FAKE_SCRAPE_RESULT)
 
-    // Default from() chain: user with 100 credits on starter plan, no recent reports
+    // Default from() chain: user with analyses remaining on starter plan, no recent reports
     mockFrom.mockImplementation((table: string) => {
       if (table === 'users') {
         const c = buildChain()
         c.single = vi.fn().mockResolvedValue({
-          data: { plan: 'starter', is_admin: false, credits: 100, competitor_analyses_used: 0 },
+          data: { plan: 'starter', is_admin: false, own_analyses_remaining: 25, competitor_analyses_remaining: 3 },
           error: null,
         })
         return c
@@ -280,13 +280,13 @@ describe('POST /api/analyze — input validation and credit-gating', () => {
   })
 
   // ── 4. Insufficient credits — deduct_credits RPC failure ───────
-  it('returns 402-style 403 if user has insufficient credits', async () => {
-    // User has 0 credits
+  it('returns 402-style 403 if user has no analyses remaining', async () => {
+    // User has 0 own_analyses_remaining
     mockFrom.mockImplementation((table: string) => {
       if (table === 'users') {
         const c = buildChain()
         c.single = vi.fn().mockResolvedValue({
-          data: { plan: 'starter', is_admin: false, credits: 0, competitor_analyses_used: 0 },
+          data: { plan: 'starter', is_admin: false, own_analyses_remaining: 0, competitor_analyses_remaining: 3 },
           error: null,
         })
         return c
@@ -304,22 +304,22 @@ describe('POST /api/analyze — input validation and credit-gating', () => {
     expect(res.status).toBe(403)
     const json = await res.json()
     expect(json.upgradeRequired).toBe(true)
-    expect(json.error).toMatch(/not enough credits/i)
+    expect(json.error).toMatch(/analyses this month/i)
   })
 
-  it('returns 503 if deduct_credits RPC returns an error', async () => {
-    // User has enough credits but RPC errors
+  it('returns 503 if deduct_own_analysis RPC returns an error', async () => {
+    // User has enough analyses but RPC errors
     mockRpc.mockResolvedValue({ data: null, error: { message: 'DB connection error' } })
 
     const req = makeRequest({ productUrl: 'B073JYC4XM' })
     const res = await POST(req)
     expect(res.status).toBe(503)
     const json = await res.json()
-    expect(json.error).toMatch(/could not deduct credits/i)
+    expect(json.error).toMatch(/could not deduct analysis/i)
   })
 
-  it('returns 403 if deduct_credits RPC returns data=false (insufficient funds)', async () => {
-    // RPC succeeds but returns false — means not enough credits at DB level
+  it('returns 403 if deduct_own_analysis RPC returns data=false (insufficient funds)', async () => {
+    // RPC succeeds but returns false — means not enough analyses at DB level
     mockRpc.mockResolvedValue({ data: false, error: null })
 
     const req = makeRequest({ productUrl: 'B073JYC4XM' })
@@ -349,12 +349,11 @@ describe('POST /api/analyze — input validation and credit-gating', () => {
     expect(json.success).toBe(true)
   })
 
-  it('deducts credits (calls deduct_credits RPC) on successful analysis', async () => {
+  it('deducts analyses (calls deduct_own_analysis RPC) on successful analysis', async () => {
     const req = makeRequest({ productUrl: 'B073JYC4XM' })
     await POST(req)
-    expect(mockRpc).toHaveBeenCalledWith('deduct_credits', {
+    expect(mockRpc).toHaveBeenCalledWith('deduct_own_analysis', {
       p_user_id: 'user_123',
-      p_amount:  20, // CREDIT_COSTS.ownAnalysis
     })
   })
 
@@ -364,7 +363,7 @@ describe('POST /api/analyze — input validation and credit-gating', () => {
       if (table === 'users') {
         const c = buildChain()
         c.single = vi.fn().mockResolvedValue({
-          data: { plan: 'free', is_admin: false, credits: 50, competitor_analyses_used: 0 },
+          data: { plan: 'free', is_admin: false, own_analyses_remaining: 1, competitor_analyses_remaining: 0 },
           error: null,
         })
         return c
@@ -398,7 +397,7 @@ describe('POST /api/analyze — input validation and credit-gating', () => {
       if (table === 'users') {
         const c = buildChain()
         c.single = vi.fn().mockResolvedValue({
-          data: { plan: 'free', is_admin: false, credits: 50, competitor_analyses_used: 0 },
+          data: { plan: 'free', is_admin: false, own_analyses_remaining: 1, competitor_analyses_remaining: 0 },
           error: null,
         })
         return c
@@ -439,7 +438,7 @@ describe('POST /api/analyze — input validation and credit-gating', () => {
       if (table === 'users') {
         const c = buildChain()
         c.single = vi.fn().mockResolvedValue({
-          data: { plan: 'starter', is_admin: false, credits: 100, competitor_analyses_used: 0 },
+          data: { plan: 'starter', is_admin: false, own_analyses_remaining: 25, competitor_analyses_remaining: 3 },
           error: null,
         })
         return c
