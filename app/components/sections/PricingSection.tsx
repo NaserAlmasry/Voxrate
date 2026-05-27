@@ -4,8 +4,6 @@ import CheckoutButton from '@/app/components/CheckoutButton'
 import { RotateCcw, HelpCircle, Zap, Shield, TrendingUp } from 'lucide-react'
 
 type Props = {
-  pricingTab: 'packs' | 'subscription'
-  setPricingTab: (v: 'packs' | 'subscription') => void
   billingCycle: 'monthly' | 'annual'
   setBillingCycle: (v: 'monthly' | 'annual') => void
   calcProducts: number
@@ -92,10 +90,7 @@ const PLANS = [
 ]
 
 export default function PricingSection({
-  billingCycle, setBillingCycle,
-  calcProducts, setCalcProducts,
-  calcFrequency, setCalcFrequency,
-  openAuthModal,
+  billingCycle, setBillingCycle, calcProducts, setCalcProducts, calcFrequency, setCalcFrequency, openAuthModal,
 }: Props) {
   const ownNeeded = calcFrequency === 'monthly' ? calcProducts : Math.ceil(calcProducts / 3)
   const competitorNeeded = calcFrequency === 'monthly' ? Math.ceil(calcProducts * 0.5) : Math.ceil(calcProducts * 0.5 / 3)
@@ -203,7 +198,7 @@ export default function PricingSection({
           <p className="text-sm text-neutral-500">
             Not ready to pay?{' '}
             <button onClick={openAuthModal} className="font-medium text-neutral-700 hover:text-black underline underline-offset-2 bg-transparent border-none cursor-pointer p-0">Start free</button>
-            {' '}— 1 analysis included, no credit card required.
+            {' '}— 14-day trial · 3 analyses included · no credit card required.
           </p>
         </div>
 

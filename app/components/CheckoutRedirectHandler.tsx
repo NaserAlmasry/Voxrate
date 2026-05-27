@@ -16,25 +16,15 @@ export default function CheckoutRedirectHandler() {
   useEffect(() => {
     const plan    = searchParams.get('checkout')
     const billing = searchParams.get('billing')
-    const pack    = searchParams.get('pack')
 
-    // Only act when there are actual checkout params — otherwise this fires
-    // on every render and causes an infinite replace → re-render loop.
-    if (!plan && !billing && !pack) return
+    if (!plan && !billing) return
 
     router.replace('/dashboard')
 
     const timerId = setTimeout(async () => {
       try {
-        let body: object | null = null
-
-        if (pack && ['starter_pack', 'growth_pack', 'pro_pack'].includes(pack)) {
-          body = { type: 'credit_pack', pack }
-        } else if (plan && billing && ['starter', 'growth', 'pro'].includes(plan) && ['monthly', 'annual'].includes(billing)) {
-          body = { type: 'subscription', plan, billing }
-        }
-
-        if (!body) return
+        if (!plan || !billing || !['starter', 'growth', 'pro'].includes(plan) || !['monthly', 'annual'].includes(billing)) return
+        const body = { plan, billing }
 
         const response = await fetch('/api/stripe/checkout', {
           method: 'POST',

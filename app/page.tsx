@@ -24,7 +24,6 @@ export default function LandingPage() {
   const [heroUrlError, setHeroUrlError] = useState('')
   const [ctaUrl, setCtaUrl]           = useState('')
   const [ctaUrlError, setCtaUrlError] = useState('')
-  const [pricingTab, setPricingTab]   = useState<'packs' | 'subscription'>('subscription')
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly')
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [authModalMode, setAuthModalMode] = useState<{ step?: 'plan' | 'auth'; authMode?: 'signup' | 'login' }>({})
@@ -199,7 +198,6 @@ export default function LandingPage() {
       <ComparisonSection />
 
       <PricingSection
-        pricingTab={pricingTab} setPricingTab={setPricingTab}
         billingCycle={billingCycle} setBillingCycle={setBillingCycle}
         calcProducts={calcProducts} setCalcProducts={setCalcProducts}
         calcFrequency={calcFrequency} setCalcFrequency={setCalcFrequency}
