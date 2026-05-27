@@ -1,4 +1,5 @@
 import { createClient } from '@/app/lib/supabase/server'
+import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 
 export async function GET(request: Request) {
@@ -40,6 +41,19 @@ export async function GET(request: Request) {
       ? amr.some((a: any) => a.method === 'otp')
       : false
     if (verifiedViaLink) isEmailVerification = true
+
+    // Activate free trial for new users (idempotent — RPC checks trial_activated flag)
+    if (data?.session?.user) {
+      try {
+        const admin = createAdminClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        )
+        await admin.rpc('activate_free_trial', { p_user_id: data.session.user.id })
+      } catch (e) {
+        console.error('[Auth Callback] Trial activation failed (non-fatal):', e)
+      }
+    }
   }
 
   if (pendingPack && ['starter_pack', 'growth_pack', 'pro_pack'].includes(pendingPack)) {

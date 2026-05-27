@@ -30,6 +30,20 @@ export async function POST(req: NextRequest) {
   const session = await getUserFromToken(token)
   if (!session) return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
 
+  // Check plan access — paid plans OR active trial only
+  const supabaseCheck = adminClient()
+  const { data: userData } = await supabaseCheck
+    .from('users')
+    .select('plan, trial_ends_at')
+    .eq('id', session.user_id)
+    .single()
+
+  const isTrial = userData?.trial_ends_at && new Date(userData.trial_ends_at) > new Date()
+  const hasPaidPlan = userData?.plan && userData.plan !== 'free'
+  if (!hasPaidPlan && !isTrial) {
+    return NextResponse.json({ error: 'trial_expired' }, { status: 403 })
+  }
+
   let body: { jobId: string; reviews: AmazonReview[]; amazonLoggedIn: boolean; error?: string | null }
   try {
     body = await req.json()

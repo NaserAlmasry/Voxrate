@@ -7,7 +7,7 @@
 import { useState, useEffect, useRef, Suspense } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/app/lib/supabase/client'
-import { PenLine, LayoutTemplate, Activity, MessageSquare, Crosshair, Eye, BellRing, Home, LayoutGrid, Clock, Settings, Shield, Users, LogOut, ChevronLeft, ChevronRight, Menu, X, Gift, Search, Puzzle } from 'lucide-react'
+import { PenLine, LayoutTemplate, Activity, Crosshair, BellRing, Home, LayoutGrid, Clock, Settings, Shield, Users, LogOut, ChevronLeft, ChevronRight, Menu, X, Gift, Search, Puzzle, Wrench } from 'lucide-react'
 import CheckoutRedirectHandler from '@/app/components/CheckoutRedirectHandler'
 import OnboardingModal from '@/app/components/OnboardingModal'
 import ErrorBoundary from '@/app/components/ErrorBoundary'
@@ -34,10 +34,15 @@ const NAV_GROUPS: NavGroup[] = [
         href: '/dashboard/grade',
         icon: <Activity size={18} />,
       },
+    ],
+  },
+  {
+    section: 'Protect',
+    items: [
       {
-        label: 'Reply to Reviews',
-        href: '/dashboard/reply',
-        icon: <MessageSquare size={18} />,
+        label: 'Toolkit',
+        href: '/dashboard/toolkit',
+        icon: <Wrench size={18} />,
       },
     ],
   },
@@ -48,11 +53,6 @@ const NAV_GROUPS: NavGroup[] = [
         label: 'Competitor',
         href: '/dashboard/competitor',
         icon: <Crosshair size={18} />,
-      },
-      {
-        label: 'Watchlist',
-        href: '/dashboard/watchlist',
-        icon: <Eye size={18} />,
       },
       {
         label: 'Sentiment Alerts',
@@ -111,7 +111,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [userEmail, setUserEmail] = useState('')
   const [plan, setPlan]       = useState('free')
   const [isAdmin, setIsAdmin] = useState(false)
-  const [credits, setCredits] = useState<number | null>(null)
+  const [ownRemaining, setOwnRemaining] = useState<number | null>(null)
+  const [trialEndsAt, setTrialEndsAt] = useState<string | null>(null)
   const [showUpgradeBanner, setShowUpgradeBanner] = useState(false)
   const [authChecked, setAuthChecked] = useState(false)
 
@@ -123,10 +124,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const loadPlan = async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    const { data } = await supabase.from('users').select('plan, credits, is_admin').eq('id', user.id).single()
+    const { data } = await supabase.from('users').select('plan, own_analyses_remaining, is_admin, trial_ends_at').eq('id', user.id).single()
     if (data?.plan) setPlan(data.plan)
     if (data?.is_admin) setIsAdmin(true)
-    if (data?.credits != null) setCredits(data.credits)
+    if (data?.own_analyses_remaining != null) setOwnRemaining(data.own_analyses_remaining)
+    if (data?.trial_ends_at) setTrialEndsAt(data.trial_ends_at)
   }
 
   useEffect(() => {
@@ -159,10 +161,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       attempts++
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { clearInterval(poll); return }
-      const { data } = await supabase.from('users').select('plan, credits').eq('id', user.id).single()
+      const { data } = await supabase.from('users').select('plan, own_analyses_remaining').eq('id', user.id).single()
       if (data?.plan && data.plan !== 'free') {
         setPlan(data.plan)
-        if (data?.credits != null) setCredits(data.credits)
+        if (data?.own_analyses_remaining != null) setOwnRemaining(data.own_analyses_remaining)
         clearInterval(poll)
         bannerTimer = setTimeout(() => setShowUpgradeBanner(false), 4000)
       }
@@ -228,6 +230,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <button onClick={() => setShowUpgradeBanner(false)} aria-label="Dismiss upgrade banner" className="ml-2 text-white/70 hover:text-white">✕</button>
         </div>
       )}
+
+      {/* ── TRIAL BANNER ── */}
+      {plan === 'free' && trialEndsAt && new Date(trialEndsAt) > new Date() && (() => {
+        const daysLeft = Math.ceil((new Date(trialEndsAt).getTime() - Date.now()) / 86_400_000)
+        const urgent = daysLeft <= 3
+        return (
+          <div className={`fixed top-0 inset-x-0 z-50 flex items-center justify-center gap-3 px-6 py-2.5 text-sm font-medium ${urgent ? 'bg-red-500' : 'bg-orange-500'} text-white`}>
+            <span>⏳</span>
+            <span>{daysLeft} day{daysLeft !== 1 ? 's' : ''} left in your free trial</span>
+            <a href="/#pricing" className="underline underline-offset-2 font-bold hover:opacity-90 transition-opacity">
+              Upgrade to keep access →
+            </a>
+          </div>
+        )
+      })()}
 
       {/* ── MOBILE OVERLAY ── */}
       {mobileOpen && (
@@ -366,10 +383,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 }`}>
                   {plan.charAt(0).toUpperCase() + plan.slice(1)}
                 </span>
-                {credits !== null && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700">
+                {ownRemaining !== null && plan !== 'free' && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-orange-50 text-orange-700">
                     <span className="w-2 h-2 rounded-full bg-current" />
-                    {credits} cr
+                    {ownRemaining} left
                   </span>
                 )}
               </div>

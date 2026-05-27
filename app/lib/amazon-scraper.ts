@@ -1,6 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
 import { AmazonScrapeResult, AmazonProduct, AmazonReview, AmazonQA } from './amazon-types'
-import { fetchFromRailway } from './railway-scraper'
 import crypto from 'crypto'
 
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
@@ -52,10 +51,8 @@ async function readReviewCache(asin: string, domain: string): Promise<AmazonRevi
   }
 }
 
-const SCRAPINGDOG_API_KEY  = process.env.SCRAPINGDOG_API_KEY!
-const SCRAPERAPI_KEY       = process.env.SCRAPERAPI_KEY!
-const BRIGHTDATA_API_KEY   = process.env.BRIGHTDATA_API_KEY
-const BRIGHTDATA_DATASET   = 'gd_le8e811kzy4ggddlq'
+const SCRAPINGDOG_API_KEY = process.env.SCRAPINGDOG_API_KEY!
+const SCRAPERAPI_KEY      = process.env.SCRAPERAPI_KEY!
 
 // Canopy keys — auto-rotates to next key when current hits quota (429/403)
 // Add CANOPY_API_KEY_2, _3, _4... in Vercel for more free-tier capacity
@@ -275,7 +272,7 @@ export async function scrapeAmazon(input: string, plan = 'starter', userId?: str
   let scraperProvider = 'canopy'
   let totalAllocatedPages = 0
 
-  const maxReviews = brightDataMaxReviews(productData.ratingBreakdown, productData.totalReviews, plan)
+  const maxReviews = getMaxReviews(productData.ratingBreakdown, productData.totalReviews, plan)
   const tld        = marketplace.replace('amazon.', '')
 
   // Primary: Chrome Extension (user's own logged-in browser — bypasses all Amazon blocks)
@@ -293,43 +290,7 @@ export async function scrapeAmazon(input: string, plan = 'starter', userId?: str
     }
   }
 
-  // Secondary: Railway scraper (direct HTML pagination via BrightData residential proxies)
-  if (allReviews.length === 0 && process.env.RAILWAY_SCRAPER_URL) {
-    try {
-      const reviewUrl = `https://www.amazon.${tld}/product-reviews/${asin}?reviewerType=all_reviews&sortBy=recent`
-      const raw       = await fetchFromRailway(reviewUrl, maxReviews, asin, marketplace)
-      const valid     = filterReviews(raw, 'railway')
-      if (valid.length > 0) {
-        allReviews      = rebalanceReviews(valid, productData.ratingBreakdown)
-        scraperProvider = 'railway'
-        console.log(`[Scraper] Railway succeeded with ${allReviews.length} reviews`)
-      } else {
-        console.warn('[Scraper] Railway returned 0 valid reviews — falling back to BrightData dataset')
-      }
-    } catch (err: any) {
-      console.warn(`[Scraper] Railway failed: ${err.message} — falling back to BrightData dataset`)
-    }
-  }
-
-  // Fallback: BrightData dataset API (slower, fewer reviews, but independent of Railway)
-  if (allReviews.length === 0 && BRIGHTDATA_API_KEY) {
-    try {
-      const dpUrl = `https://www.amazon.${tld}/dp/${asin}`
-      const raw   = await fetchFromBrightData(dpUrl, maxReviews, asin)
-      const valid = filterReviews(raw, 'brightdata')
-      if (valid.length > 0) {
-        allReviews      = rebalanceReviews(valid, productData.ratingBreakdown)
-        scraperProvider = 'brightdata'
-        console.log(`[Scraper] BrightData fallback succeeded with ${allReviews.length} reviews`)
-      } else {
-        console.warn('[Scraper] BrightData fallback returned 0 valid reviews')
-      }
-    } catch (err: any) {
-      console.warn(`[Scraper] BrightData fallback failed: ${err.message}`)
-    }
-  }
-
-  // Final fallback: Canopy API (free, star-filtered, up to ~130 reviews)
+  // Fallback: Canopy API (free, star-filtered, up to ~130 reviews)
   if (allReviews.length === 0 && CANOPY_KEYS.length > 0) {
     try {
       const pageAlloc = allocatePages(productData.ratingBreakdown)
@@ -375,7 +336,7 @@ export async function scrapeAmazon(input: string, plan = 'starter', userId?: str
   }
 }
 
-// Free-plan scrape — 1★ reviews via Canopy (shows real complaints), Bright Data fallback
+// Free-plan scrape — negative reviews via Canopy → RapidAPI → Apify cascade
 export async function scrapeAmazonFree(input: string): Promise<AmazonScrapeResult> {
   const { asin, marketplace } = parseInput(input)
   console.log(`[Scraper:free] ASIN: ${asin} | Marketplace: ${marketplace}`)
@@ -403,37 +364,40 @@ export async function scrapeAmazonFree(input: string): Promise<AmazonScrapeResul
     }
   }
 
-  // Fetch 1★ reviews — user sees real complaints, feels the tool's value, wants to upgrade
-  let reviews = await fetchOnePageFiltered(asin, domain, 'ONE_STAR')
-  let scraperProvider = 'canopy'
+  // Always exactly 2 requests per free analysis:
+  //   Request 1 — Canopy 1★ (problems section)
+  //   Request 2 — RapidAPI (strengths, filter 4★+ client-side) → Apify if RapidAPI fails
+  let negative: AmazonReview[] = []
+  let positive: AmazonReview[] = []
+  let scraperProvider = 'canopy+rapidapi'
 
-  // Fallback 1: Railway scraper
-  if (reviews.length === 0 && process.env.RAILWAY_SCRAPER_URL) {
+  // Request 1: Canopy 1★ → problems
+  const neg = await fetchOnePageFiltered(asin, domain, 'ONE_STAR', 1)
+  if (!neg.quotaHit) {
+    negative = neg.reviews
+  } else {
+    console.warn('[Scraper:free] Canopy quota hit — problems section will be empty')
+  }
+
+  // Request 2: RapidAPI → strengths (top reviews are mostly 4★/5★, filter client-side)
+  try {
+    const all = await fetchFromRapidApi(asin)
+    positive  = all.filter(r => r.rating >= 4).slice(0, 10)
+    console.log(`[Scraper:free] RapidAPI: ${all.length} reviews → ${positive.length} pos (4★+)`)
+  } catch (err: any) {
+    console.warn(`[Scraper:free] RapidAPI failed: ${err.message} — trying Apify`)
+    scraperProvider = 'canopy+apify'
     try {
-      const tld       = marketplace.replace('amazon.', '')
-      const reviewUrl = `https://www.amazon.${tld}/product-reviews/${asin}?filterByStar=critical&reviewerType=all_reviews&sortBy=recent`
-      const all       = await fetchFromRailway(reviewUrl, 20, asin, marketplace)
-      reviews         = all.filter(r => r.rating <= 2).slice(0, 10)
-      if (reviews.length === 0) reviews = all.slice(0, 10)
-      scraperProvider = 'railway'
-    } catch (err: any) {
-      console.warn(`[Scraper:free] Railway fallback failed: ${err.message}`)
+      const all = await fetchFromApify(asin)
+      positive  = all.filter(r => r.rating >= 4).slice(0, 10)
+      console.log(`[Scraper:free] Apify: ${all.length} reviews → ${positive.length} pos (4★+)`)
+    } catch (err2: any) {
+      console.warn(`[Scraper:free] Apify also failed: ${err2.message}`)
     }
   }
 
-  // Fallback 2: BrightData dataset
-  if (reviews.length === 0 && BRIGHTDATA_API_KEY) {
-    try {
-      const all = await fetchFromBrightData(`https://www.amazon.${marketplace.replace('amazon.', '')}/dp/${asin}`, 20, asin)
-      reviews   = all.filter(r => r.rating <= 2).slice(0, 10)
-      if (reviews.length === 0) reviews = all.slice(0, 10)
-      scraperProvider = 'brightdata'
-    } catch (err: any) {
-      console.warn(`[Scraper:free] BrightData fallback failed: ${err.message}`)
-    }
-  }
-
-  console.log(`[Scraper:free] "${productData.title.slice(0, 50)}" | ${reviews.length} reviews (1★ filtered) [${scraperProvider}]`)
+  const reviews = [...negative, ...positive]
+  console.log(`[Scraper:free] "${productData.title.slice(0, 50)}" | ${negative.length} neg + ${positive.length} pos [${scraperProvider}]`)
 
   if (reviews.length > 0) {
     writeReviewCache(asin, domain, reviews).catch(() => {})
@@ -451,20 +415,29 @@ export async function scrapeAmazonFree(input: string): Promise<AmazonScrapeResul
   }
 }
 
-async function fetchOnePageFiltered(asin: string, domain: string, rating: string): Promise<AmazonReview[]> {
+async function fetchOnePageFiltered(
+  asin: string,
+  domain: string,
+  rating: string,
+  ratingNum: number,
+): Promise<{ reviews: AmazonReview[]; quotaHit: boolean }> {
   try {
     const url = `${CANOPY_BASE}?asin=${asin}&domain=${domain}&page=1&rating=${rating}&verified_purchases_only=true&sort_by=RECENT`
     const res = await canopyFetch(url)
-    if (!res.ok) {
-      console.warn(`[Scraper:free] Canopy filtered page HTTP ${res.status}`)
-      return []
+    if (res.status === 429 || res.status === 403) {
+      console.warn(`[Scraper:free] Canopy quota hit (${res.status})`)
+      return { reviews: [], quotaHit: true }
     }
-    const data     = await res.json()
+    if (!res.ok) {
+      console.warn(`[Scraper:free] Canopy HTTP ${res.status}`)
+      return { reviews: [], quotaHit: false }
+    }
+    const data      = await res.json()
     const paginated = data?.data?.amazonProduct?.reviewsPaginated
-    if (!paginated) return []
-    return (paginated.reviews ?? []).map((r: CanopyReview, i: number) => ({
+    if (!paginated) return { reviews: [], quotaHit: false }
+    const reviews = (paginated.reviews ?? []).map((r: CanopyReview, i: number) => ({
       id:       r.id ?? `${asin}-free-${i}`,
-      rating:   r.rating ?? 1,
+      rating:   r.rating ?? ratingNum,
       title:    r.title ?? '',
       body:     r.body ?? '',
       date:     '',
@@ -473,26 +446,78 @@ async function fetchOnePageFiltered(asin: string, domain: string, rating: string
       helpful:  r.helpfulVotes ?? 0,
       country:  domain.toLowerCase(),
     }))
+    return { reviews, quotaHit: false }
   } catch (e) {
     console.warn('[Scraper:free] fetchOnePageFiltered exception:', e)
-    return []
+    return { reviews: [], quotaHit: false }
   }
 }
 
-// Per-plan review caps. LLM sees a smart sample of ~130 reviews regardless of cap —
-// higher cap just gives the sampler a better pool to choose from, especially for
-// large products (1000+ reviews) where the most useful signal is spread across pages.
-function brightDataMaxReviews(
-  _breakdown: { one: number; two: number; three: number; four: number; five: number },
-  totalReviews: number,
-  plan: string,
-): number {
-  const cap = 500
-  return Math.min(totalReviews, cap)
+async function fetchFromRapidApi(asin: string): Promise<AmazonReview[]> {
+  const key = process.env.RAPIDAPI_KEY
+  if (!key) throw new Error('RAPIDAPI_KEY not set')
+  const res = await fetch(
+    `https://real-time-amazon-data.p.rapidapi.com/product-reviews?asin=${asin}&country=US&page=1&sort_by=TOP_REVIEWS`,
+    {
+      headers: {
+        'X-RapidAPI-Key':  key,
+        'X-RapidAPI-Host': 'real-time-amazon-data.p.rapidapi.com',
+      },
+      signal: AbortSignal.timeout(15_000),
+    }
+  )
+  if (!res.ok) throw new Error(`RapidAPI HTTP ${res.status}`)
+  const data    = await res.json()
+  const reviews = data?.data?.reviews ?? []
+  return reviews.map((r: any, i: number) => ({
+    id:       r.review_id ?? `rapidapi-${asin}-${i}`,
+    rating:   parseInt(r.review_star_rating ?? '3') || 3,
+    title:    r.review_title ?? '',
+    body:     r.review_comment ?? r.review_description ?? '',
+    date:     r.review_date ?? '',
+    verified: r.is_verified_purchase ?? false,
+    vine:     false,
+    helpful:  parseInt(r.helpful_vote_statement ?? '0') || 0,
+    country:  'us',
+  })).filter((r: AmazonReview) => r.body.length >= 20)
 }
 
-// Rebalance Bright Data's flat review list to mirror Canopy's star-weighted approach.
-// Target: 1★ 30%, 2★ 20%, 3★ 10%, 4★ 10%, 5★ 30% — heavily negative-weighted.
+async function fetchFromApify(asin: string): Promise<AmazonReview[]> {
+  const token = process.env.APIFY_TOKEN
+  if (!token) throw new Error('APIFY_TOKEN not set')
+  const body = JSON.stringify({
+    productUrls: [{ url: `https://www.amazon.com/dp/${asin}` }],
+    maxReviews:  20,
+    sort:        'recent',
+  })
+  const res = await fetch(
+    `https://api.apify.com/v2/acts/junglee~amazon-reviews-scraper/run-sync-get-dataset-items?token=${token}&timeout=90`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, signal: AbortSignal.timeout(100_000) }
+  )
+  if (!res.ok) throw new Error(`Apify HTTP ${res.status}`)
+  const items = await res.json() as any[]
+  return items.map((r, i) => ({
+    id:       r.reviewId ?? `apify-${asin}-${i}`,
+    rating:   r.ratingScore ?? 3,
+    title:    r.reviewTitle ?? '',
+    body:     r.reviewDescription ?? '',
+    date:     r.date ?? '',
+    verified: r.isVerified ?? false,
+    vine:     r.isAmazonVine ?? false,
+    helpful:  0,
+    country:  'us',
+  })).filter(r => r.body.length >= 20)
+}
+
+function getMaxReviews(
+  _breakdown: { one: number; two: number; three: number; four: number; five: number },
+  totalReviews: number,
+  _plan: string,
+): number {
+  return Math.min(totalReviews, 500)
+}
+
+// Rebalance reviews to: 1★ 30%, 2★ 20%, 3★ 10%, 4★ 10%, 5★ 30% — negative-weighted.
 // Falls back gracefully if a star tier has fewer reviews than the target.
 function rebalanceReviews(
   reviews: AmazonReview[],
@@ -535,66 +560,11 @@ function rebalanceReviews(
   const leftover = reviews.filter(r => !used.has(r.id)).sort((a, b) => b.helpful - a.helpful)
   result.push(...leftover.slice(0, total - result.length))
 
-  console.log(`[BrightData] Rebalanced: 1★${bystar[1].length}→${Math.min(bystar[1].length, targets[1])} 2★${bystar[2].length}→${Math.min(bystar[2].length, targets[2])} 3★${bystar[3].length}→${Math.min(bystar[3].length, targets[3])} 4★${bystar[4].length}→${Math.min(bystar[4].length, targets[4])} 5★${bystar[5].length}→${Math.min(bystar[5].length, targets[5])}`)
+  console.log(`[Rebalancer] Rebalanced: 1★${bystar[1].length}→${Math.min(bystar[1].length, targets[1])} 2★${bystar[2].length}→${Math.min(bystar[2].length, targets[2])} 3★${bystar[3].length}→${Math.min(bystar[3].length, targets[3])} 4★${bystar[4].length}→${Math.min(bystar[4].length, targets[4])} 5★${bystar[5].length}→${Math.min(bystar[5].length, targets[5])}`)
   return result
 }
 
 
-// ── BrightData dataset fetcher (fallback) ────────────────────
-// Used only when Railway scraper is unavailable or returns 0 reviews.
-// Known limitations: returns fewer reviews than actual count, rating field
-// unreliable (87% return 0 — defaulted to 3★), no star filtering support.
-
-async function fetchFromBrightData(url: string, maxReviews: number, asin: string): Promise<AmazonReview[]> {
-  const triggerRes = await fetch(
-    `https://api.brightdata.com/datasets/v3/trigger?dataset_id=${BRIGHTDATA_DATASET}&include_errors=true`,
-    {
-      method:  'POST',
-      headers: { 'Authorization': `Bearer ${BRIGHTDATA_API_KEY}`, 'Content-Type': 'application/json' },
-      body:    JSON.stringify([{ url, max_reviews: maxReviews }]),
-      signal:  AbortSignal.timeout(15_000),
-    }
-  )
-  if (!triggerRes.ok) throw new Error(`BrightData trigger HTTP ${triggerRes.status}`)
-  const { snapshot_id } = await triggerRes.json() as { snapshot_id: string }
-  console.log(`[BrightData] triggered snapshot ${snapshot_id} for ${asin}`)
-
-  const deadline = Date.now() + 240_000
-  while (Date.now() < deadline) {
-    await new Promise(r => setTimeout(r, 5_000))
-    const statusRes = await fetch(
-      `https://api.brightdata.com/datasets/v3/snapshot/${snapshot_id}?format=ndjson`,
-      { headers: { 'Authorization': `Bearer ${BRIGHTDATA_API_KEY}` }, signal: AbortSignal.timeout(10_000) }
-    )
-    if (statusRes.status === 202) continue
-    if (!statusRes.ok) throw new Error(`BrightData snapshot HTTP ${statusRes.status}`)
-
-    const lines = (await statusRes.text()).trim().split('\n').filter(Boolean)
-    const reviews: AmazonReview[] = []
-    for (let i = 0; i < lines.length; i++) {
-      try {
-        const r = JSON.parse(lines[i])
-        if (r.error || !r.review_text) continue
-        const raw    = r.rating ?? r.review_rating ?? r.star_rating ?? 0
-        const rating = raw >= 1 && raw <= 5 ? Math.round(raw) : 3
-        reviews.push({
-          id:       r.review_id ?? `bd-${asin}-${i}`,
-          rating,
-          title:    r.title ?? '',
-          body:     r.review_text,
-          date:     r.review_posted_date ?? '',
-          verified: r.is_verified ?? r.badge === 'Verified Purchase',
-          vine:     r.is_amazon_vine ?? false,
-          helpful:  r.helpful_count ?? 0,
-          country:  url.match(/amazon\.(\S+?)\//)?.[1] ?? 'com',
-        })
-      } catch { /* skip malformed */ }
-    }
-    console.log(`[BrightData] ${reviews.length} reviews for ${asin}`)
-    return reviews
-  }
-  throw new Error(`BrightData snapshot not ready after 240s`)
-}
 
 // ── Review validation ─────────────────────────────────────────
 

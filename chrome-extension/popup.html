@@ -22,14 +22,72 @@
       border-bottom: 1px solid #222;
     }
 
-    .logo {
-      font-size: 18px;
-      font-weight: 700;
-      letter-spacing: -0.5px;
-      color: #fff;
+    .logo img {
+      height: 22px;
+      width: auto;
     }
 
-    .logo span { color: #f97316; }
+    /* Disconnect confirmation overlay */
+    #disconnect-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.75);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+    }
+    #disconnect-modal.visible { display: flex; }
+    .modal-box {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 12px;
+      padding: 20px;
+      width: 100%;
+    }
+    .modal-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 8px;
+    }
+    .modal-warning {
+      font-size: 11px;
+      color: #888;
+      line-height: 1.5;
+      margin-bottom: 16px;
+      padding: 8px 10px;
+      background: #111;
+      border-radius: 6px;
+      border-left: 3px solid #ef4444;
+    }
+    .modal-actions {
+      display: flex;
+      gap: 8px;
+    }
+    .btn-danger {
+      flex: 1;
+      background: #ef4444;
+      color: #fff;
+      border: none;
+      border-radius: 7px;
+      padding: 8px 0;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn-cancel {
+      flex: 1;
+      background: #2a2a2a;
+      color: #aaa;
+      border: none;
+      border-radius: 7px;
+      padding: 8px 0;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
 
     .card {
       padding: 14px 18px;
@@ -186,7 +244,21 @@
 <body>
 
 <div class="header">
-  <div class="logo">Vox<span>rate</span></div>
+  <div class="logo"><img src="logo.png" alt="Voxrate" /></div>
+</div>
+
+<!-- Disconnect confirmation modal -->
+<div id="disconnect-modal">
+  <div class="modal-box">
+    <div class="modal-title">Disconnect extension?</div>
+    <div class="modal-warning">
+      ⚠️ If you disconnect, you won't be able to use the service until you reconnect using a token from voxrate.app/settings/extension.
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="cancel-disconnect">Cancel</button>
+      <button class="btn-danger" id="confirm-disconnect">Disconnect</button>
+    </div>
+  </div>
 </div>
 
 <!-- Setup view (no token yet) -->
@@ -200,6 +272,17 @@
   <div class="error-msg" id="token-error" style="display:none;">Invalid token. Check voxrate.app/settings/extension</div>
   <button class="btn btn-primary" id="connect-btn">Connect</button>
   <a href="https://voxrate.app/dashboard/settings/extension" target="_blank" class="btn btn-ghost">Get my token →</a>
+</div>
+
+<!-- Trial expired view -->
+<div id="trial-expired-view" style="display:none; padding:20px;">
+  <div style="text-align:center; margin-bottom:16px;">
+    <div style="font-size:28px; margin-bottom:8px;">⏰</div>
+    <div style="font-size:14px; font-weight:700; color:#fff; margin-bottom:6px;">Your free trial ended</div>
+    <div style="font-size:12px; color:#666; line-height:1.5;">Upgrade to keep using the extension and your analyses.</div>
+  </div>
+  <a href="https://voxrate.app/#pricing" target="_blank" class="btn btn-primary">Upgrade now →</a>
+  <div style="font-size:11px; color:#555; text-align:center; margin-top:10px;">Starter from $14.99/mo</div>
 </div>
 
 <!-- Main view (connected) -->
@@ -237,7 +320,7 @@
   </div>
 
   <div class="footer">
-    <a href="https://voxrate.app/dashboard" target="_blank" class="btn btn-primary">Open Voxrate</a>
+    <a href="https://voxrate.app/?from=ext" target="_blank" class="btn btn-primary">Open Voxrate</a>
     <button class="btn btn-ghost" id="disconnect-btn">Disconnect</button>
   </div>
 </div>

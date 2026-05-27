@@ -146,7 +146,7 @@ export default function ExtensionSettingsPage() {
             { n: '2', text: 'Voxrate sends a job to your extension in the background' },
             { n: '3', text: 'The extension silently opens a hidden Amazon tab — using your logged-in session' },
             { n: '4', text: 'It collects all the review text and sends it back to Voxrate' },
-            { n: '5', text: 'The tab closes automatically. You see the full AI analysis.' },
+            { n: '5', text: 'The tab closes automatically. You see the full analysis.' },
           ].map(step => (
             <li key={step.n} className="flex items-start gap-3">
               <span className="w-5 h-5 rounded-full bg-orange-100 text-orange-600 text-[11px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">

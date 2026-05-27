@@ -51,11 +51,6 @@ export interface AmazonQA {
 export interface AmazonScrapeResult {
   product: AmazonProduct
   reviews: AmazonReview[]
-  /** Guaranteed 5★ reviews from the five_star-filtered BrightData request.
-   *  Present only when the half-split fetch succeeded.
-   *  Used exclusively for strengths / marketing copy / SEO sections.
-   *  Undefined on cache hits or when the positive fetch failed. */
-  fiveStarReviews?: AmazonReview[]
   qa: AmazonQA[]
   scrapedAt: string
   marketplace: string

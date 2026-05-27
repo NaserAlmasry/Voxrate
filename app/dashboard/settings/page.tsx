@@ -5,23 +5,21 @@ import { createClient } from '@/app/lib/supabase/client'
 import CheckoutButton from '@/app/components/CheckoutButton'
 import { useToast } from '@/app/components/Toast'
 
-const CREDIT_PACKS = [
-  { id: 'starter_pack', credits: 100, price: '$4.99',  analyses: '5 analyses',  label: 'Starter Pack' },
-  { id: 'growth_pack',  credits: 300, price: '$12.99', analyses: '15 analyses', label: 'Growth Pack', popular: true },
-  { id: 'pro_pack',     credits: 700, price: '$24.99', analyses: '35 analyses', label: 'Pro Pack' },
-]
-
 export default function SettingsPage() {
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
   const [plan, setPlan] = useState('free')
-  const [credits, setCredits] = useState<number | null>(null)
+  const [ownRemaining, setOwnRemaining] = useState<number | null>(null)
+  const [competitorRemaining, setCompetitorRemaining] = useState<number | null>(null)
   const [joinedDate, setJoinedDate] = useState('')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [portalLoading, setPortalLoading] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
   const [authProvider, setAuthProvider] = useState<string>('')
   const [renewalDate, setRenewalDate] = useState('')
+  const [weeklyDigest, setWeeklyDigest] = useState(true)
+  const [digestFrequency, setDigestFrequency] = useState<'weekly' | 'daily'>('weekly')
+  const [digestSaving, setDigestSaving] = useState(false)
   const supabaseRef = useRef(createClient())
   const supabase    = supabaseRef.current
   const toast    = useToast()
@@ -35,10 +33,13 @@ export default function SettingsPage() {
     const date = new Date(user.created_at)
     setJoinedDate(date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }))
 
-    const { data } = await supabase.from('users').select('plan, credits, is_admin, stripe_current_period_end').eq('id', user.id).single()
+    const { data } = await supabase.from('users').select('plan, own_analyses_remaining, competitor_analyses_remaining, is_admin, stripe_current_period_end, weekly_digest_enabled, digest_frequency').eq('id', user.id).single()
     if (data?.plan) setPlan(data.plan)
-    if (data?.credits != null) setCredits(data.credits)
+    if (data?.own_analyses_remaining != null) setOwnRemaining(data.own_analyses_remaining)
+    if (data?.competitor_analyses_remaining != null) setCompetitorRemaining(data.competitor_analyses_remaining)
     if (data?.is_admin) setIsAdmin(true)
+    if (data?.weekly_digest_enabled != null) setWeeklyDigest(data.weekly_digest_enabled)
+    if (data?.digest_frequency) setDigestFrequency(data.digest_frequency as 'weekly' | 'daily')
     if (data?.stripe_current_period_end) {
       setRenewalDate(new Date(data.stripe_current_period_end * 1000).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }))
     }
@@ -68,6 +69,28 @@ export default function SettingsPage() {
     } finally {
       setPortalLoading(false)
     }
+  }
+
+  const toggleWeeklyDigest = async (val: boolean) => {
+    setDigestSaving(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      await supabase.from('users').update({ weekly_digest_enabled: val }).eq('id', user.id)
+    }
+    setWeeklyDigest(val)
+    setDigestSaving(false)
+    toast(val ? 'Digest enabled' : 'Digest disabled', 'success')
+  }
+
+  const setDigestFreq = async (freq: 'weekly' | 'daily') => {
+    setDigestSaving(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      await supabase.from('users').update({ digest_frequency: freq }).eq('id', user.id)
+    }
+    setDigestFrequency(freq)
+    setDigestSaving(false)
+    toast(`Digest set to ${freq}`, 'success')
   }
 
   return (
@@ -118,13 +141,14 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* Credits & Plan */}
+      {/* Plan & Analyses */}
       <div className="bg-white rounded-2xl border border-neutral-200 p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-neutral-700">Credits & Plan</h2>
+          <h2 className="text-sm font-semibold text-neutral-700">Plan & Analyses</h2>
           <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
             isAdmin        ? 'bg-orange-100 text-orange-700' :
-            plan === 'pro' ? 'bg-orange-100 text-orange-700' :
+            plan === 'pro' ? 'bg-purple-100 text-purple-700' :
+            plan === 'growth' ? 'bg-orange-100 text-orange-700' :
             plan === 'starter' ? 'bg-blue-50 text-blue-700' :
             'bg-neutral-100 text-neutral-500'
           }`}>
@@ -132,106 +156,120 @@ export default function SettingsPage() {
           </span>
         </div>
 
-        {/* Credit balance */}
-        {!isAdmin && (
-          <div className="flex items-center gap-4 p-4 bg-amber-50 rounded-xl border border-amber-100 mb-5">
-            <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center flex-shrink-0">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        {/* Analyses remaining */}
+        {!isAdmin && plan !== 'free' && (
+          <div className="grid grid-cols-2 gap-3 mb-5">
+            <div className="p-4 bg-orange-50 rounded-xl border border-orange-100">
+              <p className="text-2xl font-black text-orange-700">{ownRemaining ?? '—'}</p>
+              <p className="text-xs text-orange-600 mt-0.5">own analyses left this month</p>
             </div>
-            <div>
-              <p className="text-2xl font-bold text-amber-700">{credits ?? '—'}</p>
-              <p className="text-xs text-amber-600">credits remaining · 20 per analysis, 35 per competitor</p>
+            <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
+              <p className="text-2xl font-black text-blue-700">{competitorRemaining ?? '—'}</p>
+              <p className="text-xs text-blue-600 mt-0.5">competitor analyses left</p>
             </div>
           </div>
         )}
 
-        {/* Subscription info */}
         {!isAdmin && plan !== 'free' && (
-          <div className="rounded-xl border border-neutral-200 p-4 mb-4 space-y-3">
-            <div className="flex items-center justify-between text-xs">
-              <div className="space-y-1">
-                <p className="text-neutral-700 font-medium">{plan.charAt(0).toUpperCase() + plan.slice(1)} plan — monthly</p>
-                <p className="text-neutral-400">
-                  {plan === 'pro' ? '2,000' : plan === 'growth' ? '800' : '300'} credits refresh on{' '}
-                  <span className="font-medium text-neutral-600">{renewalDate || '…'}</span>
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 pt-1 border-t border-neutral-100">
-              <button
-                onClick={openCustomerPortal}
-                disabled={portalLoading}
-                className="px-4 py-2 text-xs font-medium border border-neutral-200 rounded-xl hover:bg-neutral-50 transition-colors disabled:opacity-50"
-              >
-                {portalLoading ? 'Opening…' : 'Manage billing'}
-              </button>
-              <button
-                onClick={openCustomerPortal}
-                disabled={portalLoading}
-                className="px-4 py-2 text-xs font-medium border border-red-200 text-red-600 rounded-xl hover:bg-red-50 transition-colors disabled:opacity-50"
-              >
-                {portalLoading ? 'Opening…' : 'Cancel subscription'}
-              </button>
-            </div>
-            <p className="text-[11px] text-neutral-400">Cancelling stops future charges. You keep access until {renewalDate || 'your billing date'}.</p>
+          <p className="text-xs text-neutral-400 mb-5">
+            ↩ Unused analyses roll over automatically — up to {plan === 'pro' ? '3 months' : '2 months'} banked.
+            Renews on <span className="font-medium text-neutral-600">{renewalDate || '…'}</span>
+          </p>
+        )}
+
+        {/* Subscription management */}
+        {!isAdmin && plan !== 'free' && (
+          <div className="flex items-center gap-2 pt-4 border-t border-neutral-100">
+            <button
+              onClick={openCustomerPortal}
+              disabled={portalLoading}
+              className="px-4 py-2 text-xs font-medium border border-neutral-200 rounded-xl hover:bg-neutral-50 transition-colors disabled:opacity-50"
+            >
+              {portalLoading ? 'Opening…' : 'Manage billing'}
+            </button>
+            <button
+              onClick={openCustomerPortal}
+              disabled={portalLoading}
+              className="px-4 py-2 text-xs font-medium border border-red-200 text-red-600 rounded-xl hover:bg-red-50 transition-colors disabled:opacity-50"
+            >
+              {portalLoading ? 'Opening…' : 'Cancel subscription'}
+            </button>
           </div>
+        )}
+        {!isAdmin && plan !== 'free' && (
+          <p className="text-[11px] text-neutral-400 mt-2">Cancelling stops future charges. You keep access until {renewalDate || 'your billing date'}.</p>
         )}
 
         {/* Upgrade CTA for free plan */}
         {!isAdmin && plan === 'free' && (
-          <div className="grid grid-cols-3 gap-2 mb-5">
-            <CheckoutButton
-              plan="starter" billing="monthly"
-              label="Starter · $9.99"
-              className="py-2.5 bg-black text-white text-xs font-semibold rounded-xl hover:bg-neutral-800 transition-colors disabled:opacity-50"
-            />
-            <CheckoutButton
-              plan="growth" billing="monthly"
-              label="Growth · $24.99"
-              className="py-2.5 bg-orange-500 text-white text-xs font-semibold rounded-xl hover:bg-orange-600 transition-colors disabled:opacity-50"
-            />
-            <CheckoutButton
-              plan="pro" billing="monthly"
-              label="Pro · $49.99"
-              className="py-2.5 bg-black text-white text-xs font-semibold rounded-xl hover:bg-neutral-800 transition-colors disabled:opacity-50"
-            />
-          </div>
+          <>
+            <p className="text-xs text-neutral-400 mb-4">You have 1 lifetime analysis. Upgrade to unlock monthly analyses with rollover.</p>
+            <div className="grid grid-cols-3 gap-2">
+              <CheckoutButton
+                plan="starter" billing="monthly"
+                label="Starter · $14.99"
+                className="py-2.5 bg-black text-white text-xs font-semibold rounded-xl hover:bg-neutral-800 transition-colors disabled:opacity-50"
+              />
+              <CheckoutButton
+                plan="growth" billing="monthly"
+                label="Growth · $39.99"
+                className="py-2.5 bg-orange-500 text-white text-xs font-semibold rounded-xl hover:bg-orange-600 transition-colors disabled:opacity-50"
+              />
+              <CheckoutButton
+                plan="pro" billing="monthly"
+                label="Pro · $59.99"
+                className="py-2.5 bg-black text-white text-xs font-semibold rounded-xl hover:bg-neutral-800 transition-colors disabled:opacity-50"
+              />
+            </div>
+          </>
         )}
       </div>
 
-      {/* Credit packs */}
-      {!isAdmin && (
-        <div className="bg-white rounded-2xl border border-neutral-200 p-6">
-          <h2 className="text-sm font-semibold text-neutral-700 mb-1">Buy credit packs</h2>
-          <p className="text-xs text-neutral-400 mb-4">One-time purchase, never expire. Stack on top of your subscription.</p>
+      {/* Notifications */}
+      <div className="bg-white rounded-2xl border border-neutral-200 p-6">
+        <h2 className="text-sm font-semibold text-neutral-700 mb-4">Notifications</h2>
 
-          <div className="grid grid-cols-3 gap-3">
-            {CREDIT_PACKS.map(p => (
-              <div key={p.id} className={`relative border rounded-xl p-4 ${p.popular ? 'border-orange-300 bg-orange-50' : 'border-neutral-200'}`}>
-                {p.popular && (
-                  <span className="absolute -top-2.5 left-3 px-2 py-0.5 bg-orange-500 text-white text-[10px] font-bold rounded-full">BEST VALUE</span>
-                )}
-                <p className="text-sm font-bold">{p.price}</p>
-                <p className="text-xs text-neutral-500 mt-0.5">{p.credits} credits</p>
-                <p className="text-xs text-neutral-400">≈ {p.analyses}</p>
-                <CheckoutButton
-                  pack={p.id as any}
-                  label="Buy"
-                  className={`mt-3 w-full py-1.5 text-xs font-semibold rounded-lg transition-colors disabled:opacity-50 ${
-                    p.popular
-                      ? 'bg-orange-500 text-white hover:bg-orange-600'
-                      : 'bg-black text-white hover:bg-neutral-800'
-                  }`}
-                />
-              </div>
-            ))}
+        <div className="flex items-center justify-between gap-4 mb-4">
+          <div>
+            <p className="text-sm font-medium text-neutral-800">Digest email</p>
+            <p className="text-xs text-neutral-400 mt-0.5">Shop health summary with AI priority action.</p>
           </div>
-
-          <p className="text-xs text-neutral-400 mt-3">
-            Credits cost: 20 credits per own listing analysis, 35 per competitor. AI tools (rewriter, grade, builder, reply) are free.
-          </p>
+          <button
+            role="switch"
+            aria-checked={weeklyDigest}
+            disabled={digestSaving}
+            onClick={() => toggleWeeklyDigest(!weeklyDigest)}
+            className={`relative flex-shrink-0 w-11 h-6 rounded-full transition-colors duration-200 focus:outline-none disabled:opacity-50 ${weeklyDigest ? 'bg-orange-500' : 'bg-neutral-200'}`}
+          >
+            <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${weeklyDigest ? 'translate-x-5' : 'translate-x-0'}`} />
+          </button>
         </div>
-      )}
+
+        {/* Frequency — Pro only */}
+        {plan === 'pro' && weeklyDigest && (
+          <div className="pt-4 border-t border-neutral-100">
+            <p className="text-xs font-semibold text-neutral-600 mb-2">Digest frequency <span className="ml-1 px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded text-[10px]">Pro</span></p>
+            <div className="grid grid-cols-2 gap-2">
+              {(['weekly', 'daily'] as const).map(freq => (
+                <button
+                  key={freq}
+                  disabled={digestSaving}
+                  onClick={() => setDigestFreq(freq)}
+                  className={`p-3 text-left rounded-xl border transition-colors text-xs disabled:opacity-50 ${digestFrequency === freq ? 'border-black bg-black text-white' : 'border-neutral-200 hover:border-neutral-300 bg-white text-neutral-700'}`}
+                >
+                  <p className="font-semibold capitalize">{freq}</p>
+                  <p className={`text-[10px] mt-0.5 ${digestFrequency === freq ? 'text-neutral-400' : 'text-neutral-400'}`}>
+                    {freq === 'weekly' ? 'Every Monday morning' : 'Every morning'}
+                  </p>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {plan !== 'pro' && (
+          <p className="text-xs text-neutral-400 pt-3 border-t border-neutral-100">Daily digest available on Pro plan.</p>
+        )}
+      </div>
 
       {/* Account actions */}
       <div className="bg-white rounded-2xl border border-neutral-200 p-6">

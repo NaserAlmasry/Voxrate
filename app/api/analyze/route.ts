@@ -39,7 +39,7 @@ import { extractJson } from '@/app/lib/extract-json'
 import { sanitizeReview } from '@/app/lib/sanitize-review'
 import { escapePromptInput } from '@/app/lib/escape-prompt'
 import { getComplaintCountGuidance } from '@/app/lib/complaint-guidance'
-import { CREDIT_COSTS } from '@/app/lib/credit-costs'
+import { CREDIT_COSTS, PLAN_ANALYSES, REANALYZE_COOLDOWN_DAYS } from '@/app/lib/credit-costs'
 import { sanitizeAmazonInput } from '@/app/lib/amazon-url'
 import { verifyCronRequest } from '@/app/lib/cron-auth'
 import {
@@ -82,7 +82,6 @@ async function analyzeProduct(
   reviews:              AmazonReview[],
   ctx:                  ReturnType<typeof calculateHealthScore>,
   listingDescription?:  string,
-  guaranteedFiveStar?:  AmazonReview[],
 ): Promise<any> {
   // Convert AmazonReview[] to the shape pattern-extractor expects
   const reviewsForPatterns = reviews.map(r => ({
@@ -105,31 +104,19 @@ async function analyzeProduct(
   const positiveReviews = sampledReviews.filter(r => r.rating >= 4).slice(0, 50)
   const fiveStarFromMixed = sampledReviews.filter(r => r.rating === 5).slice(0, 30)
 
-  // Convert guaranteed 5★ batch (BrightData half-split) to the same shape
-  const guaranteedFiveStarMapped = (guaranteedFiveStar ?? []).map(r => ({
-    rating:   r.rating,
-    text:     r.body,
-    verified: r.verified,
-    vine:     r.vine,
-  }))
-
   const negReviewText = (negativeReviews.length > 0 ? negativeReviews : sampledReviews.slice(0, 20))
     .map(r =>
       `[${r.rating}★] ${sanitizeReview(r.text).slice(0, 200).trimEnd()}` +
       (r.text.length > 200 ? '…' : ''),
     ).join('\n')
 
-  // posReviewText: prefer guaranteed 5★ batch if available, else fall back to mixed positives
-  const posSource = guaranteedFiveStarMapped.length > 0 ? guaranteedFiveStarMapped : positiveReviews
-  const posReviewText = (posSource.length > 0 ? posSource : sampledReviews.slice(0, 25))
+  const posReviewText = (positiveReviews.length > 0 ? positiveReviews : sampledReviews.slice(0, 25))
     .map(r =>
       `[${r.rating}★] ${sanitizeReview(r.text).slice(0, 200).trimEnd()}` +
       (r.text.length > 200 ? '…' : ''),
     ).join('\n')
 
-  // fiveStarText: prefer guaranteed 5★ batch if available, else fall back to mixed 5★
-  const fiveStarSource = guaranteedFiveStarMapped.length > 0 ? guaranteedFiveStarMapped : fiveStarFromMixed
-  const fiveStarText = (fiveStarSource.length > 0 ? fiveStarSource : positiveReviews.slice(0, 10))
+  const fiveStarText = (fiveStarFromMixed.length > 0 ? fiveStarFromMixed : positiveReviews.slice(0, 10))
     .map(r =>
       `[5★] ${sanitizeReview(r.text).slice(0, 180).trimEnd()}` +
       (r.text.length > 180 ? '…' : ''),
@@ -137,7 +124,7 @@ async function analyzeProduct(
 
   console.log(
     `[Parallel] Review splits — neg: ${negativeReviews.length}, ` +
-    `pos: ${positiveReviews.length}, 5★(mixed): ${fiveStarFromMixed.length}, 5★(guaranteed): ${guaranteedFiveStarMapped.length}`,
+    `pos: ${positiveReviews.length}, 5★: ${fiveStarFromMixed.length}`,
   )
 
   const healthBlock    = formatHealthScoreForPrompt(ctx)
@@ -425,34 +412,28 @@ export async function POST(request: NextRequest) {
 
   const timeoutSignal = AbortSignal.timeout(270_000)
 
-  let creditsDeducted    = false
-  let creditsRefunded    = false
-  let creditRefundUserId = ''
-  let creditRefundAmount = 0
+  let analysisDeducted    = false
+  let analysisRefunded    = false
+  let analysisRefundUserId = ''
+  let analysisRefundType: 'own' | 'competitor' = 'own'
 
-  const refundCredits = async () => {
-    if (!creditsDeducted || !creditRefundUserId || creditsRefunded) return
-    creditsRefunded = true // set BEFORE async call to prevent double-trigger races
+  const refundAnalysis = async () => {
+    if (!analysisDeducted || !analysisRefundUserId || analysisRefunded) return
+    analysisRefunded = true
     try {
       const supabase = await createClient()
-      const { error } = await supabase.rpc('add_credits', {
-        p_user_id: creditRefundUserId,
-        p_amount:  creditRefundAmount,
-      })
+      const rpc = analysisRefundType === 'competitor' ? 'refund_competitor_analysis' : 'refund_own_analysis'
+      const { error } = await supabase.rpc(rpc, { p_user_id: analysisRefundUserId })
       if (error) {
-        console.error('[Analyze] Credit refund RPC failed — MANUAL REVIEW NEEDED:', {
-          userId: creditRefundUserId,
-          amount: creditRefundAmount,
-          error:  error.message,
+        console.error('[Analyze] Analysis refund RPC failed — MANUAL REVIEW NEEDED:', {
+          userId: analysisRefundUserId, type: analysisRefundType, error: error.message,
         })
       } else {
-        console.log(`[Analyze] Refunded ${creditRefundAmount} credits to ${creditRefundUserId}`)
+        console.log(`[Analyze] Refunded 1 ${analysisRefundType} analysis to ${analysisRefundUserId}`)
       }
     } catch (e: any) {
-      console.error('[Analyze] Credit refund threw — MANUAL REVIEW NEEDED:', {
-        userId: creditRefundUserId,
-        amount: creditRefundAmount,
-        error:  e?.message,
+      console.error('[Analyze] Analysis refund threw — MANUAL REVIEW NEEDED:', {
+        userId: analysisRefundUserId, type: analysisRefundType, error: e?.message,
       })
     }
   }
@@ -499,14 +480,14 @@ export async function POST(request: NextRequest) {
 
     const { data: userData } = await supabase
       .from('users')
-      .select('plan, is_admin, credits, competitor_analyses_used')
+      .select('plan, is_admin, own_analyses_remaining, competitor_analyses_remaining')
       .eq('id', user.id)
       .single()
 
-    const isAdminUser              = userData?.is_admin === true
-    const plan                     = userData?.plan    || 'free'
-    const credits                  = userData?.credits ?? 0
-    const competitorAnalysesUsed   = userData?.competitor_analyses_used ?? 0
+    const isAdminUser                  = userData?.is_admin === true
+    const plan                         = userData?.plan    || 'free'
+    const ownRemaining                 = userData?.own_analyses_remaining ?? 0
+    const competitorRemaining          = userData?.competitor_analyses_remaining ?? 0
 
     // Dedup: prevent same user+product within 60 seconds (double-click protection)
     {
@@ -540,117 +521,87 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const creditCost = reportType === 'competitor' ? CREDIT_COSTS.competitorAnalysis : CREDIT_COSTS.ownAnalysis
-
     // ── Competitor analysis gates ─────────────────────────────
-    // Intentionally enforced for ALL competitor requests including re-analyze —
-    // re-analyze must still consume a monthly competitor slot.
     if (!isAdminUser && reportType === 'competitor') {
-      // Free plan: blocked entirely
       if (plan === 'free') {
         return NextResponse.json(
-          { error: 'Competitor analysis is not available on the free plan. Upgrade to Growth to unlock it.', upgradeRequired: true, upgradePrompt: 'growth' },
+          { error: 'Competitor analysis is not available on the free plan. Upgrade to Starter to unlock it.', upgradeRequired: true, upgradePrompt: 'starter' },
           { status: 403 },
         )
       }
-
-      const now        = new Date()
-      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-
-      if (plan === 'starter') {
-        // Starter: 1 per month total
-        const { count } = await supabase
-          .from('competitor_usage')
-          .select('id', { count: 'exact', head: true })
-          .eq('user_id', user.id)
-          .gte('created_at', monthStart)
-        if ((count ?? 0) >= 1) {
-          return NextResponse.json(
-            { error: 'You\'ve used your 1 competitor analysis this month. Resets on the 1st. Upgrade to Growth for 3 per product per month.', upgradeRequired: true, upgradePrompt: 'growth' },
-            { status: 403 },
-          )
-        }
-      }
-
-      if (plan === 'growth' || plan === 'pro') {
-        const limit = plan === 'pro' ? 10 : 3
-        let usageQuery = supabase
-          .from('competitor_usage')
-          .select('id', { count: 'exact', head: true })
-          .eq('user_id', user.id)
-          .gte('created_at', monthStart)
-
-        // Per-product limit when ownReportId is provided; global monthly limit as fallback
-        if (ownReportId) usageQuery = usageQuery.eq('own_report_id', ownReportId)
-
-        const { count } = await usageQuery
-        if ((count ?? 0) >= limit) {
-          return NextResponse.json(
-            {
-              error: `You've used all ${limit} competitor analyses${ownReportId ? ' for this product' : ''} this month. Resets on the 1st.${plan === 'growth' ? ' Upgrade to Pro for 10 per product.' : ''}`,
-              upgradeRequired: plan === 'growth',
-              upgradePrompt: 'pro',
-            },
-            { status: 403 },
-          )
-        }
+      if (competitorRemaining <= 0) {
+        const limits = PLAN_ANALYSES[plan as keyof typeof PLAN_ANALYSES] ?? PLAN_ANALYSES.free
+        return NextResponse.json(
+          {
+            error: `You've used all ${limits.competitor} competitor analyses this month. Rolls over on the 1st.${plan !== 'pro' ? ' Upgrade for more.' : ''}`,
+            upgradeRequired: plan !== 'pro',
+            upgradePrompt: plan === 'starter' ? 'growth' : 'pro',
+          },
+          { status: 403 },
+        )
       }
     }
 
-    // Check 7-day re-analyze cooldown BEFORE deducting credits
-    if (isReAnalyze) {
-      const { data: lastReport } = await supabase
-        .from('reports')
-        .select('last_analyzed_at')
-        .eq('user_id', user.id)
-        .eq('product_url', productUrl)
-        .eq('status', 'completed')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single()
+    // ── Re-analyze cooldown (plan-aware) ──────────────────────
+    if (isReAnalyze && !isAdminUser) {
+      const cooldownDays = REANALYZE_COOLDOWN_DAYS[plan] ?? 7
+      if (cooldownDays > 0) {
+        const { data: lastReport } = await supabase
+          .from('reports')
+          .select('last_analyzed_at')
+          .eq('user_id', user.id)
+          .eq('product_url', productUrl)
+          .eq('status', 'completed')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single()
 
-      if (lastReport?.last_analyzed_at) {
-        const daysSince =
-          (Date.now() - new Date(lastReport.last_analyzed_at).getTime()) / 86_400_000
-        if (daysSince < 7) {
-          return NextResponse.json(
-            { error: `Re-analyze available in ${Math.ceil(7 - daysSince)} day(s).` },
-            { status: 429 },
-          )
+        if (lastReport?.last_analyzed_at) {
+          const daysSince = (Date.now() - new Date(lastReport.last_analyzed_at).getTime()) / 86_400_000
+          if (daysSince < cooldownDays) {
+            return NextResponse.json(
+              { error: `Re-analyze available in ${Math.ceil(cooldownDays - daysSince)} day(s).${plan !== 'pro' ? ' Pro plan removes this cooldown.' : ''}` },
+              { status: 429 },
+            )
+          }
         }
       }
     }
 
     if (!isAdminUser) {
-      if (credits < creditCost) {
+      const isCompetitor = reportType === 'competitor'
+      const remaining    = isCompetitor ? competitorRemaining : ownRemaining
+
+      if (remaining <= 0) {
+        const limits = PLAN_ANALYSES[plan as keyof typeof PLAN_ANALYSES] ?? PLAN_ANALYSES.free
+        const monthly = isCompetitor ? limits.competitor : limits.own
         return NextResponse.json(
           {
-            error:           `Not enough credits. This analysis costs ${creditCost} credits.`,
+            error: `You've used all ${monthly} ${isCompetitor ? 'competitor' : 'own'} analyses this month. Rolls over on the 1st.`,
             upgradeRequired: true,
           },
           { status: 403 },
         )
       }
-      const { data: deducted, error: deductError } = await supabase.rpc('deduct_credits', {
-        p_user_id: user.id,
-        p_amount:  creditCost,
-      })
+
+      const rpc = reportType === 'competitor' ? 'deduct_competitor_analysis' : 'deduct_own_analysis'
+      const { data: deducted, error: deductError } = await supabase.rpc(rpc, { p_user_id: user.id })
       if (deductError) {
-        console.error('[Analyze] Credit deduction failed:', deductError.message)
+        console.error('[Analyze] Analysis deduction failed:', deductError.message)
         return NextResponse.json(
-          { error: 'Could not deduct credits. Please refresh and try again.', upgradeRequired: false },
+          { error: 'Could not deduct analysis. Please refresh and try again.', upgradeRequired: false },
           { status: 503 },
         )
       }
       if (!deducted) {
         return NextResponse.json(
-          { error: 'Not enough credits.', upgradeRequired: true },
+          { error: 'No analyses remaining this month.', upgradeRequired: true },
           { status: 403 },
         )
       }
-      creditsDeducted    = true
-      creditRefundUserId = user.id
-      creditRefundAmount = creditCost
+      analysisDeducted     = true
+      analysisRefundUserId = user.id
+      analysisRefundType   = reportType as 'own' | 'competitor'
 
     }
 
@@ -691,7 +642,7 @@ export async function POST(request: NextRequest) {
 
       if (rawReviews.length === 0) {
         await supabase.from('reports').update({ status: 'failed', product_name: amazonProduct.title || null }).eq('id', reportId)
-        await refundCredits()
+        await refundAnalysis()
         const msg = scrapeResult.fromCache === false
           ? 'Our data provider is temporarily unavailable. Please try again in a few minutes. Your credits have been refunded.'
           : 'No reviews found for this product. Your credits have been refunded.'
@@ -719,7 +670,7 @@ export async function POST(request: NextRequest) {
 
       const analysis = (!isAdminUser && plan === 'free')
         ? await analyzeFreePreview(product, rawReviews, ctx, productDescription)
-        : await analyzeProduct(product, rawReviews, ctx, productDescription, scrapeResult.fiveStarReviews)
+        : await analyzeProduct(product, rawReviews, ctx, productDescription)
 
       const { error: reportUpdateError } = await supabase
         .from('reports')
@@ -757,7 +708,7 @@ export async function POST(request: NextRequest) {
 
       if (reportUpdateError) {
         console.error('[Analyze] Report update failed — credits refunded:', reportUpdateError.message)
-        await refundCredits()
+        await refundAnalysis()
         return NextResponse.json({ error: 'Failed to save analysis. Your credits have been refunded.' }, { status: 500 })
       }
 
@@ -780,7 +731,7 @@ export async function POST(request: NextRequest) {
             scraper_pages:    scrapeResult.scraperPages ?? 0,
             from_cache:       scrapeResult.fromCache ?? false,
             report_type:      reportType,
-            credit_cost:      creditCost,
+            credit_cost: 1,
           }),
       ).catch(() => {})
 
@@ -818,20 +769,20 @@ export async function POST(request: NextRequest) {
     } catch (err: any) {
       console.error('[Pipeline] Error:', err.message)
       await supabase.from('reports').update({ status: 'failed' }).eq('id', reportId)
-      await refundCredits()
+      await refundAnalysis()
       throw err
     }
   } catch (error: any) {
     if (error?.name === 'TimeoutError' || error?.code === 23) {
       console.error('[Analyze] Request timed out after 270s')
-      await refundCredits()
+      await refundAnalysis()
       return NextResponse.json(
         { error: 'Analysis timed out — your credits have been refunded. Please try again.' },
         { status: 504 },
       )
     }
     console.error('[Analyze] Unhandled error:', error instanceof Error ? error.message : String(error))
-    await refundCredits()
+    await refundAnalysis()
     return NextResponse.json(
       { error: 'Analysis failed — your credits have been refunded. Please try again.' },
       { status: 500 },

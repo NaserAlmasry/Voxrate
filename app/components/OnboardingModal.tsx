@@ -56,6 +56,24 @@ const TOUR_ITEMS = [
 const STEPS = [
   {
     icon: (
+      <svg aria-hidden="true" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#f05a1e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+    ),
+    title: 'Install the Chrome extension',
+    description: 'Voxrate uses a Chrome extension to securely scrape Amazon reviews on your behalf — using your own logged-in Amazon session. No review limits, no API keys on your end.',
+    highlights: [
+      'Works with your existing Amazon login',
+      'Runs silently in the background',
+      'No data stored by the extension',
+      'One-click install from the Chrome Web Store',
+    ],
+    cta: 'Download extension →',
+    href: 'https://voxrate.app/dashboard/settings/extension',
+    isExtension: true,
+  },
+  {
+    icon: (
       <svg aria-hidden="true" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#f05a1e" strokeWidth="2" strokeLinecap="round">
         <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
       </svg>
@@ -189,7 +207,7 @@ export default function OnboardingModal() {
               <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>
           </div>
-          <p className="text-xs text-neutral-400">Get the most out of Voxrate in 3 quick steps</p>
+          <p className="text-xs text-neutral-400">Get the most out of Voxrate in 4 quick steps</p>
           {/* Progress */}
           <div className="flex items-center gap-2 mt-4">
             {STEPS.map((_, i) => (
@@ -253,13 +271,26 @@ export default function OnboardingModal() {
             </div>
           )}
 
-          <button
-            type="button"
-            onClick={() => step < STEPS.length - 1 ? setStep(step + 1) : goToStep(s.href)}
-            className="w-full py-3 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold rounded-xl transition-colors mb-3"
-          >
-            {s.cta}
-          </button>
+          {(s as any).isExtension ? (
+            <a
+              href={s.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setStep(step + 1)}
+              className="w-full py-3 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold rounded-xl transition-colors mb-3 flex items-center justify-center gap-2"
+            >
+              <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              {s.cta}
+            </a>
+          ) : (
+            <button
+              type="button"
+              onClick={() => step < STEPS.length - 1 ? setStep(step + 1) : goToStep(s.href)}
+              className="w-full py-3 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold rounded-xl transition-colors mb-3"
+            >
+              {s.cta}
+            </button>
+          )}
 
           <div className="flex items-center justify-between">
             {step > 0 ? (

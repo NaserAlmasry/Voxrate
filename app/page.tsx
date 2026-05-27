@@ -96,11 +96,30 @@ export default function LandingPage() {
   }, [])
 
   // Check if user is already logged in to show dashboard button
+  // Also: if arriving via ?from=ext (Chrome extension "Open Voxrate" button),
+  // redirect paid users → /dashboard, free/unregistered → #pricing
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) setIsLoggedIn(true)
+    const fromExt = new URLSearchParams(window.location.search).get('from') === 'ext'
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (user) {
+        setIsLoggedIn(true)
+        if (fromExt) {
+          const { data: userData } = await supabase
+            .from('users')
+            .select('plan')
+            .eq('id', user.id)
+            .single()
+          if (userData?.plan && userData.plan !== 'free') {
+            window.location.href = '/dashboard'
+          } else {
+            window.location.hash = 'pricing'
+          }
+        }
+      } else if (fromExt) {
+        window.location.hash = 'pricing'
+      }
     })
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Show "account verified" banner if redirected here with ?verified=true
   useEffect(() => {
