@@ -67,7 +67,6 @@ type Product = {
   allScores: number[]
   lastAnalyzed: string
   reviewCount: number
-  isCsv: boolean
   isCompetitor: boolean
   reportCount: number
 }
@@ -119,7 +118,6 @@ export default function LibraryPage() {
           allScores,
           lastAnalyzed:   latest.created_at,
           reviewCount:    latest.total_reviews_analyzed || 0,
-          isCsv:          latest.report_type === 'csv' || (latest.product_url?.startsWith('csv:') ?? false),
           isCompetitor:   latest.report_type === 'competitor',
           reportCount:    rows.length,
         })
@@ -194,9 +192,6 @@ export default function LibraryPage() {
                 {/* Info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
-                    {p.isCsv && (
-                      <span className="text-[10px] font-medium bg-neutral-100 text-neutral-500 px-1.5 py-0.5 rounded">CSV</span>
-                    )}
                     {p.isCompetitor && (
                       <span className="text-[10px] font-medium bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded">Competitor</span>
                     )}
@@ -234,7 +229,7 @@ export default function LibraryPage() {
                     >
                       View
                     </button>
-                    {!p.isCsv && !p.isCompetitor && (
+                    {!p.isCompetitor && !p.productUrl?.startsWith('csv:') && (
                       <button
                         onClick={() => handleReanalyze(p.productUrl, p.listingKey)}
                         disabled={reanalyzing === p.listingKey}

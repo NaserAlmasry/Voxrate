@@ -7,23 +7,9 @@
 import { useState, useEffect, useRef, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/app/lib/supabase/client'
-import { AlertTriangle, Lightbulb, TrendingUp, Crosshair, Dumbbell, BarChart2, Sparkles, Upload } from 'lucide-react'
+import { AlertTriangle, Lightbulb, TrendingUp, Crosshair, Dumbbell, BarChart2, Sparkles } from 'lucide-react'
 
 export const SIMULATE_USER_KEY = 'voxrate_simulate_user'
-
-const PRODUCT_CATEGORIES = [
-  { value: '', label: 'Select a category...' },
-  { value: 'home_decor', label: 'Home Decor' },
-  { value: 'jewelry', label: 'Jewelry & Accessories' },
-  { value: 'clothing', label: 'Clothing & Apparel' },
-  { value: 'art_prints', label: 'Art & Prints' },
-  { value: 'handmade_crafts', label: 'Handmade Crafts' },
-  { value: 'candles_bath', label: 'Candles & Bath' },
-  { value: 'stationery', label: 'Stationery & Paper' },
-  { value: 'toys_games', label: 'Toys & Games' },
-  { value: 'food_drink', label: 'Food & Drink' },
-  { value: 'other', label: 'Other' },
-]
 
 function DashboardHomeInner() {
   const searchParams = useSearchParams()
@@ -80,7 +66,6 @@ function DashboardHomeInner() {
     }, 1500)
   }, [])
   const [showCancelWarning, setShowCancelWarning] = useState(false)
-  const [isCsv, setIsCsv] = useState(false)
   const [bulkMode, setBulkMode] = useState(false)
   const [bulkAsins, setBulkAsins] = useState(['', '', '', '', ''])
   const [bulkMarketplace, setBulkMarketplace] = useState('amazon.com')
@@ -104,16 +89,6 @@ function DashboardHomeInner() {
   const [scScanData, setScScanData] = useState<any[]>([])
   const [velocityExpanded, setVelocityExpanded] = useState(false)
   const [scExpanded, setScExpanded] = useState(false)
-
-  // ── Product info modal (CSV upload) ──────────────────────
-  const [showProductModal, setShowProductModal] = useState(false)
-  const [pendingCsvFile, setPendingCsvFile] = useState<File | null>(null)
-  const [csvProductName, setCsvProductName] = useState('')
-  const [csvCategory, setCsvCategory] = useState('')
-  const [csvDescription, setCsvDescription] = useState('')
-  const [csvPrice, setCsvPrice] = useState('')
-  const [csvProductNameError, setCsvProductNameError] = useState('')
-  const [csvCategoryError, setCsvCategoryError] = useState('')
 
   const toggleSimulation = (val: boolean) => {
     setSimulatingUser(val)
@@ -228,50 +203,6 @@ function DashboardHomeInner() {
       return () => clearTimeout(pendingTimer)
     }
 
-    const csvContent = localStorage.getItem('pendingCsvContent')
-    const csvName    = localStorage.getItem('pendingCsvName')
-    const csvProdName = localStorage.getItem('pendingCsvProductName')
-    const csvProdCat  = localStorage.getItem('pendingCsvProductCategory')
-    const csvProdPrice = localStorage.getItem('pendingCsvPrice')
-    const csvProdDesc  = localStorage.getItem('pendingCsvProductDescription')
-
-    if (csvContent && csvName) {
-      localStorage.removeItem('pendingCsvContent')
-      localStorage.removeItem('pendingCsvName')
-      localStorage.removeItem('pendingCsvProductName')
-      localStorage.removeItem('pendingCsvProductCategory')
-      localStorage.removeItem('pendingCsvPrice')
-      localStorage.removeItem('pendingCsvProductDescription')
-
-      const blob = new Blob([csvContent], { type: 'text/csv' })
-      const file = new File([blob], csvName, { type: 'text/csv' })
-
-      if (csvProdName) {
-        const runLandingCsv = async () => {
-          cancelledRef.current = false
-          setLoading(true); setIsCsv(true)
-          const controller = new AbortController()
-          controllerRef.current = controller
-          try {
-            const fd = new FormData()
-            fd.append('file', file)
-            fd.append('productName', csvProdName)
-            if (csvProdCat) fd.append('productCategory', csvProdCat)
-            if (csvProdPrice) fd.append('price', csvProdPrice)
-            if (csvProdDesc) fd.append('productDescription', csvProdDesc)
-
-            const res = await fetch('/api/analyze-csv', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' }, signal: controller.signal })
-            const data = await res.json()
-            if (!res.ok) { setError(data.error || 'CSV analysis failed.'); setLoading(false); setIsCsv(false); return }
-            window.location.href = `/dashboard/report/${data.reportId}`
-          } catch (err: any) {
-            if (!cancelledRef.current && err?.name !== 'AbortError') { setError('Something went wrong. Please try again.') }
-            setLoading(false); setIsCsv(false)
-          }
-        }
-        runLandingCsv()
-      }
-    }
   }, [])
 
   useEffect(() => {
@@ -430,42 +361,7 @@ function DashboardHomeInner() {
     controllerRef.current?.abort()
     setShowCancelWarning(false)
     setLoading(false)
-    setIsCsv(false)
     setError('Analysis cancelled.')
-  }
-
-  const handleCsvFile = (file: File) => {
-    if (!file.name.endsWith('.csv')) { setError('Please upload a .csv file'); return }
-    setError('')
-    setCsvProductName(''); setCsvCategory(''); setCsvDescription(''); setCsvPrice('')
-    setCsvProductNameError(''); setCsvCategoryError('')
-    setPendingCsvFile(file)
-    setShowProductModal(true)
-  }
-
-  const submitCsvAnalysis = async () => {
-    let hasError = false
-    if (!csvProductName.trim()) { setCsvProductNameError('Product name is required'); hasError = true }
-    if (!csvCategory) { setCsvCategoryError('Please select a category'); hasError = true }
-    if (hasError || !pendingCsvFile) return
-
-    setShowProductModal(false); setLoading(true); setIsCsv(true)
-    const controller = new AbortController()
-    controllerRef.current = controller
-    try {
-      const fd = new FormData()
-      fd.append('file', pendingCsvFile)
-      fd.append('productName', csvProductName.trim())
-      fd.append('productCategory', csvCategory)
-      if (csvDescription.trim()) fd.append('productDescription', csvDescription.trim())
-      if (csvPrice.trim()) fd.append('price', csvPrice.trim())
-      const res = await fetch('/api/analyze-csv', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' }, signal: controller.signal })
-      const data = await res.json()
-      if (!res.ok) { setError(data.error || 'Analysis failed.'); setLoading(false); setIsCsv(false); return }
-      window.location.href = `/dashboard/report/${data.reportId}`
-    } catch {
-      setLoading(false); setIsCsv(false)
-    }
   }
 
   const handleBulkAnalyze = async () => {
@@ -517,7 +413,6 @@ function DashboardHomeInner() {
   }
 
   const getLoadingMessage = (secs: number) => {
-    if (isCsv) return secs < 10 ? 'Reading CSV...' : secs < 30 ? 'Analyzing your reviews...' : 'Building your report...'
     return secs < 20 ? 'Connecting to Amazon...' : secs < 60 ? 'Reading customer reviews...' : secs < 120 ? 'Finding patterns...' : 'Building your report...'
   }
 
@@ -789,23 +684,6 @@ function DashboardHomeInner() {
           )}
         </div>
 
-        {/* CSV Drop Zone */}
-        {!bulkMode && <div
-          onClick={() => !loading && document.getElementById('csv-dash')?.click()}
-          className={`mx-5 my-4 border-2 border-dashed rounded-xl p-5 text-center transition-colors cursor-pointer select-none ${loading ? 'opacity-40 cursor-not-allowed' : 'border-neutral-200 hover:border-orange-300 hover:bg-orange-50/30'}`}
-        >
-          <div className="flex flex-col items-center gap-2">
-            <div className="w-9 h-9 rounded-xl bg-neutral-100 flex items-center justify-center text-neutral-400">
-              <Upload size={18} />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-neutral-600">Drop CSV or <span className="text-orange-500">Browse</span></p>
-              <p className="text-xs text-neutral-400 mt-0.5">Upload your Amazon reviews export — analysis in under 60 seconds</p>
-            </div>
-          </div>
-          <input id="csv-dash" type="file" accept=".csv" className="hidden"
-            onChange={e => e.target.files?.[0] && handleCsvFile(e.target.files[0])} />
-        </div>}
       </div>
 
       {/* ── Spy Competitors ── */}
@@ -1130,120 +1008,6 @@ function DashboardHomeInner() {
         </div>
       </div>
 
-      {/* ── CSV Product Info Modal ── */}
-      {showProductModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-            <div className="px-6 pt-6 pb-4 border-b border-neutral-100">
-              <div className="flex items-start justify-between">
-                <div>
-                  <h2 className="font-semibold text-base">Tell us about your product</h2>
-                  <p className="text-xs text-neutral-400 mt-0.5">More detail = a more accurate SEO score and better fixes</p>
-                </div>
-                <button onClick={() => setShowProductModal(false)} className="text-neutral-300 hover:text-black transition-colors ml-4 text-lg leading-none">✕</button>
-              </div>
-              {pendingCsvFile && (
-                <div className="mt-3 flex items-center gap-2 px-3 py-2 bg-neutral-50 rounded-lg border border-neutral-100 text-xs text-neutral-500">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                  {pendingCsvFile.name} · {Math.round(pendingCsvFile.size / 1024)}KB
-                </div>
-              )}
-            </div>
-
-            <div className="px-6 py-5 space-y-4">
-              {/* Product name */}
-              <div>
-                <label className="block text-xs font-semibold text-neutral-600 mb-1.5">
-                  Product name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={csvProductName}
-                  onChange={e => { setCsvProductName(e.target.value); setCsvProductNameError('') }}
-                  onKeyDown={e => e.key === 'Enter' && submitCsvAnalysis()}
-                  placeholder="e.g. Handmade Ceramic Coffee Mug"
-                  autoFocus
-                  className={`w-full px-3 py-2.5 text-sm border rounded-xl outline-none transition-colors ${csvProductNameError ? 'border-red-300 bg-red-50' : 'border-neutral-200 focus:border-orange-400'}`}
-                />
-                {csvProductNameError && <p className="text-xs text-red-500 mt-1">{csvProductNameError}</p>}
-              </div>
-
-              {/* Category */}
-              <div>
-                <label className="block text-xs font-semibold text-neutral-600 mb-1.5">
-                  Product category <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={csvCategory}
-                  onChange={e => { setCsvCategory(e.target.value); setCsvCategoryError('') }}
-                  className={`w-full px-3 py-2.5 text-sm border rounded-xl outline-none transition-colors bg-white ${csvCategoryError ? 'border-red-300 bg-red-50' : 'border-neutral-200 focus:border-orange-400'}`}
-                >
-                  {PRODUCT_CATEGORIES.map(c => (
-                    <option key={c.value} value={c.value}>{c.label}</option>
-                  ))}
-                </select>
-                {csvCategoryError && <p className="text-xs text-red-500 mt-1">{csvCategoryError}</p>}
-                <p className="text-[10px] text-neutral-400 mt-1">Helps the AI benchmark against similar products and write accurate SEO suggestions</p>
-              </div>
-
-              {/* Description */}
-              <div>
-                <label className="block text-xs font-semibold text-neutral-600 mb-1.5">
-                  Product description <span className="text-neutral-400 font-normal">(optional — strongly improves SEO accuracy)</span>
-                </label>
-                <textarea
-                  value={csvDescription}
-                  onChange={e => setCsvDescription(e.target.value)}
-                  placeholder="Briefly describe your product — materials, size, use case, what makes it special..."
-                  rows={3}
-                  maxLength={1000}
-                  className="w-full px-3 py-2.5 text-sm border border-neutral-200 rounded-xl outline-none focus:border-orange-400 transition-colors resize-none"
-                />
-                {csvDescription.length > 900 && (
-                  <p className="text-[10px] text-neutral-400 mt-0.5 text-right">{csvDescription.length}/1000</p>
-                )}
-              </div>
-
-              {/* Price */}
-              <div>
-                <label className="block text-xs font-semibold text-neutral-600 mb-1.5">
-                  Listing price <span className="text-neutral-400 font-normal">(optional)</span>
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-neutral-400">$</span>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={csvPrice}
-                    onChange={e => {
-                      const v = e.target.value
-                      if (v === '' || /^\d{0,6}(\.\d{0,2})?$/.test(v)) setCsvPrice(v)
-                    }}
-                    placeholder="29.99"
-                    className="w-full pl-7 pr-3 py-2.5 text-sm border border-neutral-200 rounded-xl outline-none focus:border-orange-400 transition-colors"
-                  />
-                </div>
-                <p className="text-[10px] text-neutral-400 mt-1">Used to benchmark perceived value against competitors at the same price point</p>
-              </div>
-            </div>
-
-            <div className="px-6 pb-6 flex gap-3">
-              <button
-                onClick={() => setShowProductModal(false)}
-                className="flex-1 py-2.5 text-sm border border-neutral-200 rounded-xl hover:border-neutral-300 transition-colors text-neutral-600"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={submitCsvAnalysis}
-                className="flex-1 py-2.5 text-sm font-semibold bg-black text-white rounded-xl hover:bg-neutral-800 transition-colors"
-              >
-                Start analysis →
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

@@ -11,7 +11,7 @@ export default function HowItWorksSection() {
               n: 1,
               icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f05a1e" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>,
               title: 'Paste your Amazon URL or ASIN',
-              body: "Drop in any Amazon product link or ASIN, or upload a CSV export of your reviews. No setup, no forms, no configuration.",
+              body: "Drop in any Amazon product link or ASIN. No setup, no forms, no configuration.",
             },
             {
               n: 2,

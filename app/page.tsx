@@ -19,36 +19,6 @@ import FaqSection from '@/app/components/sections/FaqSection'
 import FinalCtaSection from '@/app/components/sections/FinalCtaSection'
 import FooterTrustBar from '@/app/components/sections/FooterTrustBar'
 import FooterSection from '@/app/components/sections/FooterSection'
-import ProductInfoModal from '@/app/components/sections/ProductInfoModal'
-
-const googleOAuthOptions = (origin: string) => ({
-  redirectTo: `${origin}/auth/callback`,
-  queryParams: { access_type: 'offline', prompt: 'consent' },
-})
-
-function CsvGuide({ show, onToggle, onClose }: { show: boolean; onToggle: () => void; onClose: () => void }) {
-  return (
-    <div className="relative inline-block">
-      <button onClick={onToggle} className="text-xs text-orange-500 hover:text-orange-600 underline underline-offset-2 transition-colors">
-        How to export from Amazon?
-      </button>
-      {show && (
-        <div className="absolute right-0 top-6 z-50 w-64 bg-black text-white text-xs rounded-xl p-4 shadow-xl">
-          <div className="absolute -top-1.5 right-4 w-3 h-3 bg-black rotate-45" />
-          <p className="font-semibold mb-2">Export your reviews from Amazon:</p>
-          <ol className="space-y-1.5 text-neutral-300">
-            <li className="flex gap-2"><span className="text-orange-400 font-bold flex-shrink-0">1.</span>Use a tool like <strong className="text-white">Helium 10</strong> or <strong className="text-white">Jungle Scout</strong> to export reviews as CSV</li>
-            <li className="flex gap-2"><span className="text-orange-400 font-bold flex-shrink-0">2.</span>Or use Amazon's <strong className="text-white">Request My Data</strong> feature in your account settings</li>
-            <li className="flex gap-2"><span className="text-orange-400 font-bold flex-shrink-0">3.</span>Make sure the CSV has a <strong className="text-white">rating</strong> column and a <strong className="text-white">review text</strong> column</li>
-            <li className="flex gap-2"><span className="text-orange-400 font-bold flex-shrink-0">4.</span>Upload it here — analysis runs in under 60 seconds</li>
-          </ol>
-          <button onClick={onClose} className="mt-3 text-neutral-400 hover:text-white text-[10px]">Got it ✕</button>
-        </div>
-      )}
-    </div>
-  )
-}
-
 export default function LandingPage() {
   const [heroUrl, setHeroUrl]         = useState('')
   const [heroUrlError, setHeroUrlError] = useState('')
@@ -62,21 +32,11 @@ export default function LandingPage() {
   const [nlEmail, setNlEmail]         = useState('')
   const [nlSubmitted, setNlSubmitted] = useState(false)
   const [nlError, setNlError]         = useState(false)
-  const [csvMsg, setCsvMsg]           = useState('')
   const [activeTab, setActiveTab]     = useState('complaints')
   const [expandedComplaint, setExpandedComplaint] = useState<number | null>(0)
   const [compExpandedComplaint, setCompExpandedComplaint] = useState<number | null>(0)
   const [footerNlEmail, setFooterNlEmail]   = useState('')
   const [footerNlSubmitted, setFooterNlSubmitted] = useState(false)
-  const [showCsvGuide, setShowCsvGuide] = useState(false)
-  const [csvFile, setCsvFile]         = useState<File | null>(null)
-  const [csvFileText, setCsvFileText] = useState('')
-  const [showProductModal, setShowProductModal] = useState(false)
-  const [productName, setProductName] = useState('')
-  const [productCategory, setProductCategory] = useState('')
-  const [productPrice, setProductPrice] = useState('')
-  const [productNameError, setProductNameError] = useState('')
-  const [productCategoryError, setProductCategoryError] = useState('')
   const [calcProducts, setCalcProducts] = useState(5)
   const [calcFrequency, setCalcFrequency] = useState<'monthly' | 'quarterly'>('monthly')
   const nlDropdownRef = useRef<HTMLDivElement>(null)
@@ -175,50 +135,6 @@ export default function LandingPage() {
 
   const analyzeHero = async () => { const r = await signIn(heroUrl, true); if (r?.error) setHeroUrlError(r.error) }
   const analyzeCta  = async () => { const r = await signIn(ctaUrl,  true); if (r?.error) setCtaUrlError(r.error) }
-  const openCsv = () => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) { setAuthModalMode({ step: 'plan' }); setShowAuthModal(true); return }
-      document.getElementById('csv-in')?.click()
-    })
-  }
-
-  const onCsv = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0]
-    if (!f) return
-    if (!f.name.endsWith('.csv')) { setCsvMsg('Please upload a .csv file'); return }
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      setCsvFile(f); setCsvFileText(ev.target?.result as string)
-      setProductName(''); setProductCategory(''); setProductPrice('')
-      setProductNameError(''); setProductCategoryError('')
-      setShowProductModal(true); setCsvMsg('')
-    }
-    reader.readAsText(f)
-    setCsvMsg(`Reading "${f.name}"...`)
-  }
-
-  const submitCsvWithProductInfo = async () => {
-    if (!productName.trim()) { setProductNameError('Please enter your product name'); return }
-    if (!productCategory.trim()) { setProductCategoryError('Please select a category'); return }
-    if (!csvFile || !csvFileText) return
-    setShowProductModal(false)
-    setCsvMsg(`Preparing "${csvFile.name}"...`)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user?.id) return
-    const storeData = () => {
-      try {
-        localStorage.setItem('pendingCsvContent', csvFileText)
-        localStorage.setItem('pendingCsvName', csvFile.name)
-        localStorage.setItem('pendingCsvProductName', productName.trim())
-        localStorage.setItem('pendingCsvProductCategory', productCategory.trim())
-        localStorage.setItem('pendingCsvPrice', productPrice.trim())
-        return true
-      } catch { setCsvMsg('File too large to store. Please try a smaller CSV.'); return false }
-    }
-    if (user) { if (!storeData()) return; window.location.href = '/dashboard'; return }
-    if (!storeData()) return
-    await supabase.auth.signInWithOAuth({ provider: 'google', options: googleOAuthOptions(window.location.origin) })
-  }
 
   return (
     <div className="min-h-screen bg-[#FAF9F6] text-neutral-900" style={{ fontFamily: "'DM Sans',sans-serif" }}>
@@ -309,18 +225,6 @@ export default function LandingPage() {
         saveNewsletter={saveNewsletter}
       />
 
-      {showProductModal && (
-        <ProductInfoModal
-          csvFile={csvFile}
-          productName={productName} setProductName={setProductName}
-          productNameError={productNameError} setProductNameError={setProductNameError}
-          productCategory={productCategory} setProductCategory={setProductCategory}
-          productCategoryError={productCategoryError} setProductCategoryError={setProductCategoryError}
-          productPrice={productPrice} setProductPrice={setProductPrice}
-          onClose={() => setShowProductModal(false)}
-          onSubmit={submitCsvWithProductInfo}
-        />
-      )}
     </div>
   )
 }
