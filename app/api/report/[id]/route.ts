@@ -66,8 +66,10 @@ export async function GET(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
       const filteredReport = applyPlanLimits(report.full_report, 'free', false)
+      // Strip internal fields from public share response
+      const { user_id: _uid, ...publicReport } = report
       return NextResponse.json({
-        ...report,
+        ...publicReport,
         full_report: filteredReport,
         _isSharedView: true,
       })

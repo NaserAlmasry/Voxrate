@@ -3,8 +3,12 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/app/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { checkCsrf } from '@/app/lib/csrf'
 
-export async function POST(_req: NextRequest) {
+export async function POST(req: NextRequest) {
+  const csrfError = checkCsrf(req)
+  if (csrfError) return csrfError
+
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

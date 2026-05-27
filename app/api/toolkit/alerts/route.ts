@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/app/lib/supabase/server'
+import { checkCsrf } from '@/app/lib/csrf'
 
 export async function GET() {
   const supabase = await createClient()
@@ -19,7 +20,10 @@ export async function GET() {
   return NextResponse.json({ alerts: alerts ?? [], unreadCount })
 }
 
-export async function PATCH() {
+export async function PATCH(req: NextRequest) {
+  const csrfError = checkCsrf(req)
+  if (csrfError) return csrfError
+
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

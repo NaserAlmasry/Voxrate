@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/app/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
+import { checkCsrf } from '@/app/lib/csrf'
 
 function slugify(input: string): string {
   return input
@@ -75,6 +76,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const csrfError = checkCsrf(request)
+  if (csrfError) return csrfError
   const admin = await requireAdmin()
   if ('error' in admin) return admin.error
   const body = await request.json().catch(() => ({}))
@@ -119,6 +122,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  const csrfError = checkCsrf(request)
+  if (csrfError) return csrfError
   const admin = await requireAdmin()
   if ('error' in admin) return admin.error
   const body = await request.json().catch(() => ({}))
@@ -160,6 +165,8 @@ export async function PUT(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const csrfError = checkCsrf(request)
+  if (csrfError) return csrfError
   const admin = await requireAdmin()
   if ('error' in admin) return admin.error
   const url = new URL(request.url)

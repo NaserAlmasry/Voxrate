@@ -20,6 +20,8 @@ export default function SettingsPage() {
   const [weeklyDigest, setWeeklyDigest] = useState(true)
   const [digestFrequency, setDigestFrequency] = useState<'weekly' | 'daily'>('weekly')
   const [digestSaving, setDigestSaving] = useState(false)
+  const [trialEndsAt, setTrialEndsAt] = useState<string | null>(null)
+  const [trialDaysLeft, setTrialDaysLeft] = useState<number | null>(null)
   const supabaseRef = useRef(createClient())
   const supabase    = supabaseRef.current
   const toast    = useToast()
@@ -33,7 +35,7 @@ export default function SettingsPage() {
     const date = new Date(user.created_at)
     setJoinedDate(date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }))
 
-    const { data } = await supabase.from('users').select('plan, own_analyses_remaining, competitor_analyses_remaining, is_admin, stripe_current_period_end, weekly_digest_enabled, digest_frequency').eq('id', user.id).single()
+    const { data } = await supabase.from('users').select('plan, own_analyses_remaining, competitor_analyses_remaining, is_admin, stripe_current_period_end, weekly_digest_enabled, digest_frequency, trial_ends_at').eq('id', user.id).single()
     if (data?.plan) setPlan(data.plan)
     if (data?.own_analyses_remaining != null) setOwnRemaining(data.own_analyses_remaining)
     if (data?.competitor_analyses_remaining != null) setCompetitorRemaining(data.competitor_analyses_remaining)
@@ -42,6 +44,11 @@ export default function SettingsPage() {
     if (data?.digest_frequency) setDigestFrequency(data.digest_frequency as 'weekly' | 'daily')
     if (data?.stripe_current_period_end) {
       setRenewalDate(new Date(data.stripe_current_period_end * 1000).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }))
+    }
+    if (data?.trial_ends_at) {
+      setTrialEndsAt(data.trial_ends_at)
+      const daysLeft = Math.ceil((new Date(data.trial_ends_at).getTime() - Date.now()) / 86400000)
+      setTrialDaysLeft(daysLeft > 0 ? daysLeft : 0)
     }
   }
 
@@ -203,6 +210,19 @@ export default function SettingsPage() {
         {/* Upgrade CTA for free plan */}
         {!isAdmin && plan === 'free' && (
           <>
+            {trialDaysLeft !== null && trialDaysLeft > 0 && trialEndsAt && (
+              <div className={`flex items-center justify-between p-3 rounded-xl border mb-4 ${trialDaysLeft <= 2 ? 'bg-red-50 border-red-200' : 'bg-orange-50 border-orange-200'}`}>
+                <div>
+                  <p className={`text-xs font-semibold ${trialDaysLeft <= 2 ? 'text-red-700' : 'text-orange-700'}`}>
+                    Free trial — {trialDaysLeft} day{trialDaysLeft !== 1 ? 's' : ''} remaining
+                  </p>
+                  <p className="text-[10px] text-neutral-500 mt-0.5">Trial ends {new Date(trialEndsAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
+                </div>
+                <a href="/#pricing" className={`text-xs font-semibold px-3 py-1.5 rounded-lg ${trialDaysLeft <= 2 ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-orange-500 text-white hover:bg-orange-600'}`}>
+                  Upgrade →
+                </a>
+              </div>
+            )}
             <p className="text-xs text-neutral-400 mb-4">You have 1 lifetime analysis. Upgrade to unlock monthly analyses with rollover.</p>
             <div className="grid grid-cols-3 gap-2">
               <CheckoutButton
@@ -231,8 +251,8 @@ export default function SettingsPage() {
 
         <div className="flex items-center justify-between gap-4 mb-4">
           <div>
-            <p className="text-sm font-medium text-neutral-800">Digest email</p>
-            <p className="text-xs text-neutral-400 mt-0.5">Shop health summary with AI priority action.</p>
+            <p className="text-sm font-medium">Weekly digest email</p>
+            <p className="text-xs text-neutral-400 mt-0.5">Get a weekly summary of your product health scores and top complaints</p>
           </div>
           <button
             role="switch"

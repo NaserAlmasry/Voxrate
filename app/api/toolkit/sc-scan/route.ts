@@ -1,11 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { createClient } from '@/app/lib/supabase/server'
 
 function adminClient() {
   return createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   )
+}
+
+export async function GET(_req: NextRequest) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const admin = adminClient()
+  const { data: scans } = await admin
+    .from('sc_scans')
+    .select('scan_type, data, created_at')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false })
+    .limit(10)
+
+  return NextResponse.json({ data: scans || [] })
 }
 
 async function getUserFromToken(token: string) {
@@ -34,8 +51,14 @@ export async function POST(req: NextRequest) {
   let body: SCScanPayload
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }) }
 
+  const ALLOWED_SCAN_TYPES = ['account_health', 'stranded_inventory', 'reimbursements', 'returns', 'heartbeat'] as const
   const { scan_type, data } = body
-  if (!scan_type || !data) return NextResponse.json({ error: 'Missing scan_type or data' }, { status: 400 })
+  if (!scan_type || !ALLOWED_SCAN_TYPES.includes(scan_type as typeof ALLOWED_SCAN_TYPES[number])) {
+    return NextResponse.json({ error: 'Invalid scan_type' }, { status: 400 })
+  }
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    return NextResponse.json({ error: 'Missing or invalid data' }, { status: 400 })
+  }
 
   const supabase = adminClient()
   const userId = session.user_id

@@ -100,6 +100,10 @@ function DashboardHomeInner() {
   const [weeklyDigest, setWeeklyDigest] = useState<{ productName: string; score: number; topComplaint: string | null; prevScore: number | null } | null>(null)
   const [digestDismissed, setDigestDismissed] = useState(false)
   const [showVerifiedBanner, setShowVerifiedBanner] = useState(false)
+  const [velocityData, setVelocityData] = useState<any[]>([])
+  const [scScanData, setScScanData] = useState<any[]>([])
+  const [velocityExpanded, setVelocityExpanded] = useState(false)
+  const [scExpanded, setScExpanded] = useState(false)
 
   // ── Product info modal (CSV upload) ──────────────────────
   const [showProductModal, setShowProductModal] = useState(false)
@@ -179,6 +183,17 @@ function DashboardHomeInner() {
       if (user) {
         const name = user.user_metadata?.full_name?.split(' ')[0] ?? user.email?.split('@')[0] ?? 'there'
         setUserName(name)
+
+        // Feature 1: Fetch velocity and SC scan data
+        fetch('/api/toolkit/velocity', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+          .then(r => r.ok ? r.json() : null)
+          .then(d => { if (d?.data) setVelocityData(d.data) })
+          .catch(() => {})
+
+        fetch('/api/toolkit/sc-scan', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+          .then(r => r.ok ? r.json() : null)
+          .then(d => { if (d?.data) setScScanData(d.data) })
+          .catch(() => {})
       }
     })
 
@@ -956,6 +971,136 @@ function DashboardHomeInner() {
               </div>
               <p className="text-xs text-neutral-400 mt-3">Run an analysis to see your score</p>
             </>
+          )}
+        </div>
+      </div>
+
+      {/* ── Velocity + SC Scan cards ── */}
+      <div className="grid grid-cols-2 gap-3">
+        {/* Velocity card */}
+        <div className="bg-white rounded-2xl border border-neutral-200 overflow-hidden">
+          <button
+            onClick={() => setVelocityExpanded(v => !v)}
+            className="w-full flex items-center justify-between p-4 text-left hover:bg-neutral-50 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <TrendingUp size={14} className="text-orange-500 flex-shrink-0" />
+              <div>
+                <p className="text-xs font-semibold text-neutral-700">Review Velocity</p>
+                <p className="text-[10px] text-neutral-400 mt-0.5">
+                  {velocityData.length > 0
+                    ? `${[...new Set(velocityData.map((d: any) => d.asin))].length} product${[...new Set(velocityData.map((d: any) => d.asin))].length !== 1 ? 's' : ''} monitored`
+                    : 'No watched products yet'}
+                </p>
+              </div>
+            </div>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`text-neutral-400 transition-transform flex-shrink-0 ${velocityExpanded ? 'rotate-180' : ''}`}><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          {velocityExpanded && (
+            <div className="px-4 pb-4 border-t border-neutral-100">
+              {velocityData.length === 0 ? (
+                <p className="text-xs text-neutral-400 mt-3 leading-relaxed">Add products to your watchlist via the extension to see daily review trends</p>
+              ) : (
+                <div className="mt-3 space-y-4">
+                  {[...new Set(velocityData.map((d: any) => d.asin))].map((asin: any) => {
+                    const asinDays = velocityData
+                      .filter((d: any) => d.asin === asin)
+                      .slice(-14)
+                    const maxVal = Math.max(...asinDays.map((d: any) => d.one_star || 0), 1)
+                    return (
+                      <div key={asin}>
+                        <p className="text-[10px] font-semibold text-neutral-500 mb-2 font-mono">{asin}</p>
+                        <div className="flex items-end gap-0.5 h-10">
+                          {asinDays.map((d: any, i: number) => {
+                            const h = Math.max(2, Math.round((d.one_star / maxVal) * 40))
+                            const isSpike = d.one_star >= 5 || (i > 0 && asinDays[i-1] && d.one_star >= (asinDays[i-1].one_star || 0) * 2 + 2)
+                            return (
+                              <div key={d.date} className="flex flex-col items-center flex-1 group relative">
+                                <div
+                                  style={{ height: h }}
+                                  className={`w-full rounded-sm ${isSpike ? 'bg-red-400' : 'bg-neutral-200'}`}
+                                />
+                                <span className="absolute bottom-full mb-1 text-[9px] bg-neutral-800 text-white px-1 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none z-10">
+                                  {d.date}: {d.one_star} ★
+                                </span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                        <div className="flex justify-between mt-1">
+                          <span className="text-[9px] text-neutral-300">{asinDays[0]?.date?.slice(5)}</span>
+                          <span className="text-[9px] text-neutral-300">{asinDays[asinDays.length - 1]?.date?.slice(5)}</span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* SC Scan card */}
+        <div className="bg-white rounded-2xl border border-neutral-200 overflow-hidden">
+          <button
+            onClick={() => setScExpanded(v => !v)}
+            className="w-full flex items-center justify-between p-4 text-left hover:bg-neutral-50 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <BarChart2 size={14} className="text-blue-500 flex-shrink-0" />
+              <div>
+                <p className="text-xs font-semibold text-neutral-700">Seller Central</p>
+                <p className="text-[10px] text-neutral-400 mt-0.5">
+                  {scScanData.length > 0
+                    ? `Last scan ${new Date(scScanData[0]?.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+                    : 'No scans yet'}
+                </p>
+              </div>
+            </div>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`text-neutral-400 transition-transform flex-shrink-0 ${scExpanded ? 'rotate-180' : ''}`}><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          {scExpanded && (
+            <div className="px-4 pb-4 border-t border-neutral-100">
+              {scScanData.length === 0 ? (
+                <p className="text-xs text-neutral-400 mt-3 leading-relaxed">Visit your Seller Central pages with the extension installed to capture your account metrics</p>
+              ) : (() => {
+                const accountHealth = scScanData.find((s: any) => s.scan_type === 'account_health')
+                const strandedInv   = scScanData.find((s: any) => s.scan_type === 'stranded_inventory')
+                const h = accountHealth?.data || {}
+                const metric = (label: string, val: any, threshold: number, unit = '%') => {
+                  if (val == null) return null
+                  const bad = val > threshold
+                  return (
+                    <div key={label} className="flex items-center justify-between py-1.5 border-b border-neutral-50 last:border-0">
+                      <span className="text-xs text-neutral-600">{label}</span>
+                      <span className={`text-xs font-semibold ${bad ? 'text-red-600' : 'text-green-600'}`}>{val}{unit}</span>
+                    </div>
+                  )
+                }
+                return (
+                  <div className="mt-3 space-y-0">
+                    {metric('ODR', h.odr, 1)}
+                    {metric('Late shipment', h.late_shipment_rate, 4)}
+                    {metric('Cancellation rate', h.cancellation_rate, 2.5)}
+                    {h.policy_violations != null && (
+                      <div className="flex items-center justify-between py-1.5 border-b border-neutral-50">
+                        <span className="text-xs text-neutral-600">Policy violations</span>
+                        <span className={`text-xs font-semibold ${h.policy_violations > 0 ? 'text-red-600' : 'text-green-600'}`}>{h.policy_violations}</span>
+                      </div>
+                    )}
+                    {strandedInv?.data?.stranded_units != null && (
+                      <div className="flex items-center justify-between py-1.5">
+                        <span className="text-xs text-neutral-600">Stranded units</span>
+                        <span className={`text-xs font-semibold ${strandedInv.data.stranded_units > 0 ? 'text-orange-600' : 'text-green-600'}`}>{strandedInv.data.stranded_units}</span>
+                      </div>
+                    )}
+                    {accountHealth && (
+                      <p className="text-[10px] text-neutral-400 mt-2">Scanned {new Date(accountHealth.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                    )}
+                  </div>
+                )
+              })()}
+            </div>
           )}
         </div>
       </div>

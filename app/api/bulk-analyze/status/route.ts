@@ -7,6 +7,7 @@ export async function GET(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   const rawIds = request.nextUrl.searchParams.get('jobIds') || ''
   const jobIds = rawIds.split(',').map(s => s.trim()).filter(Boolean)
 
@@ -15,6 +16,9 @@ export async function GET(request: NextRequest) {
   }
   if (jobIds.length > 5) {
     return NextResponse.json({ error: 'Maximum 5 job IDs' }, { status: 400 })
+  }
+  if (jobIds.some(id => !UUID_REGEX.test(id))) {
+    return NextResponse.json({ error: 'Invalid job ID format' }, { status: 400 })
   }
 
   const adminSupabase = createAdminClient(

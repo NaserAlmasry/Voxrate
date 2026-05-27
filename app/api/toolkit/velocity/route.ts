@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { createClient } from '@/app/lib/supabase/server'
 
 function adminClient() {
   return createAdminClient(
@@ -16,6 +17,37 @@ async function getUserFromToken(token: string) {
     .eq('token', token)
     .single()
   return data
+}
+
+export async function GET(_req: NextRequest) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const admin = adminClient()
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+
+  // Get monitored ASINs for this user
+  const { data: monitored } = await admin
+    .from('monitored_asins')
+    .select('asin')
+    .eq('user_id', user.id)
+
+  if (!monitored || monitored.length === 0) {
+    return NextResponse.json({ data: [] })
+  }
+
+  const asins = monitored.map((m: any) => m.asin)
+
+  const { data: velocity } = await admin
+    .from('review_velocity')
+    .select('asin, date, one_star, two_star, three_star, four_star, five_star, total')
+    .eq('user_id', user.id)
+    .in('asin', asins)
+    .gte('date', thirtyDaysAgo)
+    .order('date', { ascending: true })
+
+  return NextResponse.json({ data: velocity || [] })
 }
 
 interface VelocityPayload {
