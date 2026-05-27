@@ -1,11 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { createClient } from '@/app/lib/supabase/server'
 
 function adminClient() {
   return createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   )
+}
+
+export async function GET(req: NextRequest) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const asin = req.nextUrl.searchParams.get('asin')
+  if (!asin) return NextResponse.json({ error: 'Missing asin' }, { status: 400 })
+
+  const admin = adminClient()
+  const { data: snapshots } = await admin
+    .from('listing_snapshots')
+    .select('asin, title, bullets, price, captured_at, review_count, average_rating, buy_box_seller, is_suppressed')
+    .eq('user_id', user.id)
+    .eq('asin', asin)
+    .order('captured_at', { ascending: false })
+    .limit(2)
+
+  return NextResponse.json({ data: snapshots || [] })
 }
 
 async function getUserFromToken(token: string) {

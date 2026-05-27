@@ -130,11 +130,19 @@ async function analyzeProduct(
   const positiveReviews = sampledReviews.filter(r => r.rating >= 4).slice(0, 50)
   const fiveStarFromMixed = sampledReviews.filter(r => r.rating === 5).slice(0, 30)
 
-  const negReviewText = (negativeReviews.length > 0 ? negativeReviews : sampledReviews.slice(0, 20))
-    .map(r =>
-      `[${r.rating}★] ${sanitizeReview(r.text).slice(0, 200).trimEnd()}` +
-      (r.text.length > 200 ? '…' : ''),
-    ).join('\n')
+  // Feature 5: Sort negative reviews by helpful count descending (most upvoted first)
+  // Feature 8: Prepend review title to body for better pattern detection
+  const negReviewsWithMeta = reviews
+    .filter(r => r.rating <= 2)
+    .sort((a, b) => (b.helpful || 0) - (a.helpful || 0))
+    .slice(0, 50)
+
+  const negReviewText = (negReviewsWithMeta.length > 0 ? negReviewsWithMeta : reviews.slice(0, 20))
+    .map(r => {
+      const titlePart = r.title ? `"${r.title}" — ` : ''
+      return `[${r.rating}★]${r.helpful > 0 ? ` [${r.helpful} helpful]` : ''} ${titlePart}${sanitizeReview(r.body).slice(0, 200).trimEnd()}` +
+        (r.body.length > 200 ? '…' : '')
+    }).join('\n')
 
   const posReviewText = (positiveReviews.length > 0 ? positiveReviews : sampledReviews.slice(0, 25))
     .map(r =>
@@ -228,6 +236,17 @@ ${listingIntelligence}
 
 ${patterns.promptSummary}
 
+PRE-DETECTED COMPLAINT PATTERNS (from ALL ${reviews.length} reviews — use these counts as ground truth for frequency):
+${(patterns.complaintClusters || []).slice(0, 8).map((c: any) => `- "${c.phrase}": ${c.count} reviews (${c.pct}% of total), ${c.verified ?? 0} verified buyers`).join('\n')}
+
+PRE-DETECTED STRENGTH PATTERNS:
+${(patterns.strengthClusters || []).slice(0, 5).map((s: any) => `- "${s.phrase}": ${s.count} reviews (${s.pct}%)`).join('\n')}
+
+VERBATIM 5-STAR QUOTES (copy these exactly for marketing copy):
+${(patterns.bestVerbatimQuotes || []).slice(0, 5).join('\n')}
+
+HELPFUL VOTE SIGNAL: Reviews are sorted by helpful votes (most-upvoted first). A complaint appearing in highly-upvoted reviews (shown as [X helpful]) carries stronger signal than one in zero-helpful reviews.
+
 ${domainKnowledgeSafe}
 
 Classify each issue as SHIPPING / PRODUCTION / LISTING / DESIGN / COMPATIBILITY before writing fixes.`
@@ -283,6 +302,25 @@ Classify each issue as SHIPPING / PRODUCTION / LISTING / DESIGN / COMPATIBILITY 
   }
 
   const topComplaintTitle = complaintsData.complaints?.[0]?.title || 'quality issues'
+
+  // Feature 5: Enrich complaints with topHelpful (max helpful vote from reviews mentioning that cluster phrase)
+  if (Array.isArray(complaintsData.complaints)) {
+    complaintsData.complaints = complaintsData.complaints.map((complaint: any) => {
+      const matchingCluster = (patterns.complaintClusters || []).find(
+        (c: any) => c.phrase && complaint.title &&
+          (complaint.title.toLowerCase().includes(c.phrase.toLowerCase()) ||
+           c.phrase.toLowerCase().includes(complaint.title.toLowerCase().split(' ')[0]))
+      )
+      if (matchingCluster) {
+        // Find max helpful vote from reviews mentioning this phrase
+        const topHelpful = reviews
+          .filter(r => r.body.toLowerCase().includes(matchingCluster.phrase.toLowerCase()))
+          .reduce((max, r) => Math.max(max, r.helpful || 0), 0)
+        return { ...complaint, topHelpful: topHelpful > 0 ? topHelpful : undefined }
+      }
+      return complaint
+    })
+  }
 
   // ── Call 2: EXECUTIVE SUMMARY + ACTION PLAN ──────────────────
   let executiveSummary = ''
@@ -349,6 +387,12 @@ Classify each issue as SHIPPING / PRODUCTION / LISTING / DESIGN / COMPATIBILITY 
       topComplaintTitle,
     },
     categoryBenchmark: getCategoryBenchmark(product.category || ''),
+    // Feature 6: Vine/unverified breakdown
+    vineReviews:       ctx.vineReviews,
+    unverifiedReviews: ctx.unverifiedReviews,
+    verifiedReviews:   ctx.verifiedReviews,
+    // Feature 7: SEO reasoning
+    seoReasoning:      seoAnalysis.reasoning,
     _sectionsReady: ['complaints', 'summary', 'topActions'],
   }
 
@@ -773,6 +817,12 @@ export async function POST(request: NextRequest) {
             categoryBenchmark:    getCategoryBenchmark(amazonProduct.category || ''),
             unansweredQAGaps:    qa.filter(q => q.answer === null).map(q => q.question).slice(0, 5),
             recentSales:         amazonProduct.recentSales,
+            // Feature 6: Vine/unverified breakdown
+            vineReviews:         ctx.vineReviews,
+            unverifiedReviews:   ctx.unverifiedReviews,
+            verifiedReviews:     ctx.verifiedReviews,
+            // Feature 7: SEO reasoning (from analysis object — already set in analyzeProduct)
+            seoReasoning:        analysis.seoReasoning ?? analysis._cache?.seoReasoning ?? null,
             }
           })(),
           status:                 (!isAdminUser && plan === 'free') ? 'completed' : 'partial',

@@ -466,6 +466,7 @@ export default function ReportPage() {
   const [ownReports, setOwnReports]                 = useState<any[]>([])
   const [reanalyzing, setReanalyzing]               = useState(false)
   const [cooldownInfo, setCooldownInfo]             = useState<{ daysLeft: number; hasOverride: boolean } | null>(null)
+  const [snapshotDiff, setSnapshotDiff]             = useState<any[] | null>(null)
   const [ownReportsLoading, setOwnReportsLoading]   = useState(false)
   const loadStartRef                                = useRef<number>(Date.now())
   const ratingTimerRef                              = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -645,6 +646,10 @@ export default function ReportPage() {
         localStorage.removeItem(SIMULATE_USER_KEY)
         setSimulatingUser(false)
       }
+
+      // Feature 2: Load snapshot diff if ASIN is available
+      // We load it here after user is confirmed; report ASIN is in fr.asin
+      // We'll load it reactively in a separate effect once report loads
     }
     init()
     return () => {
@@ -668,6 +673,16 @@ export default function ReportPage() {
       }
     }
   }, [report])
+
+  // Feature 2: Load snapshot diff when report is available and has an ASIN
+  useEffect(() => {
+    const asin = report?.full_report?.asin
+    if (!asin) return
+    fetch(`/api/toolkit/snapshot?asin=${encodeURIComponent(asin)}`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.data) setSnapshotDiff(d.data) })
+      .catch(() => {})
+  }, [report?.full_report?.asin])
 
   // Load score history for progress chart (all reports for same product URL)
   useEffect(() => {
@@ -1067,6 +1082,7 @@ export default function ReportPage() {
               </span>
             </span>
             · {new Date(report.created_at).toLocaleDateString()}
+            {fr.recentSales && <span className="text-green-600 font-medium"> · {fr.recentSales}</span>}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
@@ -1431,6 +1447,62 @@ export default function ReportPage() {
         </div>
       )}
 
+      {/* Feature 2: Listing snapshot diff */}
+      {snapshotDiff !== null && (
+        <div className="bg-white rounded-2xl border border-neutral-200 overflow-hidden">
+          <div className="px-5 pt-4 pb-3 border-b border-neutral-100 flex items-center gap-2">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-400">Listing Changes</h3>
+          </div>
+          <div className="px-5 py-4">
+            {snapshotDiff.length < 2 ? (
+              <p className="text-xs text-neutral-400 leading-relaxed">No listing changes tracked yet — the extension saves a snapshot each time it visits this product</p>
+            ) : (() => {
+              const [latest, prev] = snapshotDiff
+              const changes: React.ReactNode[] = []
+              if (prev.title && latest.title && prev.title !== latest.title) {
+                changes.push(
+                  <div key="title" className="space-y-0.5">
+                    <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">Title</p>
+                    <p className="text-xs text-neutral-400 line-through">{prev.title}</p>
+                    <p className="text-xs text-neutral-700">→ {latest.title}</p>
+                  </div>
+                )
+              }
+              if (prev.price != null && latest.price != null && Math.abs(prev.price - latest.price) > 0.01) {
+                const cheaper = latest.price < prev.price
+                changes.push(
+                  <div key="price" className="space-y-0.5">
+                    <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">Price</p>
+                    <span className="text-xs text-neutral-400 line-through">${prev.price}</span>
+                    <span className={`text-xs ml-2 ${cheaper ? 'text-green-600' : 'text-red-500'}`}>→ ${latest.price}</span>
+                    {cheaper && <span className="text-[10px] text-green-600 ml-1">(lower)</span>}
+                  </div>
+                )
+              }
+              const prevBullets = Array.isArray(prev.bullets) ? prev.bullets.length : 0
+              const latestBullets = Array.isArray(latest.bullets) ? latest.bullets.length : 0
+              if (prevBullets !== latestBullets && (prevBullets > 0 || latestBullets > 0)) {
+                const more = latestBullets > prevBullets
+                changes.push(
+                  <div key="bullets" className="space-y-0.5">
+                    <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">Bullet points</p>
+                    <span className="text-xs text-neutral-400 line-through">{prevBullets}</span>
+                    <span className={`text-xs ml-2 ${more ? 'text-green-600' : 'text-neutral-600'}`}>→ {latestBullets}</span>
+                    {more && <span className="text-[10px] text-green-600 ml-1">(more)</span>}
+                  </div>
+                )
+              }
+              return changes.length === 0 ? (
+                <p className="text-xs text-neutral-400">No changes detected between last two snapshots</p>
+              ) : (
+                <div className="space-y-3">{changes}</div>
+              )
+            })()}
+          </div>
+        </div>
+      )}
+
       {/* Summary card */}
       {(() => {
         const complaints   = safeArray(fr.complaints)
@@ -1463,6 +1535,24 @@ export default function ReportPage() {
                   <p className="text-[10px] text-neutral-400 mt-0.5">Happy buyers</p>
                 </div>
               </div>
+              {/* Feature 6: Vine/verified breakdown */}
+              {fr.verifiedReviews != null && fr.verifiedReviews > 0 && (
+                <div className="flex items-center gap-3 mt-3 pt-3 border-t border-neutral-100 flex-wrap">
+                  <span className="inline-flex items-center gap-1.5 text-xs text-green-700 bg-green-50 px-2.5 py-1 rounded-full">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                    {fr.verifiedReviews} verified buyer complaints
+                  </span>
+                  {(fr.vineReviews != null || fr.unverifiedReviews != null) && (
+                    <span className="relative group inline-flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full cursor-help">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                      {(fr.vineReviews || 0) + (fr.unverifiedReviews || 0)} vine/unverified
+                      <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 bg-neutral-900 text-neutral-200 text-[11px] leading-relaxed rounded-lg px-3 py-2 shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 whitespace-normal">
+                        These may be incentivized or fake — treat with caution
+                      </span>
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
 
             {topComplaint && (
@@ -1626,6 +1716,9 @@ export default function ReportPage() {
                             {sev.label}
                           </span>
                           <span className="text-xs text-neutral-400">{safeStr(c.frequency)}</span>
+                          {c.topHelpful != null && c.topHelpful > 50 && (
+                            <span className="text-[10px] text-neutral-500 bg-neutral-100 px-2 py-0.5 rounded-full">{c.topHelpful} buyers confirmed</span>
+                          )}
                         </div>
                         <h3 className="font-semibold text-base text-neutral-900">{safeStr(c.title)}</h3>
                         <p className="text-sm text-neutral-600 mt-1 leading-relaxed">{displayDescription}</p>
@@ -1824,12 +1917,16 @@ export default function ReportPage() {
             </div>
           ) : (
             <div className="bg-white rounded-2xl border border-neutral-200 p-5">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-between mb-2">
                 <p className="text-xs font-semibold uppercase tracking-wider text-neutral-400">SEO Score</p>
                 <span className={`text-2xl font-bold ${fr.seo.score >= 70 ? 'text-green-500' : fr.seo.score >= 40 ? 'text-orange-500' : 'text-red-500'}`}>
                   {fr.seo.score}/100
                 </span>
               </div>
+              {/* Feature 7: SEO reasoning */}
+              {fr.seoReasoning && (
+                <p className="text-xs text-neutral-500 italic mt-2 mb-4 leading-relaxed">{fr.seoReasoning}</p>
+              )}
               {safeArray(fr.seo.magicKeywords).length > 0 && (
                 <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-xl">
                   <p className="text-xs font-semibold text-yellow-800 mb-1">Magic Keywords — exact words your buyers use</p>
