@@ -51,8 +51,14 @@ export async function POST(req: NextRequest) {
   let body: SCScanPayload
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }) }
 
+  const ALLOWED_SCAN_TYPES = ['account_health', 'stranded_inventory', 'reimbursements', 'returns', 'heartbeat'] as const
   const { scan_type, data } = body
-  if (!scan_type || !data) return NextResponse.json({ error: 'Missing scan_type or data' }, { status: 400 })
+  if (!scan_type || !ALLOWED_SCAN_TYPES.includes(scan_type as typeof ALLOWED_SCAN_TYPES[number])) {
+    return NextResponse.json({ error: 'Invalid scan_type' }, { status: 400 })
+  }
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    return NextResponse.json({ error: 'Missing or invalid data' }, { status: 400 })
+  }
 
   const supabase = adminClient()
   const userId = session.user_id

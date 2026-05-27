@@ -90,7 +90,8 @@ export async function POST(request: NextRequest) {
     const rewardPlan: 'starter' | 'growth' | 'pro' = count >= 15 ? 'pro' : count >= 5 ? 'growth' : 'starter'
     const periodEndUnix = Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60
 
-    const { error: updateErr } = await admin
+    // Atomic update: only proceeds if referral_count is still >= 3, preventing double-claim
+    const { error: updateErr, count: rowsUpdated } = await admin
       .from('users')
       .update({
         plan: rewardPlan,
@@ -98,9 +99,14 @@ export async function POST(request: NextRequest) {
         referral_count: 0,
       })
       .eq('id', user.id)
+      .gte('referral_count', 3)
+      .select()
     if (updateErr) {
       console.error('[Referral claim] user update failed:', updateErr.message)
       return NextResponse.json({ error: 'Failed to apply reward' }, { status: 500 })
+    }
+    if (!rowsUpdated || (rowsUpdated as unknown as any[])?.length === 0) {
+      return NextResponse.json({ error: 'Reward already claimed or referral count changed.' }, { status: 409 })
     }
 
     const { error: logErr } = await admin.from('referral_claims').insert({
