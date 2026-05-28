@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/app/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { checkCsrf } from '@/app/lib/csrf'
+import { sendOnboardingEmail } from '@/app/lib/emails/onboarding'
 
 export async function POST(req: NextRequest) {
   const csrfError = checkCsrf(req)
@@ -22,6 +23,14 @@ export async function POST(req: NextRequest) {
   if (error) {
     console.error('[Trial] activate_free_trial failed:', error.message)
     return NextResponse.json({ error: 'Could not activate trial' }, { status: 500 })
+  }
+
+  // Send welcome email — fire and forget, never block the response
+  if (process.env.RESEND_API_KEY && user.email) {
+    const firstName = (user.user_metadata?.full_name as string | undefined)?.split(' ')[0] ?? ''
+    sendOnboardingEmail(process.env.RESEND_API_KEY, user.email, 'welcome', firstName).catch(
+      (err) => console.error('[Trial] Welcome email failed:', err?.message),
+    )
   }
 
   return NextResponse.json({ ok: true })

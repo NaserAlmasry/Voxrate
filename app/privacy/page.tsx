@@ -12,7 +12,7 @@ export default function PrivacyPage() {
       <div className="max-w-3xl mx-auto px-6 py-16">
         <Link href="/" className="text-sm text-neutral-400 hover:text-black transition-colors mb-10 inline-block">← Back to Voxrate</Link>
         <h1 className="text-3xl font-bold text-neutral-900 mb-2">Privacy Policy</h1>
-        <p className="text-sm text-neutral-400 mb-12">Last updated: May 12, 2026</p>
+        <p className="text-sm text-neutral-400 mb-12">Last updated: May 28, 2026</p>
         <div className="space-y-10 text-sm text-neutral-700 leading-relaxed">
 
           <section>
@@ -54,7 +54,7 @@ export default function PrivacyPage() {
             <ul className="list-disc pl-5 mt-2 space-y-1">
               <li><span className="font-medium text-neutral-800">Supabase</span> — database, authentication, and file storage</li>
               <li><span className="font-medium text-neutral-800">Stripe</span> — payment processing</li>
-              <li><span className="font-medium text-neutral-800">Groq / Anthropic</span> — AI analysis (listing content is sent to these services)</li>
+              <li><span className="font-medium text-neutral-800">AI Infrastructure Partners</span> — Voxrate routes analysis requests through a proprietary ensemble of state-of-the-art large language models (LLMs) provided by third-party AI infrastructure partners. Listing content and review data are transmitted to these services solely for the purpose of generating analysis output. Vendor identities are not disclosed as they constitute part of Voxrate&apos;s proprietary technology stack.</li>
               <li><span className="font-medium text-neutral-800">Vercel</span> — hosting and analytics</li>
               <li><span className="font-medium text-neutral-800">Sentry</span> — error monitoring</li>
               <li><span className="font-medium text-neutral-800">Upstash Redis</span> — rate limiting</li>
