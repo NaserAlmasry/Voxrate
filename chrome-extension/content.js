@@ -113,6 +113,22 @@ async function runResumePath(saved) {
   const ajaxBatch = []
   listenForAjaxReviews(asin, marketplace, (batch) => ajaxBatch.push(...batch))
 
+  // Drain any late-arriving AJAX reviews before the page unloads
+  window.addEventListener('beforeunload', () => {
+    if (ajaxBatch.length === 0) return
+    try {
+      const cur = JSON.parse(sessionStorage.getItem('voxrate_job') || 'null')
+      if (!cur) return
+      const seen = new Set(cur.seenIds || [])
+      const fresh = ajaxBatch.filter(r => !seen.has(r.id))
+      if (fresh.length === 0) return
+      cur.reviews.push(...fresh)
+      fresh.forEach(r => cur.seenIds.push(r.id))
+      if (cur.seenIds.length > 1000) cur.seenIds = cur.seenIds.slice(-1000)
+      sessionStorage.setItem('voxrate_job', JSON.stringify(cur))
+    } catch {}
+  })
+
   // ── Simulate human reading before doing anything ──────────────
   const batch   = parseReviews(document, asin, marketplace)
   // BUG 2 fix: use a Set for O(1) duplicate checks

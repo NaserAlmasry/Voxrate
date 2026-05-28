@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
     const { plan, billing } = body
 
     const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://voxrate.app'
-    const window = Math.floor(Date.now() / 60000)
+    const window = Math.floor(Date.now() / 600000)
 
     // ── Subscription ──────────────────────────────────────────
     const billingMode = billing || 'monthly'

@@ -142,6 +142,7 @@ export async function POST(request: NextRequest) {
     // Cache was wiped (summary ran before this section) — cannot produce meaningful output
     if (!contextBlock) {
       console.error(`[Section:${section}] Cache missing for report ${reportId} — section requested out of order or after summary completed`)
+      if (redis && mutexAcquired) await redis.del(mutexKey).catch(() => {})
       return NextResponse.json({ error: 'Section data unavailable. Please re-run the analysis.' }, { status: 409 })
     }
 
@@ -315,9 +316,9 @@ export async function POST(request: NextRequest) {
 
         const parsedB: any = extractJson(rawB)
         if (Array.isArray(parsedB.topActions) && parsedB.topActions.length > 0) {
-          updatedReport.topActions = parsedB.topActions.filter(
-            (a: any) => a.action && a.action.trim().length > 0
-          )
+          updatedReport.topActions = parsedB.topActions
+            .map((a: any) => ({ ...a, action: a.action ?? a.title ?? a.task ?? '' }))
+            .filter((a: any) => a.action && a.action.trim().length > 0)
         }
         console.log(`[Section:summary] Call B done — ${updatedReport.topActions.length} topActions`)
       } catch (e) {

@@ -4,6 +4,7 @@
 
 window.addEventListener('message', (event) => {
   if (event.origin !== 'https://voxrate.app') return
+  if (event.source !== window) return
 
   if (event.data?.type === 'VOXRATE_EXTENSION_TOKEN') {
     const token = event.data.token

@@ -32,6 +32,9 @@
       "matches": [
         "https://www.amazon.com/dp/*",
         "https://www.amazon.com/gp/product/*",
+        "https://smile.amazon.com/dp/*",
+        "https://smile.amazon.com/gp/product/*",
+        "https://smile.amazon.com/product-reviews/*",
         "https://www.amazon.co.uk/dp/*",
         "https://www.amazon.co.uk/gp/product/*",
         "https://www.amazon.de/dp/*",

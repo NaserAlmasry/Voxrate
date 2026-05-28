@@ -13,12 +13,15 @@ function adminClient() {
   )
 }
 
+// NOTE: requires extension_sessions to have `revoked_at timestamptz` and `expires_at timestamptz` columns.
 async function getUserFromToken(token: string) {
   const supabase = adminClient()
   const { data } = await supabase
     .from('extension_sessions')
     .select('user_id, last_seen_at')
     .eq('token', token)
+    .is('revoked_at', null)
+    .gt('expires_at', new Date().toISOString())
     .single()
   return data
 }
@@ -36,13 +39,17 @@ export async function GET(req: NextRequest) {
   // Check plan access — paid plans OR active trial only
   const { data: userData } = await supabase
     .from('users')
-    .select('plan, trial_ends_at')
+    .select('plan, trial_ends_at, stripe_current_period_end')
     .eq('id', session.user_id)
     .single()
 
+  const planExpired = userData?.stripe_current_period_end &&
+    new Date(userData.stripe_current_period_end * 1000) < new Date()
+  const effectivePlan = planExpired ? 'free' : (userData?.plan || 'free')
+
   const VALID_PLANS = ['starter', 'growth', 'pro', 'trial']
   const isTrial = userData?.trial_ends_at && new Date(userData.trial_ends_at) > new Date()
-  const hasPaidPlan = VALID_PLANS.includes(userData?.plan ?? '')
+  const hasPaidPlan = VALID_PLANS.includes(effectivePlan)
 
   if (!hasPaidPlan && !isTrial) {
     return NextResponse.json({ error: 'trial_expired', message: 'Your free trial has ended. Upgrade at voxrate.app to reactivate.' }, { status: 403 })
@@ -63,23 +70,18 @@ export async function GET(req: NextRequest) {
     .in('status', ['pending', 'processing'])
     .lt('created_at', staleThreshold)
 
-  // Fetch oldest pending job
+  // Atomic claim: update + select in one query so two concurrent polls can't grab the same job
   const { data: job } = await supabase
     .from('extension_jobs')
-    .select('id, asin, marketplace, max_reviews')
+    .update({ status: 'processing', started_at: new Date().toISOString() })
     .eq('user_id', session.user_id)
     .eq('status', 'pending')
     .order('created_at', { ascending: true })
     .limit(1)
-    .maybeSingle()
+    .select('id, asin, marketplace, max_reviews')
+    .single()
 
   if (!job) return NextResponse.json({ job: null })
-
-  // Mark as processing so we don't double-dispatch
-  await supabase
-    .from('extension_jobs')
-    .update({ status: 'processing', started_at: new Date().toISOString() })
-    .eq('id', job.id)
 
   return NextResponse.json({ job })
 }

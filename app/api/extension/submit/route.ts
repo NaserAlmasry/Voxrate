@@ -19,12 +19,15 @@ function adminClient() {
   )
 }
 
+// NOTE: requires extension_sessions to have `revoked_at timestamptz` and `expires_at timestamptz` columns.
 async function getUserFromToken(token: string) {
   const supabase = adminClient()
   const { data } = await supabase
     .from('extension_sessions')
     .select('user_id')
     .eq('token', token)
+    .is('revoked_at', null)
+    .gt('expires_at', new Date().toISOString())
     .single()
   return data
 }
@@ -79,6 +82,7 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (!job) return NextResponse.json({ error: 'Job not found' }, { status: 404 })
+  if (job.status === 'failed') return NextResponse.json({ error: 'Job expired' }, { status: 409 })
 
   // BUG 4 fix: validate review content — max 5000 chars body, no HTML tags
   const validReviews = (reviews || [])
@@ -109,23 +113,6 @@ export async function POST(req: NextRequest) {
       completed_at: new Date().toISOString(),
     })
     .eq('id', jobId)
-
-  // Cache reviews in asin_review_cache so the main scraper can pick them up
-  if (validReviews.length > 0) {
-    const DOMAIN_MAP: Record<string, string> = {
-      'amazon.com': 'US', 'amazon.co.uk': 'UK', 'amazon.ca': 'CA',
-      'amazon.de': 'DE', 'amazon.fr': 'FR', 'amazon.it': 'IT',
-      'amazon.es': 'ES', 'amazon.com.au': 'AU', 'amazon.co.jp': 'JP',
-      'amazon.in': 'IN', 'amazon.com.mx': 'MX', 'amazon.com.br': 'BR',
-    }
-    const domain = DOMAIN_MAP[job.marketplace] ?? 'US'
-    await supabase
-      .from('asin_review_cache')
-      .upsert(
-        { asin: job.asin, domain, reviews: validReviews, cached_at: new Date().toISOString() },
-        { onConflict: 'asin,domain' },
-      )
-  }
 
   return NextResponse.json({ ok: true, reviewsAccepted: validReviews.length })
 }
