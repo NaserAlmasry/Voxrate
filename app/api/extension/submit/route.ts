@@ -38,8 +38,9 @@ export async function POST(req: NextRequest) {
     .eq('id', session.user_id)
     .single()
 
+  const VALID_PLANS = ['starter', 'growth', 'pro', 'trial']
   const isTrial = userData?.trial_ends_at && new Date(userData.trial_ends_at) > new Date()
-  const hasPaidPlan = userData?.plan && userData.plan !== 'free'
+  const hasPaidPlan = VALID_PLANS.includes(userData?.plan ?? '')
   if (!hasPaidPlan && !isTrial) {
     return NextResponse.json({ error: 'trial_expired' }, { status: 403 })
   }
@@ -66,9 +67,9 @@ export async function POST(req: NextRequest) {
 
   if (!job) return NextResponse.json({ error: 'Job not found' }, { status: 404 })
 
-  const validReviews = (reviews || []).filter(
-    (r: AmazonReview) => r.rating >= 1 && r.rating <= 5 && r.body && r.body.trim().length >= 20
-  )
+  const validReviews = (reviews || [])
+    .filter((r: AmazonReview) => r.rating >= 1 && r.rating <= 5 && r.body && r.body.trim().length >= 20)
+    .slice(0, 500)
 
   const status = !amazonLoggedIn
     ? 'amazon_not_logged_in'

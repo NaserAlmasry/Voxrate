@@ -30,7 +30,9 @@ export async function GET(_req: NextRequest) {
     .single()
 
   if (existing?.token) {
-    return NextResponse.json({ token: existing.token })
+    return NextResponse.json({ token: existing.token }, {
+      headers: { 'Cache-Control': 'no-store' },
+    })
   }
 
   // Generate a new token
@@ -43,7 +45,9 @@ export async function GET(_req: NextRequest) {
     last_seen_at: new Date().toISOString(),
   })
 
-  return NextResponse.json({ token })
+  return NextResponse.json({ token }, {
+    headers: { 'Cache-Control': 'no-store' },
+  })
 }
 
 // Regenerate token (invalidates old one)

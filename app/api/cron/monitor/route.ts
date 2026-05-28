@@ -3,21 +3,15 @@
 // sends email alerts when score drops or new complaints appear.
 
 import { NextRequest, NextResponse } from 'next/server'
-import { timingSafeEqual } from 'crypto'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { verifyCronBearer } from '@/app/lib/cron-auth'
 import { sendMonitorAlert } from '@/app/lib/email'
 
 export const maxDuration = 300
 
 export async function GET(request: NextRequest) {
-  const cronSecret = process.env.CRON_SECRET
-  if (!cronSecret) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const authHeader = request.headers.get('authorization') || ''
-  const expected = Buffer.from(`Bearer ${cronSecret}`)
-  const actual   = Buffer.from(authHeader)
-  if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const authError = verifyCronBearer(request)
+  if (authError) return authError
 
   const supabase = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -52,6 +46,17 @@ export async function GET(request: NextRequest) {
   let checked = 0
 
   for (const listing of due) {
+    // Skip re-analysis if user has no remaining analyses — don't drain their quota silently
+    const { data: userData } = await supabase
+      .from('users')
+      .select('own_analyses_remaining')
+      .eq('id', listing.user_id)
+      .single()
+    if ((userData?.own_analyses_remaining ?? 0) <= 0) {
+      console.log(`[Cron] Skipping ${listing.product_url} — user ${listing.user_id} has no analyses remaining`)
+      continue
+    }
+
     try {
       // Trigger re-analysis via the analyze API using cron bypass auth
       const res = await fetch(`${SITE_URL}/api/analyze`, {

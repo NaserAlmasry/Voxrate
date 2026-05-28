@@ -11,7 +11,7 @@
 import { Redis } from '@upstash/redis'
 
 const WINDOW_SECONDS = 10 * 60 // 10 minutes
-const MAX_REQUESTS   = 30
+export const MAX_REQUESTS = 30
 
 // Upstash client — only created when env vars are present
 const hasUpstash =
@@ -52,6 +52,7 @@ const failClosedInProd = !hasUpstash && process.env.NODE_ENV === 'production'
 export async function checkRateLimit(
   identifier: string,
   type: 'user' | 'ip',
+  maxRequests = MAX_REQUESTS,
 ): Promise<RateLimitResult> {
   const window  = currentWindow()
   const key     = `rl:${type}:${identifier}:${window}`
@@ -67,8 +68,8 @@ export async function checkRateLimit(
   if (redis) {
     const [count] = await redis.pipeline().incr(key).expire(key, WINDOW_SECONDS).exec() as [number, number]
     return {
-      allowed:   count <= MAX_REQUESTS,
-      remaining: Math.max(0, MAX_REQUESTS - count),
+      allowed:   count <= maxRequests,
+      remaining: Math.max(0, maxRequests - count),
       resetAt,
     }
   }
@@ -81,8 +82,8 @@ export async function checkRateLimit(
   localMap.set(key, current)
 
   return {
-    allowed:   current.count <= MAX_REQUESTS,
-    remaining: Math.max(0, MAX_REQUESTS - current.count),
+    allowed:   current.count <= maxRequests,
+    remaining: Math.max(0, maxRequests - current.count),
     resetAt:   current.resetAt,
   }
 }
@@ -94,9 +95,10 @@ export async function checkRateLimit(
 export async function enforceRateLimit(
   userId: string | null,
   ip: string,
+  maxRequests = MAX_REQUESTS,
 ): Promise<RateLimitResult> {
   if (userId) {
-    return checkRateLimit(userId, 'user')
+    return checkRateLimit(userId, 'user', maxRequests)
   }
-  return checkRateLimit(ip, 'ip')
+  return checkRateLimit(ip, 'ip', maxRequests)
 }

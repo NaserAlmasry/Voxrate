@@ -25,6 +25,7 @@ vi.mock('@/app/lib/csrf', () => ({
 // ── Rate-limit mock ──────────────────────────────────────────────
 const mockEnforceRateLimit = vi.fn().mockResolvedValue({ allowed: true, resetAt: Date.now() + 60000 })
 vi.mock('@/app/lib/rate-limit', () => ({
+  MAX_REQUESTS: 30,
   enforceRateLimit: (...args: any[]) => mockEnforceRateLimit(...args),
 }))
 
@@ -180,6 +181,7 @@ function buildChain(overrides: Partial<Record<string, any>> = {}) {
   const chain: any = {}
   chain.select      = vi.fn().mockReturnValue(chain)
   chain.eq          = vi.fn().mockReturnValue(chain)
+  chain.ilike       = vi.fn().mockReturnValue(chain)
   chain.gte         = vi.fn().mockReturnValue(chain)
   chain.not         = vi.fn().mockReturnValue(chain)
   chain.limit       = vi.fn().mockReturnValue(chain)

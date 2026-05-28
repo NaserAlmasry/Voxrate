@@ -17,7 +17,9 @@ function StatCard({ label, value, sub, color = 'text-neutral-900' }: { label: st
 function Badge({ plan }: { plan: string }) {
   const styles: Record<string, string> = {
     free:    'bg-neutral-100 text-neutral-500',
+    trial:   'bg-orange-50 text-orange-500',
     starter: 'bg-blue-50 text-blue-600',
+    growth:  'bg-teal-50 text-teal-600',
     pro:     'bg-orange-50 text-orange-600',
     agency:  'bg-purple-50 text-purple-600',
   }

@@ -14,6 +14,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Agent worktrees and coverage reports — not source code
+    ".claude/**",
+    "coverage/**",
+    "chrome-extension/**",
   ]),
   {
     rules: {

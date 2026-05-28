@@ -8,11 +8,11 @@
 //   5. Update last_run_at and reschedule next_run_at
 
 import { NextRequest, NextResponse } from 'next/server'
-import { timingSafeEqual } from 'crypto'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { verifyCronBearer } from '@/app/lib/cron-auth'
 import { scrapeAmazonFree } from '@/app/lib/amazon-scraper'
 import { sendSentimentAlert } from '@/app/lib/email'
-import { FREQUENCY_CREDITS, FREQUENCY_DAYS } from '@/app/api/sentiment-alerts/route'
+import { FREQUENCY_DAYS } from '@/app/api/sentiment-alerts/route'
 
 export const maxDuration = 300
 
@@ -23,14 +23,8 @@ function nextRunISO(freq: Frequency, from = new Date()): string {
 }
 
 export async function GET(request: NextRequest) {
-  const cronSecret = process.env.CRON_SECRET
-  if (!cronSecret) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const authHeader = request.headers.get('authorization') || ''
-  const expected = Buffer.from(`Bearer ${cronSecret}`)
-  const actual   = Buffer.from(authHeader)
-  if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const authError = verifyCronBearer(request)
+  if (authError) return authError
 
   const supabase = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -42,7 +36,7 @@ export async function GET(request: NextRequest) {
   // Fetch alerts due. Limit to keep cron under maxDuration.
   const { data: alerts } = await supabase
     .from('sentiment_alerts')
-    .select('*, users(email, plan, credits, is_admin)')
+    .select('*, users(email, plan, own_analyses_remaining, is_admin)')
     .eq('active', true)
     .lte('next_run_at', now.toISOString())
     .order('next_run_at', { ascending: true })
@@ -59,14 +53,13 @@ export async function GET(request: NextRequest) {
   for (const alert of alerts) {
     const user = (alert as any).users
     const freq = alert.frequency as Frequency
-    const cost = FREQUENCY_CREDITS[freq] ?? 5
 
     try {
       if (!user?.email) { skipped++; continue }
 
-      const plan    = user.plan || 'free'
-      const isAdmin = user.is_admin === true
-      const credits = user.credits ?? 0
+      const plan         = user.plan || 'free'
+      const isAdmin      = user.is_admin === true
+      const ownRemaining = user.own_analyses_remaining ?? 0
 
       // Plan gate — only growth/pro (admins always allowed)
       if (!isAdmin && plan !== 'growth' && plan !== 'pro') {
@@ -78,13 +71,13 @@ export async function GET(request: NextRequest) {
         continue
       }
 
-      // Credit check — pause alert if insufficient
-      if (!isAdmin && credits < cost) {
+      // Analysis check — pause alert if insufficient
+      if (!isAdmin && ownRemaining < 1) {
         await supabase
           .from('sentiment_alerts')
           .update({ active: false })
           .eq('id', alert.id)
-        console.log(`[SentimentCron] Paused alert ${alert.id} — insufficient credits`)
+        console.log(`[SentimentCron] Paused alert ${alert.id} — no own analyses remaining`)
         skipped++
         continue
       }
@@ -104,18 +97,14 @@ export async function GET(request: NextRequest) {
         return reviewDate > lastRun
       })
 
-      // Deduct credits (only if we actually performed the scan)
+      // Deduct 1 own analysis (only if we actually performed the scan)
       if (!isAdmin) {
-        const { data: deducted, error: deductErr } = await supabase.rpc('deduct_credits', {
+        const { error: deductErr } = await supabase.rpc('deduct_own_analysis', {
           p_user_id: alert.user_id,
-          p_amount:  cost,
         })
-        if (deductErr || !deducted) {
-          console.error(`[SentimentCron] deduct_credits failed for ${alert.id}:`, deductErr?.message)
-          await supabase
-            .from('sentiment_alerts')
-            .update({ active: false })
-            .eq('id', alert.id)
+        if (deductErr) {
+          console.error(`[SentimentCron] deduct_own_analysis failed for ${alert.id}:`, deductErr.message)
+          await supabase.from('sentiment_alerts').update({ active: false }).eq('id', alert.id)
           skipped++
           continue
         }
@@ -130,7 +119,7 @@ export async function GET(request: NextRequest) {
           marketplace:    alert.marketplace,
           reviews:        fresh.map(r => ({ rating: r.rating, title: r.title, body: r.body })),
           frequency:      freq,
-          creditsCharged: isAdmin ? 0 : cost,
+          creditsCharged: isAdmin ? 0 : 1,
         })
         emailed++
       } catch (mailErr: any) {

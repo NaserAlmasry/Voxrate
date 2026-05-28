@@ -112,30 +112,15 @@ export async function POST(request: NextRequest) {
           break
         }
 
-        // Max credits per pack is 700 (pro_pack); max per subscription is 2000 (pro monthly)
-        const MAX_PACK_CREDITS = 700
-        const MAX_SUB_CREDITS  = 2000
-
         if (type === 'credit_pack') {
-          // Pack purchase — increments both credits and pack_credits so renewal
-          // and cancellation can preserve the purchased portion separately.
-          const credits = parseInt(session.metadata?.credits || '0', 10)
-          if (credits > 0 && credits <= MAX_PACK_CREDITS) {
-            console.log(`[Webhook] Adding ${credits} pack credits to user ${userId}`)
-            const { error: rpcError } = await supabase.rpc('add_pack_credits', { p_user_id: userId, p_amount: credits })
-            if (rpcError) {
-              console.error(`[Webhook] add_pack_credits RPC failed:`, rpcError.message)
-              await supabase.from('processed_webhook_events').delete().eq('stripe_event_id', event.id)
-              return NextResponse.json({ error: 'Credit update failed' }, { status: 500 })
-            }
-            console.log(`[Webhook] ✅ ${credits} pack credits added`)
-          } else if (credits > MAX_PACK_CREDITS) {
-            console.error(`[Webhook] Suspicious credit amount ${credits} — rejected`)
-          }
-        } else {
-          // Subscription checkout — set plan + add initial credits
-          const plan    = session.metadata?.plan
-          const credits = parseInt(session.metadata?.credits || '0', 10)
+          // Credit packs have been removed — reject and log
+          console.error('[Webhook] credit_pack type received but feature is removed — ignoring')
+          break
+        }
+
+        {
+          // Subscription checkout — set plan + grant initial analyses
+          const plan = session.metadata?.plan
 
           if (!plan || !['starter', 'growth', 'pro'].includes(plan)) {
             console.error('[Webhook] Invalid plan value:', plan)

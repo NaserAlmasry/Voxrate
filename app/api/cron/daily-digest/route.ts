@@ -2,8 +2,8 @@
 // Sends digest only to Pro users who opted into daily frequency
 
 import { NextRequest, NextResponse } from 'next/server'
-import { timingSafeEqual } from 'crypto'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { verifyCronBearer } from '@/app/lib/cron-auth'
 import { Resend } from 'resend'
 
 export const maxDuration = 120
@@ -24,15 +24,8 @@ function scoreColor(n: number): string {
 }
 
 export async function GET(request: NextRequest) {
-  const cronSecret = process.env.CRON_SECRET
-  if (!cronSecret) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const authHeader = request.headers.get('authorization') || ''
-  const expected   = Buffer.from(`Bearer ${cronSecret}`)
-  const actual     = Buffer.from(authHeader)
-  if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const authError = verifyCronBearer(request)
+  if (authError) return authError
 
   const resend   = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
   const supabase = adminClient()

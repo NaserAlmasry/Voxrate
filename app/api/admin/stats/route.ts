@@ -25,7 +25,7 @@ export async function GET() {
     { count: paidUsers },
   ] = await Promise.all([
     service.from('users')
-      .select('id, email, plan, credits, analyses_count, created_at, is_admin')
+      .select('id, email, plan, analyses_count, created_at, is_admin')
       .order('created_at', { ascending: false })
       .limit(200),
     service.from('ratings')
@@ -37,8 +37,16 @@ export async function GET() {
     service.from('users').select('id', { count: 'exact', head: true }).neq('plan', 'free'),
   ])
 
+  const maskedUsers = (users || []).map((u: any) => ({
+    ...u,
+    email: u.email
+      ? u.email.replace(/^(.)(.*)(@.*)$/, (_: string, first: string, mid: string, domain: string) =>
+          first + '*'.repeat(Math.min(mid.length, 4)) + domain)
+      : null,
+  }))
+
   return NextResponse.json({
-    users:        users        || [],
+    users:        maskedUsers,
     ratings:      ratings      || [],
     totalReports: totalReports || 0,
     totalUsers:   totalUsers   || 0,

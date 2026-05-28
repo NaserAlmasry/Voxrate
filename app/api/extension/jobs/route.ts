@@ -40,8 +40,9 @@ export async function GET(req: NextRequest) {
     .eq('id', session.user_id)
     .single()
 
+  const VALID_PLANS = ['starter', 'growth', 'pro', 'trial']
   const isTrial = userData?.trial_ends_at && new Date(userData.trial_ends_at) > new Date()
-  const hasPaidPlan = userData?.plan && userData.plan !== 'free'
+  const hasPaidPlan = VALID_PLANS.includes(userData?.plan ?? '')
 
   if (!hasPaidPlan && !isTrial) {
     return NextResponse.json({ error: 'trial_expired', message: 'Your free trial has ended. Upgrade at voxrate.app to reactivate.' }, { status: 403 })
