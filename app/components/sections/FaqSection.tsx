@@ -21,7 +21,7 @@ const FAQ_ITEMS = [
   },
   {
     q: 'Can I analyze a competitor\'s listing?',
-    a: "Yes. Competitor analysis runs both products through the AI simultaneously and produces a battle card — why buyers choose them over you, your exact keyword gaps, and a ranked fix list. Competitor analyses use 1 analysis from your quota, same as own listings. Starter gets 35 analyses/month. Growth gets 80. Pro gets 220. Resets on the 1st of each month.",
+    a: "Paste any Amazon URL and Voxrate analyzes that product's reviews — top weaknesses, buyer complaints, keyword gaps, and a ranked fix list showing exactly where you can beat them. All paid plans include competitor analyses; the number per month depends on your plan.",
   },
   {
     q: 'How does the analysis quota work?',
@@ -30,6 +30,18 @@ const FAQ_ITEMS = [
   {
     q: 'Is my data and my customers\' data private?',
     a: "Voxrate only analyzes publicly available review text from Amazon — the same text anyone can read on the listing page. We don't access your Amazon account, private messages, or order data. Your generated reports are private to your account and are never shared.",
+  },
+  {
+    q: 'What happens when I run out of analyses?',
+    a: "You'll see a clear warning in your dashboard before you hit zero. Once your monthly pool is empty, analyses are paused until your billing date resets your quota — or you upgrade. Unused analyses from the previous month roll over automatically, so you may have a buffer already banked.",
+  },
+  {
+    q: "What's the re-analyze cooldown?",
+    a: "To prevent duplicate charges, each ASIN has a cooldown before you can re-run its analysis: 7 days on Starter, 3 days on Growth, and no cooldown on Pro. The cooldown resets when new reviews come in. Your watchlist auto-re-analyzes respect the same cooldown.",
+  },
+  {
+    q: 'Does the Chrome extension cost extra?',
+    a: "No — the Chrome extension is free to install and included with all paid plans. It collects reviews directly from your Amazon session (no third-party scrapers), powers the listing velocity monitor, the Seller Central health scanner, and the competitor sidebar. It does not consume your monthly analyses on its own — only when you trigger a full AI analysis.",
   },
   {
     q: 'What if I\'m not happy with the results?',

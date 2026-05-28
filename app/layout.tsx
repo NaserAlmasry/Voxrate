@@ -269,7 +269,7 @@ const jsonLd = {
           name: "Is Voxrate free to try?",
           acceptedAnswer: {
             "@type": "Answer",
-            text: "Yes. Your first analysis is completely free with no credit card required. Paid plans start at $14.99/month for 35 analyses.",
+            text: "Yes — sign up for a 14-day free trial with 5 analyses included. No credit card required. Paid plans start at $14.99/month for 35 analyses.",
           },
         },
         {

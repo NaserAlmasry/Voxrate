@@ -23,8 +23,7 @@ const PLANS = [
     icon:       <Zap size={16} className="text-blue-500" />,
     badge:      null,
     popular:    false,
-    ownAnalyses: 30,
-    competitorAnalyses: 5,
+    totalAnalyses: 35,
     rollover:   '2 months',
     features: [
       '35 analyses/month — own or competitor',
@@ -47,8 +46,7 @@ const PLANS = [
     icon:       <TrendingUp size={16} className="text-orange-500" />,
     badge:      'Most popular',
     popular:    true,
-    ownAnalyses: 65,
-    competitorAnalyses: 15,
+    totalAnalyses: 80,
     rollover:   '2 months',
     features: [
       '80 analyses/month — own or competitor',
@@ -73,17 +71,18 @@ const PLANS = [
     icon:       <Shield size={16} className="text-purple-500" />,
     badge:      'Best value',
     popular:    false,
-    ownAnalyses: 175,
-    competitorAnalyses: 45,
+    totalAnalyses: 220,
     rollover:   '3 months',
     features: [
       '220 analyses/month — own or competitor',
       'Up to 20 analyses per 30 min',
       'Unused analyses roll over (up to 3 months)',
       'Re-analyze any time — no cooldown',
+      'Attack, hijacker & listing alerts',
       'Unlimited ASIN watchlist',
       'Bulk analyze (5 at once)',
-      'All toolkit features (SC, Fingerprinter, Variant)',
+      'Seller Central health scanner',
+      'Full Chrome extension toolkit',
       'Sentiment alerts — daily or weekly',
       'Daily or weekly digest email',
       'Team seats — coming soon',
@@ -96,7 +95,7 @@ export default function PricingSection({
   billingCycle, setBillingCycle, calcProducts, setCalcProducts, calcFrequency, setCalcFrequency, openAuthModal,
 }: Props) {
   const ownNeeded = calcFrequency === 'monthly' ? calcProducts : Math.ceil(calcProducts / 3)
-  const competitorNeeded = calcFrequency === 'monthly' ? Math.ceil(calcProducts * 0.5) : Math.ceil(calcProducts * 0.5 / 3)
+  const competitorNeeded = calcFrequency === 'monthly' ? Math.ceil(calcProducts * 0.2) : Math.ceil(calcProducts * 0.2 / 3)
 
   const totalNeeded = ownNeeded + competitorNeeded
   const recommended = totalNeeded <= 35
@@ -165,17 +164,12 @@ export default function PricingSection({
                 {/* Analyses at-a-glance */}
                 <div className={`flex gap-3 my-4 p-3 rounded-xl ${p.popular ? 'bg-white/10' : 'bg-neutral-50 border border-neutral-100'}`}>
                   <div className="text-center flex-1">
-                    <p className={`text-xl font-black ${p.popular ? 'text-orange-400' : 'text-orange-600'}`}>{p.ownAnalyses}</p>
-                    <p className={`text-[10px] ${p.popular ? 'text-neutral-400' : 'text-neutral-500'}`}>own/mo</p>
+                    <p className={`text-xl font-black ${p.popular ? 'text-orange-400' : 'text-orange-600'}`}>{p.totalAnalyses}</p>
+                    <p className={`text-[10px] ${p.popular ? 'text-neutral-400' : 'text-neutral-500'}`}>analyses/mo</p>
                   </div>
                   <div className={`w-px ${p.popular ? 'bg-white/20' : 'bg-neutral-200'}`} />
                   <div className="text-center flex-1">
-                    <p className={`text-xl font-black ${p.popular ? 'text-orange-400' : 'text-orange-600'}`}>{p.competitorAnalyses}</p>
-                    <p className={`text-[10px] ${p.popular ? 'text-neutral-400' : 'text-neutral-500'}`}>competitor/mo</p>
-                  </div>
-                  <div className={`w-px ${p.popular ? 'bg-white/20' : 'bg-neutral-200'}`} />
-                  <div className="text-center flex-1">
-                    <p className={`text-xs font-bold ${p.popular ? 'text-green-400' : 'text-green-600'}`}>↩ {p.rollover}</p>
+                    <p className={`text-xs font-bold ${p.popular ? 'text-green-400' : 'text-green-600'}`}>↺ {p.rollover}</p>
                     <p className={`text-[10px] ${p.popular ? 'text-neutral-400' : 'text-neutral-500'}`}>rollover</p>
                   </div>
                 </div>
@@ -213,7 +207,7 @@ export default function PricingSection({
             <div>
               <p className="text-sm font-semibold text-neutral-800 mb-1">How rollover works</p>
               <p className="text-xs text-neutral-600 leading-relaxed">
-                If you don't use all your analyses this month, they carry forward — automatically. Growth plan gets 60/month with up to 120 banked. Going through a product launch? Use 80 in one week. Quiet month? Bank the rest. No other Amazon tool does this.
+                If you don't use all your analyses this month, they carry forward — automatically. Growth plan gets 80 analyses/month with up to 160 banked. Pro gets 220/month with up to 660 banked. Going through a product launch? Use 40 in one day. Quiet month? Bank the rest. No other Amazon tool does this.
               </p>
             </div>
           </div>

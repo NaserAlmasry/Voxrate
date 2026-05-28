@@ -2,7 +2,7 @@ import { Search, Crosshair, Zap, PenLine, MessageCircle, Layers, BarChart2, Bell
 
 const featureItems: { icon: React.ReactNode; title: string; desc: string; badge: string; soon?: boolean }[] = [
   { icon: <Search className="text-orange-500" size={18} />, title: 'Review Analysis', desc: 'Voxrate turns your reviews into a ranked action plan — complaints by severity, strengths by frequency, with exact step-by-step fixes.', badge: 'Core feature' },
-  { icon: <Crosshair className="text-orange-500" size={18} />, title: 'Competitor Spy', desc: "Paste any competitor's Amazon URL and Voxrate surfaces their top complaints, weak spots, and the buyer keywords they're missing. Some sellers are already running tools like this on your listing.", badge: 'Growth & Pro' },
+  { icon: <Crosshair className="text-orange-500" size={18} />, title: 'Competitor Spy', desc: "Paste any competitor's Amazon URL and Voxrate surfaces their top complaints, weak spots, and the buyer keywords they're missing. Some sellers are already running tools like this on your listing.", badge: 'All paid plans' },
   { icon: <Zap className="text-orange-500" size={18} />, title: 'Listing Grader', desc: 'Get an A–F grade on your title, tags, description and pricing separately — with specific fixes for each.', badge: 'Free tool' },
   { icon: <PenLine className="text-orange-500" size={18} />, title: 'AI Description Rewriter', desc: 'Rewrite your listing description using your own review keywords and insights. SEO-optimized in one click.', badge: 'Free tool' },
   { icon: <MessageCircle className="text-orange-500" size={18} />, title: 'Review Reply Generator', desc: '3 ready-to-paste reply options for any review — empathetic, professional, or personal tone.', badge: 'Free tool' },
@@ -64,7 +64,7 @@ export default function FeaturesSection() {
                 <h3 className="font-semibold text-base text-white">Chrome Extension</h3>
                 <span className="text-[10px] font-semibold text-green-400 bg-green-500/10 border border-green-500/20 px-2 py-0.5 rounded-full">Works on Amazon</span>
               </div>
-              <p className="text-sm text-neutral-400 leading-relaxed">Install once and Voxrate lives inside Amazon. Collects reviews through your own session — no rate limits, no scraper costs — and surfaces intelligence directly on the pages you already work on.</p>
+              <p className="text-sm text-neutral-400 leading-relaxed">Install once and Voxrate lives inside Amazon. Collects reviews through your own session — no rate limits, no scraper costs — and surfaces intelligence directly on the pages you already work on. Included with all paid plans.</p>
             </div>
             <a href="/dashboard/settings/extension" className="flex-shrink-0 px-5 py-2.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold rounded-xl transition-colors whitespace-nowrap">
               Get the extension →
