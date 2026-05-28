@@ -295,6 +295,7 @@ async function ensureVisible() {
 
 function findSeeAllReviewsLink() {
   const selectors = [
+    'a[data-hook="see-all-reviews-link-footer"]',   // NikolaiT confirmed working
     'a[data-hook="see-all-reviews-link-foot"]',
     'a[data-hook="reviews-medley-footer-see-all-link"]',
     '#reviews-medley-footer a',
