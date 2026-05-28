@@ -19,7 +19,7 @@ export default function FinalCtaSection({ ctaUrl, ctaUrlError, setCtaUrl, setCta
             onKeyDown={e => e.key === 'Enter' && analyzeCta()}
             placeholder="Paste your Amazon product URL or ASIN..."
             className="flex-1 px-4 py-3 text-base bg-transparent outline-none placeholder:text-neutral-400" />
-          <button onClick={analyzeCta} className="glow px-6 py-3 bg-black text-white font-medium rounded-xl whitespace-nowrap">Analyze →</button>
+          <button onClick={analyzeCta} className="glow-orange btn-press px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-xl whitespace-nowrap transition-colors">Analyze →</button>
         </div>
         {ctaUrlError && <p className="text-xs text-red-500 mt-2">{ctaUrlError}</p>}
         <p className="mt-5 text-xs text-neutral-500">First analysis is free · No credit card · Cancel anytime</p>
