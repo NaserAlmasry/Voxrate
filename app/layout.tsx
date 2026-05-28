@@ -184,7 +184,7 @@ const jsonLd = {
         {
           "@type": "Offer",
           name: "Pro",
-          price: "49.99",
+          price: "49.17",
           priceCurrency: "USD",
           billingIncrement: "P1M",
           description: "2,000 credits/month — ~100 analyses + all features",

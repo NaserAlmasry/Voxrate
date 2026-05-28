@@ -18,7 +18,8 @@ const PLANS = [
     name:       'Starter',
     plan:       'starter',
     monthlyPrice: 14.99,
-    annualPrice:  12.49,
+    annualPrice:  12.50,
+    annualTotal:  149.99,
     icon:       <Zap size={16} className="text-blue-500" />,
     badge:      null,
     popular:    false,
@@ -41,7 +42,8 @@ const PLANS = [
     name:       'Growth',
     plan:       'growth',
     monthlyPrice: 39.99,
-    annualPrice:  33.25,
+    annualPrice:  32.50,
+    annualTotal:  389.99,
     icon:       <TrendingUp size={16} className="text-orange-500" />,
     badge:      'Most popular',
     popular:    true,
@@ -66,7 +68,8 @@ const PLANS = [
     name:       'Pro',
     plan:       'pro',
     monthlyPrice: 59.99,
-    annualPrice:  49.99,
+    annualPrice:  49.17,
+    annualTotal:  589.99,
     icon:       <Shield size={16} className="text-purple-500" />,
     badge:      'Best value',
     popular:    false,
@@ -128,7 +131,7 @@ export default function PricingSection({
             className={`px-4 py-1.5 text-sm rounded-full border transition-all flex items-center gap-2 ${billingCycle === 'annual' ? 'bg-black text-white border-black' : 'text-neutral-500 border-neutral-200'}`}
           >
             Annual
-            <span className="text-xs bg-orange-500 text-white px-1.5 py-0.5 rounded-full">Save 2 months</span>
+            <span className="text-xs bg-orange-500 text-white px-1.5 py-0.5 rounded-full">Save up to 19%</span>
           </button>
         </div>
 
@@ -136,7 +139,7 @@ export default function PricingSection({
         <div className="grid md:grid-cols-3 gap-5 mb-8">
           {PLANS.map(p => {
             const price = billingCycle === 'annual' ? p.annualPrice : p.monthlyPrice
-            const annualSaving = ((p.monthlyPrice - p.annualPrice) * 12).toFixed(0)
+            const annualSaving = (p.monthlyPrice * 12 - p.annualTotal).toFixed(0)
             return (
               <div key={p.name} className={`pcard p-6 rounded-2xl border relative ${p.popular ? 'bg-black text-white border-black ring-2 ring-orange-500 ring-offset-2 scale-[1.03] z-10' : 'bg-white border-neutral-200'}`}>
                 {p.badge && (
@@ -154,7 +157,7 @@ export default function PricingSection({
                 </div>
                 {billingCycle === 'annual' && (
                   <p className={`text-xs mb-1 ${p.popular ? 'text-neutral-400' : 'text-neutral-500'}`}>
-                    ${(p.annualPrice * 12).toFixed(0)}/year — <span className="text-orange-400 font-medium">save ${annualSaving}</span>
+                    ${p.annualTotal}/year — <span className="text-orange-400 font-medium">save ${annualSaving}</span>
                   </p>
                 )}
 
