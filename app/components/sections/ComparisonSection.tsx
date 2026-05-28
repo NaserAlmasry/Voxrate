@@ -19,16 +19,18 @@ export default function ComparisonSection() {
             </div>
           </div>
           {[
-            { feature: 'Single health score per listing — watch it rise as you fix',  us: true,  them: false },
-            { feature: 'Ranked complaint themes — by severity and revenue impact',     us: true,  them: false },
-            { feature: 'Step-by-step fix for each complaint — not just "you should improve"', us: true, them: false },
-            { feature: 'Competitor review weakness spy — see their gaps before they fix', us: true, them: false },
-            { feature: 'Score drop alerts — email when health falls 5+ points',        us: true,  them: false },
-            { feature: 'SEO keywords pulled from real buyer language in your reviews', us: true,  them: 'partial' },
-            { feature: 'AI listing rewriter using your own review keywords',           us: true,  them: 'partial' },
-            { feature: 'Review reply generator (3 tones)',                             us: true,  them: false },
-            { feature: 'Listing keyword score + title/bullets structure audit',       us: 'partial', them: true },
-            { feature: 'Pay as you go — no subscription required',                    us: true,  them: false },
+            { feature: 'Single health score per listing — watch it rise as you fix',            us: true,      them: false },
+            { feature: 'Ranked complaint themes — by severity and revenue impact',              us: true,      them: false },
+            { feature: 'Step-by-step fix for each complaint — not just "you should improve"',  us: true,      them: false },
+            { feature: 'Competitor review weakness spy — see their gaps before they fix them', us: true,      them: false },
+            { feature: 'Chrome extension — analysis overlay lives inside Amazon, no tab switching', us: true,  them: false },
+            { feature: 'Seller Central scanner — account health, stranded inventory, returns auto-read', us: true, them: false },
+            { feature: 'Score drop alerts — emailed when your listing health falls 5+ points', us: true,      them: false },
+            { feature: 'Re-analyze over time — track whether your fixes are actually working', us: true,      them: false },
+            { feature: 'SEO keywords pulled from real buyer language in your reviews',         us: true,      them: 'partial' },
+            { feature: 'AI listing rewriter using your own review keywords',                   us: true,      them: 'partial' },
+            { feature: 'Review reply generator (3 tones)',                                     us: true,      them: false },
+            { feature: 'Listing keyword score + title/bullets structure audit',               us: 'partial', them: true },
           ].map((row, i) => (
             <div key={i} className={`grid grid-cols-3 border-b border-neutral-100 ${i % 2 === 0 ? '' : 'bg-neutral-50/50'}`}>
               <div className="p-3.5 text-xs text-neutral-700">{row.feature}</div>
