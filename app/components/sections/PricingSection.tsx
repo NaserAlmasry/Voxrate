@@ -1,7 +1,7 @@
 'use client'
 
 import CheckoutButton from '@/app/components/CheckoutButton'
-import { RotateCcw, HelpCircle, Zap, Shield, TrendingUp } from 'lucide-react'
+import { RotateCcw, HelpCircle, Zap, Shield, TrendingUp, Check, Minus, Clock } from 'lucide-react'
 
 type Props = {
   billingCycle: 'monthly' | 'annual'
@@ -15,95 +15,138 @@ type Props = {
 
 const PLANS = [
   {
-    name:       'Starter',
-    plan:       'starter',
+    name:         'Starter',
+    plan:         'starter',
     monthlyPrice: 14.99,
     annualPrice:  12.50,
     annualTotal:  149.99,
-    icon:       <Zap size={16} className="text-blue-500" />,
-    badge:      null,
-    popular:    false,
-    ownAnalyses: 30,
-    competitorAnalyses: 5,
-    rollover:   '2 months',
-    features: [
+    icon:         <Zap size={16} className="text-blue-500" />,
+    badge:        null,
+    popular:      false,
+    totalAnalyses: 35,
+    rollover:     '2 months',
+    highlights: [
       '35 analyses/month — own or competitor',
-      'Up to 5 analyses per 30 min',
-      'Unused analyses roll over (up to 2 months)',
-      '7-day re-analyze cooldown',
-      'ASIN watchlist (5 ASINs)',
-      'Bulk analyze (3 at once)',
+      'Rollover unused analyses (up to 2 months)',
+      '5-ASIN watchlist',
       'Weekly digest email',
-      'Unlimited AI tools — rewrite, grade, reply, builder',
+      'Unlimited AI tools',
+      'Chrome extension included',
     ],
     btnLabel: 'Start Starter →',
   },
   {
-    name:       'Growth',
-    plan:       'growth',
+    name:         'Growth',
+    plan:         'growth',
     monthlyPrice: 39.99,
     annualPrice:  32.50,
     annualTotal:  389.99,
-    icon:       <TrendingUp size={16} className="text-orange-500" />,
-    badge:      'Most popular',
-    popular:    true,
-    ownAnalyses: 65,
-    competitorAnalyses: 15,
-    rollover:   '2 months',
-    features: [
+    icon:         <TrendingUp size={16} className="text-orange-500" />,
+    badge:        'Most popular',
+    popular:      true,
+    totalAnalyses: 80,
+    rollover:     '2 months',
+    highlights: [
       '80 analyses/month — own or competitor',
-      'Up to 10 analyses per 30 min',
-      'Unused analyses roll over (up to 2 months)',
-      '3-day re-analyze cooldown',
-      'ASIN watchlist (20 ASINs)',
-      'Bulk analyze (5 at once)',
-      'Attack, hijacker & listing alerts',
+      'Rollover unused analyses (up to 2 months)',
+      '20-ASIN watchlist',
+      'Hijacker & listing change alerts',
       'Sentiment alerts — weekly',
-      'Weekly digest email',
-      'Unlimited AI tools',
+      'Bulk analyze 5 at once',
     ],
     btnLabel: 'Start Growth →',
   },
   {
-    name:       'Pro',
-    plan:       'pro',
+    name:         'Pro',
+    plan:         'pro',
     monthlyPrice: 59.99,
     annualPrice:  49.17,
     annualTotal:  589.99,
-    icon:       <Shield size={16} className="text-purple-500" />,
-    badge:      'Best value',
-    popular:    false,
-    ownAnalyses: 175,
-    competitorAnalyses: 45,
-    rollover:   '3 months',
-    features: [
+    icon:         <Shield size={16} className="text-purple-500" />,
+    badge:        'Best value',
+    popular:      false,
+    totalAnalyses: 220,
+    rollover:     '3 months',
+    highlights: [
       '220 analyses/month — own or competitor',
-      'Up to 20 analyses per 30 min',
-      'Unused analyses roll over (up to 3 months)',
-      'Re-analyze any time — no cooldown',
+      'Rollover unused analyses (up to 3 months)',
       'Unlimited ASIN watchlist',
-      'Bulk analyze (5 at once)',
-      'All toolkit features (SC, Fingerprinter, Variant)',
-      'Sentiment alerts — daily or weekly',
-      'Daily or weekly digest email',
-      'Team seats — coming soon',
+      'Priority queue — skip the line (coming soon)',
+      'Seller Central scanner (exclusive)',
+      'Bulk analyze 10 at once',
     ],
     btnLabel: 'Start Pro →',
   },
 ]
 
+// ── Full comparison table ────────────────────────────────────────
+type Cell = string | boolean | 'soon'
+const COMPARISON: { category: string; rows: { label: string; tip?: string; starter: Cell; growth: Cell; pro: Cell }[] }[] = [
+  {
+    category: 'Analyses',
+    rows: [
+      { label: 'Monthly pool',         starter: '35',        growth: '80',         pro: '220'       },
+      { label: 'Own or competitor',     starter: true,        growth: true,         pro: true        },
+      { label: 'Rollover',              starter: '2 months',  growth: '2 months',   pro: '3 months'  },
+      { label: 'Burst rate',            tip: 'Max analyses per 30 minutes', starter: '5 / 30 min', growth: '10 / 30 min', pro: '20 / 30 min' },
+      { label: 'Re-analyze cooldown',   starter: '7 days',    growth: '3 days',     pro: 'None'      },
+      { label: 'Priority queue',        tip: 'Pro jobs run first when the system is busy', starter: false, growth: false, pro: 'soon' },
+    ],
+  },
+  {
+    category: 'Chrome Extension',
+    rows: [
+      { label: 'Competitor sidebar overlay',  starter: true,  growth: true,  pro: true  },
+      { label: 'Listing velocity monitor',    starter: true,  growth: true,  pro: true  },
+      { label: 'Review collector',            starter: true,  growth: true,  pro: true  },
+      { label: 'Hijacker & listing alerts',   starter: false, growth: true,  pro: true  },
+      { label: 'Seller Central scanner',      tip: 'Account health, returns, stranded inventory — pulled automatically when you visit Seller Central', starter: false, growth: false, pro: true },
+    ],
+  },
+  {
+    category: 'Monitoring & Alerts',
+    rows: [
+      { label: 'ASIN watchlist',          starter: '5 ASINs',   growth: '20 ASINs',  pro: 'Unlimited' },
+      { label: 'Bulk analyze',            starter: '3 at once', growth: '5 at once', pro: '10 at once'},
+      { label: 'Sentiment alerts',        starter: false,       growth: 'Weekly',    pro: 'Daily or weekly' },
+      { label: 'Digest email',            starter: 'Weekly',    growth: 'Weekly',    pro: 'Daily or weekly' },
+    ],
+  },
+  {
+    category: 'AI Tools (all unlimited)',
+    rows: [
+      { label: 'Listing health score',      starter: true, growth: true, pro: true },
+      { label: 'Review complaint analysis', starter: true, growth: true, pro: true },
+      { label: 'AI description rewriter',   starter: true, growth: true, pro: true },
+      { label: 'Listing grader',            starter: true, growth: true, pro: true },
+      { label: 'Review reply generator',    starter: true, growth: true, pro: true },
+      { label: 'Listing builder',           starter: true, growth: true, pro: true },
+    ],
+  },
+  {
+    category: 'Reports & Data',
+    rows: [
+      { label: 'Report history',    starter: '60 days',   growth: '6 months',  pro: 'Unlimited' },
+      { label: 'PDF / CSV export',  starter: false,       growth: 'soon',      pro: 'soon'      },
+      { label: 'Team seats',        starter: false,       growth: false,       pro: 'soon'      },
+    ],
+  },
+]
+
+function CellValue({ val, popular }: { val: Cell; popular: boolean }) {
+  if (val === true)   return <Check size={15} className={popular ? 'text-orange-400 mx-auto' : 'text-green-500 mx-auto'} />
+  if (val === false)  return <Minus size={14} className="text-neutral-300 mx-auto" />
+  if (val === 'soon') return <span className="text-[10px] font-semibold text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded-full">Soon</span>
+  return <span className={`text-xs font-medium ${popular ? 'text-white' : 'text-neutral-700'}`}>{val}</span>
+}
+
 export default function PricingSection({
   billingCycle, setBillingCycle, calcProducts, setCalcProducts, calcFrequency, setCalcFrequency, openAuthModal,
 }: Props) {
-  const ownNeeded = calcFrequency === 'monthly' ? calcProducts : Math.ceil(calcProducts / 3)
-  const competitorNeeded = calcFrequency === 'monthly' ? Math.ceil(calcProducts * 0.5) : Math.ceil(calcProducts * 0.5 / 3)
-
-  const totalNeeded = ownNeeded + competitorNeeded
-  const recommended = totalNeeded <= 35
-    ? 'starter'
-    : totalNeeded <= 80
-    ? 'growth'
-    : 'pro'
+  const ownNeeded        = calcFrequency === 'monthly' ? calcProducts : Math.ceil(calcProducts / 3)
+  const competitorNeeded = calcFrequency === 'monthly' ? Math.ceil(calcProducts * 0.2) : Math.ceil(calcProducts * 0.2 / 3)
+  const totalNeeded      = ownNeeded + competitorNeeded
+  const recommended      = totalNeeded <= 35 ? 'starter' : totalNeeded <= 80 ? 'growth' : 'pro'
 
   return (
     <section id="pricing" className="py-24 px-6 bg-white border-t border-neutral-200">
@@ -114,10 +157,10 @@ export default function PricingSection({
           <p className="text-xs font-semibold text-orange-600 uppercase tracking-widest mb-2">Pricing</p>
           <h2 className="text-3xl md:text-4xl font-bold mb-3">Simple. Generous. No credits.</h2>
           <p className="text-sm text-neutral-500 max-w-lg mx-auto mb-2">
-            Analyses per month — unused ones roll over. No credits, no rationing, no games.
+            One pool of analyses per month — use them on your own listings or competitors. Unused ones roll over automatically.
           </p>
           <p className="inline-flex items-center gap-1.5 text-xs font-medium text-orange-600 bg-orange-50 px-3 py-1.5 rounded-full border border-orange-100">
-            <RotateCcw size={12} /> Unused analyses roll over — the only tool that does this
+            <RotateCcw size={12} /> Unused analyses roll over — the only Amazon tool that does this
           </p>
         </div>
 
@@ -137,12 +180,12 @@ export default function PricingSection({
         </div>
 
         {/* Plan cards */}
-        <div className="grid md:grid-cols-3 gap-5 mb-8">
+        <div className="grid md:grid-cols-3 gap-5 mb-4">
           {PLANS.map(p => {
-            const price = billingCycle === 'annual' ? p.annualPrice : p.monthlyPrice
+            const price       = billingCycle === 'annual' ? p.annualPrice : p.monthlyPrice
             const annualSaving = (p.monthlyPrice * 12 - p.annualTotal).toFixed(0)
             return (
-              <div key={p.name} className={`pcard p-6 rounded-2xl border relative ${p.popular ? 'bg-black text-white border-black ring-2 ring-orange-500 ring-offset-2 scale-[1.03] z-10' : 'bg-white border-neutral-200'}`}>
+              <div key={p.name} className={`p-6 rounded-2xl border relative flex flex-col ${p.popular ? 'bg-black text-white border-black ring-2 ring-orange-500 ring-offset-2 scale-[1.03] z-10' : 'bg-white border-neutral-200'}`}>
                 {p.badge && (
                   <div className="absolute top-4 right-4 px-2 py-0.5 text-xs bg-orange-500 rounded-full text-white">{p.badge}</div>
                 )}
@@ -162,28 +205,25 @@ export default function PricingSection({
                   </p>
                 )}
 
-                {/* Analyses at-a-glance */}
+                {/* Pool at-a-glance */}
                 <div className={`flex gap-3 my-4 p-3 rounded-xl ${p.popular ? 'bg-white/10' : 'bg-neutral-50 border border-neutral-100'}`}>
                   <div className="text-center flex-1">
-                    <p className={`text-xl font-black ${p.popular ? 'text-orange-400' : 'text-orange-600'}`}>{p.ownAnalyses}</p>
-                    <p className={`text-[10px] ${p.popular ? 'text-neutral-400' : 'text-neutral-500'}`}>own/mo</p>
+                    <p className={`text-2xl font-black ${p.popular ? 'text-orange-400' : 'text-orange-600'}`}>{p.totalAnalyses}</p>
+                    <p className={`text-[10px] ${p.popular ? 'text-neutral-400' : 'text-neutral-500'}`}>analyses/mo</p>
                   </div>
                   <div className={`w-px ${p.popular ? 'bg-white/20' : 'bg-neutral-200'}`} />
                   <div className="text-center flex-1">
-                    <p className={`text-xl font-black ${p.popular ? 'text-orange-400' : 'text-orange-600'}`}>{p.competitorAnalyses}</p>
-                    <p className={`text-[10px] ${p.popular ? 'text-neutral-400' : 'text-neutral-500'}`}>competitor/mo</p>
-                  </div>
-                  <div className={`w-px ${p.popular ? 'bg-white/20' : 'bg-neutral-200'}`} />
-                  <div className="text-center flex-1">
-                    <p className={`text-xs font-bold ${p.popular ? 'text-green-400' : 'text-green-600'}`}>↩ {p.rollover}</p>
+                    <p className={`text-xs font-bold ${p.popular ? 'text-green-400' : 'text-green-600'}`}>↺ {p.rollover}</p>
                     <p className={`text-[10px] ${p.popular ? 'text-neutral-400' : 'text-neutral-500'}`}>rollover</p>
                   </div>
                 </div>
 
-                <ul className={`space-y-1.5 text-xs mb-6 ${p.popular ? 'text-neutral-300' : 'text-neutral-600'}`}>
-                  {p.features.map(f => (
-                    <li key={f} className="flex gap-2">
-                      <span className={p.popular ? 'text-orange-400' : 'text-green-500'}>✓</span>{f}
+                {/* Highlights */}
+                <ul className={`space-y-1.5 text-xs mb-6 flex-1 ${p.popular ? 'text-neutral-300' : 'text-neutral-600'}`}>
+                  {p.highlights.map(f => (
+                    <li key={f} className="flex gap-2 items-start">
+                      <span className={`mt-0.5 flex-shrink-0 ${p.popular ? 'text-orange-400' : 'text-green-500'}`}>✓</span>
+                      <span>{f}</span>
                     </li>
                   ))}
                 </ul>
@@ -198,12 +238,89 @@ export default function PricingSection({
         </div>
 
         {/* Free tier note */}
-        <div className="text-center mb-10">
+        <div className="text-center mb-10 mt-6">
           <p className="text-sm text-neutral-500">
             Not ready to pay?{' '}
             <button onClick={openAuthModal} className="font-medium text-neutral-700 hover:text-black underline underline-offset-2 bg-transparent border-none cursor-pointer p-0">Start free</button>
-            {' '}— 14-day trial · 3 analyses included · no credit card required.
+            {' '}— 14-day trial · 5 analyses included · no credit card required.
           </p>
+        </div>
+
+        {/* ── Full comparison table ── */}
+        <div className="mb-10">
+          <h3 className="text-lg font-bold text-center mb-6">Full feature comparison</h3>
+          <div className="rounded-2xl border border-neutral-200 overflow-hidden">
+
+            {/* Table header */}
+            <div className="grid grid-cols-4 bg-neutral-50 border-b border-neutral-200">
+              <div className="p-4" />
+              {PLANS.map(p => (
+                <div key={p.name} className={`p-4 text-center border-l border-neutral-200 ${p.popular ? 'bg-black' : ''}`}>
+                  <p className={`text-sm font-bold ${p.popular ? 'text-white' : 'text-neutral-800'}`}>{p.name}</p>
+                  <p className={`text-xs mt-0.5 ${p.popular ? 'text-neutral-400' : 'text-neutral-500'}`}>
+                    ${billingCycle === 'annual' ? p.annualPrice : p.monthlyPrice}/mo
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            {/* Categories & rows */}
+            {COMPARISON.map((section, si) => (
+              <div key={section.category}>
+                {/* Category header */}
+                <div className="grid grid-cols-4 bg-neutral-50 border-b border-t border-neutral-200">
+                  <div className="px-4 py-2 col-span-4">
+                    <p className="text-[11px] font-semibold text-neutral-500 uppercase tracking-widest">{section.category}</p>
+                  </div>
+                </div>
+
+                {/* Rows */}
+                {section.rows.map((row, ri) => (
+                  <div key={row.label} className={`grid grid-cols-4 border-b border-neutral-100 ${ri % 2 === 0 ? 'bg-white' : 'bg-neutral-50/40'}`}>
+                    {/* Label */}
+                    <div className="px-4 py-3 flex items-center gap-1.5">
+                      <span className="text-xs text-neutral-700">{row.label}</span>
+                      {row.tip && (
+                        <div className="relative group flex-shrink-0">
+                          <HelpCircle size={12} className="text-neutral-400 cursor-help" />
+                          <div className="absolute left-0 bottom-5 w-52 bg-neutral-900 text-white text-xs rounded-xl p-2.5 shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-20">
+                            <div className="absolute -bottom-1.5 left-2 w-3 h-3 bg-neutral-900 rotate-45" />
+                            {row.tip}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    {/* Starter */}
+                    <div className="px-4 py-3 border-l border-neutral-100 flex items-center justify-center">
+                      <CellValue val={row.starter} popular={false} />
+                    </div>
+                    {/* Growth */}
+                    <div className="px-4 py-3 border-l border-neutral-100 flex items-center justify-center bg-black/[0.02]">
+                      <CellValue val={row.growth} popular={true} />
+                    </div>
+                    {/* Pro */}
+                    <div className="px-4 py-3 border-l border-neutral-100 flex items-center justify-center">
+                      <CellValue val={row.pro} popular={false} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ))}
+
+            {/* CTA row */}
+            <div className="grid grid-cols-4 bg-neutral-50 border-t border-neutral-200">
+              <div className="p-4" />
+              {PLANS.map(p => (
+                <div key={p.name} className={`p-3 border-l border-neutral-200 ${p.popular ? 'bg-black' : ''}`}>
+                  <CheckoutButton
+                    plan={p.plan as any} billing={billingCycle} label={p.btnLabel}
+                    className={`w-full py-2 text-xs font-medium rounded-xl transition-colors cursor-pointer ${p.popular ? 'bg-orange-500 hover:bg-orange-600 text-white' : 'bg-black hover:bg-neutral-800 text-white'}`}
+                  />
+                </div>
+              ))}
+            </div>
+
+          </div>
         </div>
 
         {/* Rollover explainer */}
@@ -213,7 +330,7 @@ export default function PricingSection({
             <div>
               <p className="text-sm font-semibold text-neutral-800 mb-1">How rollover works</p>
               <p className="text-xs text-neutral-600 leading-relaxed">
-                If you don't use all your analyses this month, they carry forward — automatically. Growth plan gets 60/month with up to 120 banked. Going through a product launch? Use 80 in one week. Quiet month? Bank the rest. No other Amazon tool does this.
+                If you don't use all your analyses this month, they carry forward automatically. Growth gets 80/month with up to 160 banked. Pro gets 220/month with up to 660 banked. Going through a product launch? Use 40 in one day. Quiet month? Bank the rest. No other Amazon tool does this.
               </p>
             </div>
           </div>
@@ -277,6 +394,7 @@ export default function PricingSection({
             </div>
           </div>
         </div>
+
       </div>
     </section>
   )

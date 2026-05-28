@@ -55,12 +55,20 @@ export default function HistoryPage() {
         const isSimulating = saved === 'true'
         const isFreeUser = !isAdmin || isSimulating
 
-        const { data: reportData, error } = await supabase
+        // Report history window by plan
+        const HISTORY_DAYS: Record<string, number | null> = { free: 60, starter: 60, growth: 180, pro: null }
+        const historyDays = isAdmin ? null : (HISTORY_DAYS[userData?.plan ?? 'free'] ?? 60)
+        const historyQuery = supabase
           .from('reports')
           .select('id, product_name, product_url, health_score, top_complaint, top_strength, total_reviews_analyzed, created_at, status')
           .eq('user_id', user.id)
           .eq('status', 'completed')
           .order('created_at', { ascending: false })
+        if (historyDays !== null) {
+          const cutoff = new Date(Date.now() - historyDays * 24 * 60 * 60 * 1000).toISOString()
+          historyQuery.gte('created_at', cutoff)
+        }
+        const { data: reportData, error } = await historyQuery
 
         if (error) {
           console.error('[History] Supabase error:', error)

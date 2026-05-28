@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Voxrate Reviews Scraper",
+  "name": "Voxrate for Amazon Sellers",
   "version": "1.0.0",
-  "description": "Collects Amazon reviews for your Voxrate analysis — uses your existing Amazon session to fetch review data.",
+  "description": "Voxrate companion extension — competitor sidebar, listing change alerts, review velocity tracking, and Seller Central health monitoring.",
   "permissions": ["storage", "tabs", "alarms", "scripting"],
   "host_permissions": [
     "https://voxrate.app/*",

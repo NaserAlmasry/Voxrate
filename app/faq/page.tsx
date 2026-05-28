@@ -21,11 +21,23 @@ const FAQ_ITEMS = [
   },
   {
     q: "Can I analyze a competitor's listing?",
-    a: "Yes. Paste any Amazon product URL or ASIN — including a competitor's. Voxrate analyzes their reviews, shows you their top weaknesses, what they do well, and gives you a side-by-side comparison with exact positioning language to use. All plans use the same analysis quota — own listings and competitor listings each use 1 analysis. Starter gets 35/month. Growth gets 80/month. Pro gets 220/month. Resets on the 1st of each month.",
+    a: "Yes. Paste any Amazon product URL or ASIN — including a competitor's. Voxrate analyzes their reviews: top weaknesses, buyer complaints, keyword gaps, and a ranked fix list showing exactly where you can beat them. All paid plans include competitor analyses — they use 1 analysis from your monthly pool, same as your own listings. Starter gets 35/month, Growth gets 80/month, Pro gets 220/month.",
   },
   {
     q: 'How does the analysis quota work?',
-    a: 'Each analysis — whether your own listing or a competitor — uses 1 analysis from your monthly quota. All other tools (description rewriter, listing grader, review reply generator, listing builder) are completely free. Subscription analyses refresh monthly on the 1st.',
+    a: 'Each analysis — whether your own listing or a competitor — uses 1 analysis from your monthly quota. All other tools (description rewriter, listing grader, review reply generator, listing builder) are completely free. Subscription analyses refresh on your billing date. Unused analyses roll over automatically: up to 2 months banked on Starter and Growth, up to 3 months on Pro.',
+  },
+  {
+    q: 'What happens when I run out of analyses?',
+    a: "You'll see a clear warning in your dashboard before you hit zero. Once your monthly pool is empty, analyses are paused until your billing date resets your quota — or you upgrade. Unused analyses from previous months roll over automatically, so you may already have a buffer banked.",
+  },
+  {
+    q: "What's the re-analyze cooldown?",
+    a: "To prevent duplicate charges, each ASIN has a cooldown before you can re-run its analysis: 7 days on Starter, 3 days on Growth, and no cooldown on Pro. The cooldown only applies to re-running the same product — you can always analyze a different ASIN immediately.",
+  },
+  {
+    q: 'Does the Chrome extension cost extra? What does it do?',
+    a: "The Chrome extension is free and included with all paid plans. It runs silently in the background and does four things: (1) shows a competitor sidebar overlay with cached report data on any Amazon product page; (2) monitors listing changes — price, title, images, buy box — and alerts you when something changes; (3) tracks review velocity so you know when a star-rating spike hits your product; (4) scans your Seller Central account health, returns, and stranded inventory automatically whenever you visit those pages. The extension collects data but never triggers an AI analysis on its own — that only happens when you explicitly run one from your dashboard.",
   },
   {
     q: "Is my data and my customers' data private?",
