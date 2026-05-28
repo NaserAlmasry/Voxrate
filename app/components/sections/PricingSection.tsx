@@ -1,7 +1,8 @@
 'use client'
 
+import { useState } from 'react'
 import CheckoutButton from '@/app/components/CheckoutButton'
-import { RotateCcw, HelpCircle, Zap, Shield, TrendingUp, Check, Minus, Clock } from 'lucide-react'
+import { RotateCcw, HelpCircle, Zap, Shield, TrendingUp, Check, Minus, Clock, ChevronDown } from 'lucide-react'
 
 type Props = {
   billingCycle: 'monthly' | 'annual'
@@ -13,136 +14,218 @@ type Props = {
   openAuthModal: () => void
 }
 
+type FeatureRow = { label: string; value: string | boolean | 'soon'; tip?: string }
+type FeatureGroup = { category: string; rows: FeatureRow[] }
+
+const PLAN_DETAILS: Record<string, FeatureGroup[]> = {
+  starter: [
+    {
+      category: 'Analyses',
+      rows: [
+        { label: 'Monthly pool', value: '35 analyses — own or competitor' },
+        { label: 'Rollover', value: 'Up to 2 months banked (70 max)' },
+        { label: 'Re-analyze cooldown', value: '7 days per ASIN' },
+        { label: 'Burst rate', value: '5 analyses per 30 min', tip: 'Max you can run in a short window before a brief pause' },
+      ],
+    },
+    {
+      category: 'Chrome Extension (included free)',
+      rows: [
+        { label: 'Competitor sidebar overlay', value: true },
+        { label: 'Listing velocity monitor', value: true },
+        { label: 'Review collector', value: true },
+        { label: 'Hijacker & listing alerts', value: false },
+        { label: 'Seller Central scanner', value: false },
+      ],
+    },
+    {
+      category: 'Monitoring & Alerts',
+      rows: [
+        { label: 'ASIN watchlist', value: '5 ASINs' },
+        { label: 'Bulk analyze', value: '3 at once' },
+        { label: 'Sentiment alerts', value: false },
+        { label: 'Digest email', value: 'Weekly' },
+      ],
+    },
+    {
+      category: 'AI Tools — all unlimited',
+      rows: [
+        { label: 'Review complaint analysis', value: true },
+        { label: 'Listing health score', value: true },
+        { label: 'AI description rewriter', value: true },
+        { label: 'Listing grader', value: true },
+        { label: 'Review reply generator', value: true },
+        { label: 'AI listing builder', value: true },
+      ],
+    },
+    {
+      category: 'Reports',
+      rows: [
+        { label: 'Report history', value: '60 days' },
+        { label: 'PDF / CSV export', value: false },
+      ],
+    },
+  ],
+  growth: [
+    {
+      category: 'Analyses',
+      rows: [
+        { label: 'Monthly pool', value: '80 analyses — own or competitor' },
+        { label: 'Rollover', value: 'Up to 2 months banked (160 max)' },
+        { label: 'Re-analyze cooldown', value: '3 days per ASIN' },
+        { label: 'Burst rate', value: '10 analyses per 30 min', tip: 'Max you can run in a short window before a brief pause' },
+      ],
+    },
+    {
+      category: 'Chrome Extension (included free)',
+      rows: [
+        { label: 'Competitor sidebar overlay', value: true },
+        { label: 'Listing velocity monitor', value: true },
+        { label: 'Review collector', value: true },
+        { label: 'Hijacker & listing alerts', value: true },
+        { label: 'Seller Central scanner', value: false },
+      ],
+    },
+    {
+      category: 'Monitoring & Alerts',
+      rows: [
+        { label: 'ASIN watchlist', value: '20 ASINs' },
+        { label: 'Bulk analyze', value: '5 at once' },
+        { label: 'Sentiment alerts', value: 'Weekly' },
+        { label: 'Digest email', value: 'Weekly' },
+      ],
+    },
+    {
+      category: 'AI Tools — all unlimited',
+      rows: [
+        { label: 'Review complaint analysis', value: true },
+        { label: 'Listing health score', value: true },
+        { label: 'AI description rewriter', value: true },
+        { label: 'Listing grader', value: true },
+        { label: 'Review reply generator', value: true },
+        { label: 'AI listing builder', value: true },
+      ],
+    },
+    {
+      category: 'Reports',
+      rows: [
+        { label: 'Report history', value: '6 months' },
+        { label: 'PDF / CSV export', value: 'soon' },
+      ],
+    },
+  ],
+  pro: [
+    {
+      category: 'Analyses',
+      rows: [
+        { label: 'Monthly pool', value: '220 analyses — own or competitor' },
+        { label: 'Rollover', value: 'Up to 3 months banked (660 max)' },
+        { label: 'Re-analyze cooldown', value: 'No cooldown' },
+        { label: 'Burst rate', value: '20 analyses per 30 min', tip: 'Max you can run in a short window before a brief pause' },
+        { label: 'Priority queue', value: 'soon', tip: 'Pro jobs run first when the system is busy' },
+      ],
+    },
+    {
+      category: 'Chrome Extension (included free)',
+      rows: [
+        { label: 'Competitor sidebar overlay', value: true },
+        { label: 'Listing velocity monitor', value: true },
+        { label: 'Review collector', value: true },
+        { label: 'Hijacker & listing alerts', value: true },
+        { label: 'Seller Central scanner', value: true },
+      ],
+    },
+    {
+      category: 'Monitoring & Alerts',
+      rows: [
+        { label: 'ASIN watchlist', value: 'Unlimited' },
+        { label: 'Bulk analyze', value: '10 at once' },
+        { label: 'Sentiment alerts', value: 'Daily or weekly' },
+        { label: 'Digest email', value: 'Daily or weekly' },
+      ],
+    },
+    {
+      category: 'AI Tools — all unlimited',
+      rows: [
+        { label: 'Review complaint analysis', value: true },
+        { label: 'Listing health score', value: true },
+        { label: 'AI description rewriter', value: true },
+        { label: 'Listing grader', value: true },
+        { label: 'Review reply generator', value: true },
+        { label: 'AI listing builder', value: true },
+      ],
+    },
+    {
+      category: 'Reports',
+      rows: [
+        { label: 'Report history', value: 'Unlimited' },
+        { label: 'PDF / CSV export', value: 'soon' },
+        { label: 'Team seats', value: 'soon' },
+      ],
+    },
+  ],
+}
+
 const PLANS = [
   {
-    name:         'Starter',
-    plan:         'starter',
-    monthlyPrice: 14.99,
-    annualPrice:  12.50,
-    annualTotal:  149.99,
-    icon:         <Zap size={16} className="text-blue-500" />,
-    badge:        null,
-    popular:      false,
-    totalAnalyses: 35,
-    rollover:     '2 months',
+    name: 'Starter', plan: 'starter',
+    monthlyPrice: 14.99, annualPrice: 12.50, annualTotal: 149.99,
+    icon: <Zap size={16} className="text-blue-500" />,
+    badge: null, popular: false,
+    totalAnalyses: 35, rollover: '2 months',
     highlights: [
       '35 analyses/month — own or competitor',
-      'Rollover unused analyses (up to 2 months)',
+      'Rollover up to 2 months',
       '5-ASIN watchlist',
-      'Weekly digest email',
-      'Unlimited AI tools',
+      'All AI tools unlimited',
       'Chrome extension included',
     ],
     btnLabel: 'Start Starter →',
   },
   {
-    name:         'Growth',
-    plan:         'growth',
-    monthlyPrice: 39.99,
-    annualPrice:  32.50,
-    annualTotal:  389.99,
-    icon:         <TrendingUp size={16} className="text-orange-500" />,
-    badge:        'Most popular',
-    popular:      true,
-    totalAnalyses: 80,
-    rollover:     '2 months',
+    name: 'Growth', plan: 'growth',
+    monthlyPrice: 39.99, annualPrice: 32.50, annualTotal: 389.99,
+    icon: <TrendingUp size={16} className="text-orange-500" />,
+    badge: 'Most popular', popular: true,
+    totalAnalyses: 80, rollover: '2 months',
     highlights: [
       '80 analyses/month — own or competitor',
-      'Rollover unused analyses (up to 2 months)',
-      '20-ASIN watchlist',
-      'Hijacker & listing change alerts',
+      'Rollover up to 2 months',
+      '20-ASIN watchlist + hijacker alerts',
       'Sentiment alerts — weekly',
       'Bulk analyze 5 at once',
     ],
     btnLabel: 'Start Growth →',
   },
   {
-    name:         'Pro',
-    plan:         'pro',
-    monthlyPrice: 59.99,
-    annualPrice:  49.17,
-    annualTotal:  589.99,
-    icon:         <Shield size={16} className="text-purple-500" />,
-    badge:        'Best value',
-    popular:      false,
-    totalAnalyses: 220,
-    rollover:     '3 months',
+    name: 'Pro', plan: 'pro',
+    monthlyPrice: 59.99, annualPrice: 49.17, annualTotal: 589.99,
+    icon: <Shield size={16} className="text-purple-500" />,
+    badge: 'Best value', popular: false,
+    totalAnalyses: 220, rollover: '3 months',
     highlights: [
       '220 analyses/month — own or competitor',
-      'Rollover unused analyses (up to 3 months)',
-      'Unlimited ASIN watchlist',
-      'Priority queue — skip the line (coming soon)',
-      'Seller Central scanner (exclusive)',
+      'Rollover up to 3 months',
+      'Unlimited watchlist + no re-analyze cooldown',
+      'Seller Central scanner (Pro exclusive)',
       'Bulk analyze 10 at once',
     ],
     btnLabel: 'Start Pro →',
   },
 ]
 
-// ── Full comparison table ────────────────────────────────────────
-type Cell = string | boolean | 'soon'
-const COMPARISON: { category: string; rows: { label: string; tip?: string; starter: Cell; growth: Cell; pro: Cell }[] }[] = [
-  {
-    category: 'Analyses',
-    rows: [
-      { label: 'Monthly pool',         starter: '35',        growth: '80',         pro: '220'       },
-      { label: 'Own or competitor',     starter: true,        growth: true,         pro: true        },
-      { label: 'Rollover',              starter: '2 months',  growth: '2 months',   pro: '3 months'  },
-      { label: 'Burst rate',            tip: 'Max analyses per 30 minutes', starter: '5 / 30 min', growth: '10 / 30 min', pro: '20 / 30 min' },
-      { label: 'Re-analyze cooldown',   starter: '7 days',    growth: '3 days',     pro: 'None'      },
-      { label: 'Priority queue',        tip: 'Pro jobs run first when the system is busy', starter: false, growth: false, pro: 'soon' },
-    ],
-  },
-  {
-    category: 'Chrome Extension',
-    rows: [
-      { label: 'Competitor sidebar overlay',  starter: true,  growth: true,  pro: true  },
-      { label: 'Listing velocity monitor',    starter: true,  growth: true,  pro: true  },
-      { label: 'Review collector',            starter: true,  growth: true,  pro: true  },
-      { label: 'Hijacker & listing alerts',   starter: false, growth: true,  pro: true  },
-      { label: 'Seller Central scanner',      tip: 'Account health, returns, stranded inventory — pulled automatically when you visit Seller Central', starter: false, growth: false, pro: true },
-    ],
-  },
-  {
-    category: 'Monitoring & Alerts',
-    rows: [
-      { label: 'ASIN watchlist',          starter: '5 ASINs',   growth: '20 ASINs',  pro: 'Unlimited' },
-      { label: 'Bulk analyze',            starter: '3 at once', growth: '5 at once', pro: '10 at once'},
-      { label: 'Sentiment alerts',        starter: false,       growth: 'Weekly',    pro: 'Daily or weekly' },
-      { label: 'Digest email',            starter: 'Weekly',    growth: 'Weekly',    pro: 'Daily or weekly' },
-    ],
-  },
-  {
-    category: 'AI Tools (all unlimited)',
-    rows: [
-      { label: 'Listing health score',      starter: true, growth: true, pro: true },
-      { label: 'Review complaint analysis', starter: true, growth: true, pro: true },
-      { label: 'AI description rewriter',   starter: true, growth: true, pro: true },
-      { label: 'Listing grader',            starter: true, growth: true, pro: true },
-      { label: 'Review reply generator',    starter: true, growth: true, pro: true },
-      { label: 'Listing builder',           starter: true, growth: true, pro: true },
-    ],
-  },
-  {
-    category: 'Reports & Data',
-    rows: [
-      { label: 'Report history',    starter: '60 days',   growth: '6 months',  pro: 'Unlimited' },
-      { label: 'PDF / CSV export',  starter: false,       growth: 'soon',      pro: 'soon'      },
-      { label: 'Team seats',        starter: false,       growth: false,       pro: 'soon'      },
-    ],
-  },
-]
-
-function CellValue({ val, popular }: { val: Cell; popular: boolean }) {
-  if (val === true)   return <Check size={15} className={popular ? 'text-orange-400 mx-auto' : 'text-green-500 mx-auto'} />
-  if (val === false)  return <Minus size={14} className="text-neutral-300 mx-auto" />
-  if (val === 'soon') return <span className="text-[10px] font-semibold text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded-full">Soon</span>
-  return <span className={`text-xs font-medium ${popular ? 'text-white' : 'text-neutral-700'}`}>{val}</span>
+function FeatureValue({ val, popular }: { val: string | boolean | 'soon'; popular: boolean }) {
+  if (val === true)   return <Check size={14} className={popular ? 'text-orange-400 shrink-0' : 'text-green-500 shrink-0'} />
+  if (val === false)  return <Minus size={13} className="text-neutral-300 shrink-0" />
+  if (val === 'soon') return <span className="text-[10px] font-semibold text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded-full shrink-0">Soon</span>
+  return <span className={`text-xs font-medium shrink-0 ${popular ? 'text-white' : 'text-neutral-700'}`}>{val}</span>
 }
 
 export default function PricingSection({
   billingCycle, setBillingCycle, calcProducts, setCalcProducts, calcFrequency, setCalcFrequency, openAuthModal,
 }: Props) {
+  const [expandedPlan, setExpandedPlan] = useState<string | null>(null)
+
   const ownNeeded        = calcFrequency === 'monthly' ? calcProducts : Math.ceil(calcProducts / 3)
   const competitorNeeded = calcFrequency === 'monthly' ? Math.ceil(calcProducts * 0.2) : Math.ceil(calcProducts * 0.2 / 3)
   const totalNeeded      = ownNeeded + competitorNeeded
@@ -182,56 +265,106 @@ export default function PricingSection({
         {/* Plan cards */}
         <div className="grid md:grid-cols-3 gap-5 mb-4">
           {PLANS.map(p => {
-            const price       = billingCycle === 'annual' ? p.annualPrice : p.monthlyPrice
+            const price        = billingCycle === 'annual' ? p.annualPrice : p.monthlyPrice
             const annualSaving = (p.monthlyPrice * 12 - p.annualTotal).toFixed(0)
+            const isExpanded   = expandedPlan === p.plan
+            const details      = PLAN_DETAILS[p.plan]
+
             return (
-              <div key={p.name} className={`p-6 rounded-2xl border relative flex flex-col ${p.popular ? 'bg-black text-white border-black ring-2 ring-orange-500 ring-offset-2 scale-[1.03] z-10' : 'bg-white border-neutral-200'}`}>
-                {p.badge && (
-                  <div className="absolute top-4 right-4 px-2 py-0.5 text-xs bg-orange-500 rounded-full text-white">{p.badge}</div>
-                )}
+              <div key={p.name} className={`rounded-2xl border relative flex flex-col ${p.popular ? 'bg-black text-white border-black ring-2 ring-orange-500 ring-offset-2 scale-[1.03] z-10' : 'bg-white border-neutral-200'}`}>
+                <div className="p-6 flex flex-col flex-1">
+                  {p.badge && (
+                    <div className="absolute top-4 right-4 px-2 py-0.5 text-xs bg-orange-500 rounded-full text-white">{p.badge}</div>
+                  )}
 
-                <div className="flex items-center gap-2 mb-3">
-                  {p.icon}
-                  <h3 className={`font-semibold ${p.popular ? 'text-white' : ''}`}>{p.name}</h3>
-                </div>
-
-                <div className="mb-1">
-                  <span className="text-4xl font-black">${price}</span>
-                  <span className={`text-sm ml-1 ${p.popular ? 'text-neutral-400' : 'text-neutral-500'}`}>/month</span>
-                </div>
-                {billingCycle === 'annual' && (
-                  <p className={`text-xs mb-1 ${p.popular ? 'text-neutral-400' : 'text-neutral-500'}`}>
-                    ${p.annualTotal}/year — <span className="text-orange-400 font-medium">save ${annualSaving}</span>
-                  </p>
-                )}
-
-                {/* Pool at-a-glance */}
-                <div className={`flex gap-3 my-4 p-3 rounded-xl ${p.popular ? 'bg-white/10' : 'bg-neutral-50 border border-neutral-100'}`}>
-                  <div className="text-center flex-1">
-                    <p className={`text-2xl font-black ${p.popular ? 'text-orange-400' : 'text-orange-600'}`}>{p.totalAnalyses}</p>
-                    <p className={`text-[10px] ${p.popular ? 'text-neutral-400' : 'text-neutral-500'}`}>analyses/mo</p>
+                  <div className="flex items-center gap-2 mb-3">
+                    {p.icon}
+                    <h3 className={`font-semibold ${p.popular ? 'text-white' : ''}`}>{p.name}</h3>
                   </div>
-                  <div className={`w-px ${p.popular ? 'bg-white/20' : 'bg-neutral-200'}`} />
-                  <div className="text-center flex-1">
-                    <p className={`text-xs font-bold ${p.popular ? 'text-green-400' : 'text-green-600'}`}>↺ {p.rollover}</p>
-                    <p className={`text-[10px] ${p.popular ? 'text-neutral-400' : 'text-neutral-500'}`}>rollover</p>
+
+                  <div className="mb-1">
+                    <span className="text-4xl font-black">${price}</span>
+                    <span className={`text-sm ml-1 ${p.popular ? 'text-neutral-400' : 'text-neutral-500'}`}>/month</span>
                   </div>
+                  {billingCycle === 'annual' && (
+                    <p className={`text-xs mb-1 ${p.popular ? 'text-neutral-400' : 'text-neutral-500'}`}>
+                      ${p.annualTotal}/year — <span className="text-orange-400 font-medium">save ${annualSaving}</span>
+                    </p>
+                  )}
+
+                  {/* Pool at-a-glance */}
+                  <div className={`flex gap-3 my-4 p-3 rounded-xl ${p.popular ? 'bg-white/10' : 'bg-neutral-50 border border-neutral-100'}`}>
+                    <div className="text-center flex-1">
+                      <p className={`text-2xl font-black ${p.popular ? 'text-orange-400' : 'text-orange-600'}`}>{p.totalAnalyses}</p>
+                      <p className={`text-[10px] ${p.popular ? 'text-neutral-400' : 'text-neutral-500'}`}>analyses/mo</p>
+                    </div>
+                    <div className={`w-px ${p.popular ? 'bg-white/20' : 'bg-neutral-200'}`} />
+                    <div className="text-center flex-1">
+                      <p className={`text-xs font-bold ${p.popular ? 'text-green-400' : 'text-green-600'}`}>↺ {p.rollover}</p>
+                      <p className={`text-[10px] ${p.popular ? 'text-neutral-400' : 'text-neutral-500'}`}>rollover</p>
+                    </div>
+                  </div>
+
+                  {/* Highlights */}
+                  <ul className={`space-y-1.5 text-xs mb-5 flex-1 ${p.popular ? 'text-neutral-300' : 'text-neutral-600'}`}>
+                    {p.highlights.map(f => (
+                      <li key={f} className="flex gap-2 items-start">
+                        <span className={`mt-0.5 flex-shrink-0 ${p.popular ? 'text-orange-400' : 'text-green-500'}`}>✓</span>
+                        <span>{f}</span>
+                      </li>
+                    ))}
+                  </ul>
+
+                  <CheckoutButton
+                    plan={p.plan as any} billing={billingCycle} label={p.btnLabel}
+                    className={`w-full py-2.5 text-sm font-medium rounded-xl transition-colors cursor-pointer mb-3 ${p.popular ? 'bg-orange-500 hover:bg-orange-600 text-white' : 'bg-black hover:bg-neutral-800 text-white'}`}
+                  />
+
+                  {/* See what's included toggle */}
+                  <button
+                    onClick={() => setExpandedPlan(isExpanded ? null : p.plan)}
+                    className={`w-full flex items-center justify-center gap-1.5 text-xs py-2 rounded-xl border transition-colors ${
+                      p.popular
+                        ? 'border-white/20 text-neutral-400 hover:text-white hover:border-white/40'
+                        : 'border-neutral-200 text-neutral-400 hover:text-neutral-700 hover:border-neutral-300'
+                    }`}
+                  >
+                    {isExpanded ? 'Hide details' : 'See everything included'}
+                    <ChevronDown size={13} className={`transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                  </button>
                 </div>
 
-                {/* Highlights */}
-                <ul className={`space-y-1.5 text-xs mb-6 flex-1 ${p.popular ? 'text-neutral-300' : 'text-neutral-600'}`}>
-                  {p.highlights.map(f => (
-                    <li key={f} className="flex gap-2 items-start">
-                      <span className={`mt-0.5 flex-shrink-0 ${p.popular ? 'text-orange-400' : 'text-green-500'}`}>✓</span>
-                      <span>{f}</span>
-                    </li>
-                  ))}
-                </ul>
-
-                <CheckoutButton
-                  plan={p.plan as any} billing={billingCycle} label={p.btnLabel}
-                  className={`w-full py-2.5 text-sm font-medium rounded-xl transition-colors cursor-pointer ${p.popular ? 'bg-orange-500 hover:bg-orange-600 text-white' : 'bg-black hover:bg-neutral-800 text-white'}`}
-                />
+                {/* Expandable details */}
+                {isExpanded && (
+                  <div className={`border-t px-6 pb-6 pt-4 space-y-4 ${p.popular ? 'border-white/10' : 'border-neutral-100'}`}>
+                    {details.map(group => (
+                      <div key={group.category}>
+                        <p className={`text-[10px] font-semibold uppercase tracking-widest mb-2 ${p.popular ? 'text-neutral-500' : 'text-neutral-400'}`}>
+                          {group.category}
+                        </p>
+                        <div className="space-y-1.5">
+                          {group.rows.map(row => (
+                            <div key={row.label} className="flex items-center justify-between gap-3">
+                              <div className="flex items-center gap-1 min-w-0">
+                                <span className={`text-xs truncate ${p.popular ? 'text-neutral-300' : 'text-neutral-600'}`}>{row.label}</span>
+                                {row.tip && (
+                                  <div className="relative group flex-shrink-0">
+                                    <HelpCircle size={11} className="text-neutral-400 cursor-help" />
+                                    <div className="absolute left-0 bottom-5 w-48 bg-neutral-900 text-white text-xs rounded-xl p-2.5 shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-20">
+                                      <div className="absolute -bottom-1.5 left-2 w-3 h-3 bg-neutral-900 rotate-45" />
+                                      {row.tip}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                              <FeatureValue val={row.value} popular={p.popular} />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )
           })}
@@ -244,83 +377,6 @@ export default function PricingSection({
             <button onClick={openAuthModal} className="font-medium text-neutral-700 hover:text-black underline underline-offset-2 bg-transparent border-none cursor-pointer p-0">Start free</button>
             {' '}— 14-day trial · 5 analyses included · no credit card required.
           </p>
-        </div>
-
-        {/* ── Full comparison table ── */}
-        <div className="mb-10">
-          <h3 className="text-lg font-bold text-center mb-6">Full feature comparison</h3>
-          <div className="rounded-2xl border border-neutral-200 overflow-hidden">
-
-            {/* Table header */}
-            <div className="grid grid-cols-4 bg-neutral-50 border-b border-neutral-200">
-              <div className="p-4" />
-              {PLANS.map(p => (
-                <div key={p.name} className={`p-4 text-center border-l border-neutral-200 ${p.popular ? 'bg-black' : ''}`}>
-                  <p className={`text-sm font-bold ${p.popular ? 'text-white' : 'text-neutral-800'}`}>{p.name}</p>
-                  <p className={`text-xs mt-0.5 ${p.popular ? 'text-neutral-400' : 'text-neutral-500'}`}>
-                    ${billingCycle === 'annual' ? p.annualPrice : p.monthlyPrice}/mo
-                  </p>
-                </div>
-              ))}
-            </div>
-
-            {/* Categories & rows */}
-            {COMPARISON.map((section, si) => (
-              <div key={section.category}>
-                {/* Category header */}
-                <div className="grid grid-cols-4 bg-neutral-50 border-b border-t border-neutral-200">
-                  <div className="px-4 py-2 col-span-4">
-                    <p className="text-[11px] font-semibold text-neutral-500 uppercase tracking-widest">{section.category}</p>
-                  </div>
-                </div>
-
-                {/* Rows */}
-                {section.rows.map((row, ri) => (
-                  <div key={row.label} className={`grid grid-cols-4 border-b border-neutral-100 ${ri % 2 === 0 ? 'bg-white' : 'bg-neutral-50/40'}`}>
-                    {/* Label */}
-                    <div className="px-4 py-3 flex items-center gap-1.5">
-                      <span className="text-xs text-neutral-700">{row.label}</span>
-                      {row.tip && (
-                        <div className="relative group flex-shrink-0">
-                          <HelpCircle size={12} className="text-neutral-400 cursor-help" />
-                          <div className="absolute left-0 bottom-5 w-52 bg-neutral-900 text-white text-xs rounded-xl p-2.5 shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-20">
-                            <div className="absolute -bottom-1.5 left-2 w-3 h-3 bg-neutral-900 rotate-45" />
-                            {row.tip}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    {/* Starter */}
-                    <div className="px-4 py-3 border-l border-neutral-100 flex items-center justify-center">
-                      <CellValue val={row.starter} popular={false} />
-                    </div>
-                    {/* Growth */}
-                    <div className="px-4 py-3 border-l border-neutral-100 flex items-center justify-center bg-black/[0.02]">
-                      <CellValue val={row.growth} popular={true} />
-                    </div>
-                    {/* Pro */}
-                    <div className="px-4 py-3 border-l border-neutral-100 flex items-center justify-center">
-                      <CellValue val={row.pro} popular={false} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ))}
-
-            {/* CTA row */}
-            <div className="grid grid-cols-4 bg-neutral-50 border-t border-neutral-200">
-              <div className="p-4" />
-              {PLANS.map(p => (
-                <div key={p.name} className={`p-3 border-l border-neutral-200 ${p.popular ? 'bg-black' : ''}`}>
-                  <CheckoutButton
-                    plan={p.plan as any} billing={billingCycle} label={p.btnLabel}
-                    className={`w-full py-2 text-xs font-medium rounded-xl transition-colors cursor-pointer ${p.popular ? 'bg-orange-500 hover:bg-orange-600 text-white' : 'bg-black hover:bg-neutral-800 text-white'}`}
-                  />
-                </div>
-              ))}
-            </div>
-
-          </div>
         </div>
 
         {/* Rollover explainer */}
