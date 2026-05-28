@@ -17,53 +17,14 @@ let stats = { jobsToday: 0, lastAsin: null, lastJobAt: null }
 chrome.runtime.onInstalled.addListener(() => {
   setupAlarm()
   loadStats()
-  registerVisibilitySpoofer()
   poll()
 })
 
 chrome.runtime.onStartup.addListener(() => {
   setupAlarm()
   loadStats()
-  registerVisibilitySpoofer()
   poll()
 })
-
-// Register tabHelper.js in the MAIN world at document_start so Amazon
-// pages load correctly in background tabs.
-function registerVisibilitySpoofer() {
-  const SPOOFER_ID = 'voxrate-tab-helper'
-  const amazonMatches = [
-    'https://www.amazon.com/product-reviews/*',
-    'https://www.amazon.co.uk/product-reviews/*',
-    'https://www.amazon.de/product-reviews/*',
-    'https://www.amazon.fr/product-reviews/*',
-    'https://www.amazon.it/product-reviews/*',
-    'https://www.amazon.es/product-reviews/*',
-    'https://www.amazon.ca/product-reviews/*',
-    'https://www.amazon.com.au/product-reviews/*',
-    'https://www.amazon.co.jp/product-reviews/*',
-    'https://www.amazon.in/product-reviews/*',
-    'https://www.amazon.com.mx/product-reviews/*',
-    'https://www.amazon.com.br/product-reviews/*',
-  ]
-  // Unregister first (handles extension update — old registration may exist)
-  chrome.scripting.unregisterContentScripts({ ids: [SPOOFER_ID] }, () => {
-    chrome.runtime.lastError // consume
-    chrome.scripting.registerContentScripts([{
-      id:      SPOOFER_ID,
-      matches: amazonMatches,
-      js:      ['tabHelper.js'],
-      runAt:   'document_start',
-      world:   'MAIN',
-    }], () => {
-      if (chrome.runtime.lastError) {
-        console.warn('[Voxrate] visibilitySpoofer registration failed:', chrome.runtime.lastError.message)
-      } else {
-        console.log('[Voxrate] visibilitySpoofer registered (MAIN world, document_start)')
-      }
-    })
-  })
-}
 
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === POLL_ALARM) poll()
@@ -128,24 +89,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return
   }
 
-  if (msg.type === 'CONTENT_SNAPSHOT') {
-    handleExtensionPost('/api/toolkit/snapshot', msg.payload)
+  if (msg.type === 'ENSURE_TAB_ACTIVE') {
+    if (activeJobTabId) chrome.tabs.update(activeJobTabId, { active: true }).catch(() => {})
     return
-  }
-
-  if (msg.type === 'REVIEW_VELOCITY') {
-    handleExtensionPost('/api/toolkit/velocity', msg.payload)
-    return
-  }
-
-  if (msg.type === 'SC_DATA') {
-    handleExtensionPost('/api/toolkit/sc-scan', { scan_type: msg.scan_type, data: msg.data })
-    return
-  }
-
-  if (msg.type === 'OVERLAY_CHECK') {
-    handleOverlayCheck(msg.asin, sendResponse)
-    return true
   }
 })
 
@@ -244,7 +190,7 @@ async function startJob(job, token) {
   activeJobToken = token
 
   const { asin, marketplace } = job
-  const url = `https://www.${marketplace}/product-reviews/${asin}?pageNumber=1&reviewerType=all_reviews&sortBy=recent`
+  const url = `https://www.${marketplace}/dp/${asin}`
 
   console.log(`[Voxrate] Starting job ${job.id}: ${asin}`)
 
@@ -286,13 +232,15 @@ async function handleJobTimeout() {
 }
 
 async function handleReviewsDone(msg) {
-  const { jobId, reviews, amazonLoggedIn, asin, wasThrottled } = msg
+  const { jobId, reviews, amazonLoggedIn, asin } = msg
   if (jobId !== activeJobId) return
 
   const token = activeJobToken
   const tabId = activeJobTabId
+  // Cancel the timeout alarm immediately so handleJobTimeout can't fire during submit,
+  // but keep activeJobId live so poll() cannot start a new job during the 15s submit window.
   chrome.alarms.clear(JOB_TIMEOUT_ALARM)
-  await submitJob(jobId, reviews, amazonLoggedIn, token, wasThrottled ? 'amazon_throttled' : null)
+  await submitJob(jobId, reviews, amazonLoggedIn, token, null)
   cleanupState()
   if (tabId) chrome.tabs.remove(tabId).catch(() => {})
 
@@ -318,37 +266,6 @@ function cleanupState() {
   activeJobId    = null
   activeJob      = null
   activeJobToken = null
-}
-
-// ── Extension monitoring helpers ─────────────────────────────────
-
-async function handleExtensionPost(path, body) {
-  const { extensionToken } = await chrome.storage.local.get('extensionToken')
-  if (!extensionToken) return
-  try {
-    await fetch(`https://voxrate.app${path}`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${extensionToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(10000),
-    })
-  } catch {}
-}
-
-async function handleOverlayCheck(asin, sendResponse) {
-  const { extensionToken } = await chrome.storage.local.get('extensionToken')
-  if (!extensionToken) { sendResponse({ alerts: [], analysis: null }); return }
-  try {
-    const res = await fetch(`https://voxrate.app/api/toolkit/overlay?asin=${asin}`, {
-      headers: { 'Authorization': `Bearer ${extensionToken}` },
-      signal: AbortSignal.timeout(8000),
-    })
-    if (!res.ok) { sendResponse({ alerts: [], analysis: null }); return }
-    const data = await res.json()
-    sendResponse(data)
-  } catch {
-    sendResponse({ alerts: [], analysis: null })
-  }
 }
 
 // ── Submit ────────────────────────────────────────────────────────
