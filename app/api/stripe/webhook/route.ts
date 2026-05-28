@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { PLAN_ANALYSES } from '@/app/lib/credit-costs'
 
 let _stripe: Stripe | null = null
 const getStripe = () => _stripe ??= new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-06-20' as any })
@@ -128,9 +129,9 @@ export async function POST(request: NextRequest) {
           }
 
             const PLAN_ANALYSES_MAP: Record<string, { own: number; competitor: number; rolloverCap: number }> = {
-            starter: { own: 25,  competitor: 3,  rolloverCap: 2 },
-            growth:  { own: 60,  competitor: 15, rolloverCap: 2 },
-            pro:     { own: 150, competitor: 40, rolloverCap: 3 },
+            starter: PLAN_ANALYSES.starter,
+            growth:  PLAN_ANALYSES.growth,
+            pro:     PLAN_ANALYSES.pro,
           }
           const planAllotment = PLAN_ANALYSES_MAP[plan] ?? PLAN_ANALYSES_MAP.starter
 

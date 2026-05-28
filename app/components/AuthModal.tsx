@@ -14,8 +14,8 @@ const PLANS = [
     sub: '',
     badge: 'No credit card',
     badgeCls: 'bg-neutral-100 text-neutral-600',
-    desc: '14-day trial · 3 own + 2 competitor analyses',
-    features: ['3 own analyses + 2 competitor', 'Listing grader', 'AI rewriter', 'Reply generator'],
+    desc: '14-day trial · 5 analyses · no card required',
+    features: ['5 analyses — own or competitor', 'Listing grader', 'AI rewriter', 'Reply generator'],
     highlight: false,
   },
   {
@@ -25,8 +25,8 @@ const PLANS = [
     sub: '/mo',
     badge: 'Monthly',
     badgeCls: 'bg-neutral-200 text-neutral-700',
-    desc: '25 own analyses + 3 competitor/month',
-    features: ['25 own analyses/month', '3 competitor analyses/month', 'Full listing reports', 'All free tools'],
+    desc: '35 analyses/month — own or competitor',
+    features: ['35 analyses/month (own or competitor)', 'Rollover unused analyses', 'Full listing reports', 'All free tools'],
     highlight: false,
   },
   {
@@ -36,8 +36,8 @@ const PLANS = [
     sub: '/mo',
     badge: 'Most popular',
     badgeCls: 'bg-orange-500 text-white',
-    desc: '60 own analyses + 15 competitor/month',
-    features: ['60 own analyses/month', '15 competitor analyses/month', 'Review velocity alerts', 'All free tools'],
+    desc: '80 analyses/month — own or competitor',
+    features: ['80 analyses/month (own or competitor)', 'Rollover unused analyses', 'Review velocity alerts', 'All free tools'],
     highlight: true,
   },
   {
@@ -47,8 +47,8 @@ const PLANS = [
     sub: '/mo',
     badge: 'Best value',
     badgeCls: 'bg-neutral-200 text-neutral-700',
-    desc: '150 own analyses + 40 competitor/month',
-    features: ['150 own analyses/month', '40 competitor analyses/month', 'Priority support', 'All free tools'],
+    desc: '220 analyses/month — own or competitor',
+    features: ['220 analyses/month (own or competitor)', 'Rollover up to 3 months', 'Priority support', 'All free tools'],
     highlight: false,
   },
 ]

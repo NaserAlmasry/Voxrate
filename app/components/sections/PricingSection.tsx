@@ -86,7 +86,7 @@ const PLANS = [
       'All toolkit features (SC, Fingerprinter, Variant)',
       'Sentiment alerts — daily or weekly',
       'Daily or weekly digest email',
-      '3 seats',
+      'Team seats — coming soon',
     ],
     btnLabel: 'Start Pro →',
   },

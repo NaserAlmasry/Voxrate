@@ -43,7 +43,8 @@ export async function POST(request: NextRequest) {
   const plan    = userData?.plan || 'free'
 
   if (!isAdmin) {
-    const maxBulk = plan === 'free' ? 2 : 5
+    const BULK_CAP: Record<string, number> = { free: 2, trial: 2, starter: 3, growth: 5, pro: 5 }
+    const maxBulk = BULK_CAP[plan] ?? 3
     if (asins.length > maxBulk) {
       return NextResponse.json(
         { error: `Your plan allows up to ${maxBulk} ASINs per bulk request. Upgrade for more.`, upgradeRequired: !isAdmin },

@@ -88,6 +88,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid frequency.' }, { status: 400 })
   }
 
+  // Growth plan: weekly/biweekly/triweekly/monthly only — no daily
+  // Pro plan: all frequencies allowed (daily included if added later)
+  const GROWTH_ALLOWED: Frequency[] = ['weekly', 'biweekly', 'triweekly', 'monthly']
+  if (!isAdmin && plan === 'growth' && !GROWTH_ALLOWED.includes(frequency)) {
+    return NextResponse.json(
+      { error: 'Daily sentiment alerts are available on the Pro plan.', upgradeRequired: true, upgradePrompt: 'pro' },
+      { status: 403 },
+    )
+  }
+
   // Prevent duplicate alert for same ASIN+marketplace
   const { data: existing } = await supabase
     .from('sentiment_alerts')
