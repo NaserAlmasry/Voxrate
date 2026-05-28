@@ -1,8 +1,13 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 
 const HERO_HEADLINES = [
+  {
+    top: 'Your listing is leaking sales',
+    accent: 'right now.',
+    sub: "Your customers already wrote down exactly why — you just haven't seen it yet.",
+  },
   {
     top: 'Your buyers already told you',
     accent: 'what to fix.',
@@ -12,11 +17,6 @@ const HERO_HEADLINES = [
     top: 'Every complaint is a return',
     accent: "you didn't have to get.",
     sub: 'Find them before your next buyer does.',
-  },
-  {
-    top: 'Your listing is leaking sales',
-    accent: 'right now.',
-    sub: "Your customers already wrote down exactly why — you just haven't seen it yet.",
   },
 ]
 
@@ -31,7 +31,7 @@ function HeroHeadline() {
         setIdx(i => (i + 1) % HERO_HEADLINES.length)
         setVisible(true)
       }, 600)
-    }, 10_000)
+    }, 5_000)
     return () => clearInterval(timer)
   }, [])
 
@@ -109,44 +109,11 @@ function HeroDashboardMockup() {
   )
 }
 
-function useCountUp(target: number, duration: number, triggered: boolean) {
-  const [count, setCount] = useState(0)
-  useEffect(() => {
-    if (!triggered) return
-    let current = 0
-    const step = Math.ceil(target / (duration / 16))
-    const timer = setInterval(() => {
-      current += step
-      if (current >= target) { setCount(target); clearInterval(timer) }
-      else setCount(current)
-    }, 16)
-    return () => clearInterval(timer)
-  }, [triggered, target, duration])
-  return count
-}
-
 function InlineStats() {
-  const ref = useRef<HTMLDivElement>(null)
-  const [triggered, setTriggered] = useState(false)
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const obs = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting) { setTriggered(true); obs.disconnect() }
-    }, { threshold: 0.5 })
-    obs.observe(el)
-    return () => obs.disconnect()
-  }, [])
-  const reviews = useCountUp(3000, 1600, triggered)
-
   return (
-    <div ref={ref} className="mt-5 flex flex-wrap items-center justify-center gap-2 scroll-fade">
+    <div className="mt-5 flex flex-wrap items-center justify-center gap-2 scroll-fade">
       <div className="inline-flex items-center gap-2 px-4 py-2 bg-neutral-900 rounded-full">
         <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-        <span className="text-xs text-white font-medium">
-          <span className="text-orange-400 font-black">{reviews.toLocaleString()}+</span> reviews analyzed
-        </span>
-        <span className="text-neutral-600 text-xs">·</span>
         <span className="text-xs text-neutral-300">avg. ~1 min 20 sec per analysis</span>
       </div>
     </div>

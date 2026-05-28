@@ -75,8 +75,8 @@ export default function SocialProofSection() {
             ))}
           </div>
           <div className="mt-6 pt-5 border-t border-neutral-800 text-center">
-            <p className="text-sm text-neutral-300 mb-1">Voxrate is built to solve exactly this — automatically, in under 2 minutes.</p>
-            <p className="text-xs text-neutral-500">Paste your Amazon URL and get a full breakdown of what&apos;s hurting your score and how to fix it.</p>
+            <p className="text-sm text-neutral-300 mb-1">A 0.5-star rating improvement typically lifts conversion 4–5%. Voxrate shows you exactly which fix gets you there.</p>
+            <p className="text-xs text-neutral-500">Paste your Amazon URL and get a full breakdown of what&apos;s hurting your score — and the ranked action plan to fix it.</p>
           </div>
         </div>
       </div>
