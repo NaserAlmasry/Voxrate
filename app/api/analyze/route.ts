@@ -657,11 +657,15 @@ export async function POST(request: NextRequest) {
     if (isReAnalyze && !isAdminUser) {
       const cooldownDays = REANALYZE_COOLDOWN_DAYS[plan] ?? 7
       if (cooldownDays > 0) {
+        // BUG 6 fix: query cooldown by ASIN substring instead of exact URL match
+        // to prevent bypass via URL variation (e.g. with/without query params)
+        const cooldownAsinMatch = productUrl.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})/i) || productUrl.match(/^([A-Z0-9]{10})$/i)
+        const cooldownAsin = cooldownAsinMatch ? cooldownAsinMatch[1].toUpperCase() : productUrl
         const { data: lastReport } = await supabase
           .from('reports')
           .select('last_analyzed_at')
           .eq('user_id', user.id)
-          .eq('product_url', productUrl)
+          .ilike('product_url', `%${cooldownAsin}%`)
           .eq('status', 'completed')
           .order('created_at', { ascending: false })
           .limit(1)
@@ -694,19 +698,9 @@ export async function POST(request: NextRequest) {
 
     if (!isAdminUser) {
       const isCompetitor = reportType === 'competitor'
-      const remaining    = isCompetitor ? competitorRemaining : ownRemaining
 
-      if (remaining <= 0) {
-        const limits = PLAN_ANALYSES[plan as keyof typeof PLAN_ANALYSES] ?? PLAN_ANALYSES.free
-        const monthly = isCompetitor ? limits.competitor : limits.own
-        return NextResponse.json(
-          {
-            error: `You've used all ${monthly} ${isCompetitor ? 'competitor' : 'own'} analyses this month. Rolls over on the 1st.`,
-            upgradeRequired: true,
-          },
-          { status: 403 },
-        )
-      }
+      // BUG 3 fix: removed pre-read balance guard — rely solely on the RPC returning false
+      // when balance is 0. The RPC is the single source of truth (prevents double-spend race).
 
       const rpc = reportType === 'competitor' ? 'deduct_competitor_analysis' : 'deduct_own_analysis'
       const { data: deducted, error: deductError } = await supabase.rpc(rpc, { p_user_id: user.id })
@@ -718,8 +712,14 @@ export async function POST(request: NextRequest) {
         )
       }
       if (!deducted) {
+        const isCompetitor = reportType === 'competitor'
+        const limits = PLAN_ANALYSES[plan as keyof typeof PLAN_ANALYSES] ?? PLAN_ANALYSES.free
+        const monthly = isCompetitor ? limits.competitor : limits.own
         return NextResponse.json(
-          { error: 'No analyses remaining this month.', upgradeRequired: true },
+          {
+            error: `You've used all ${monthly} ${isCompetitor ? 'competitor' : 'own'} analyses this month. Rolls over on the 1st.`,
+            upgradeRequired: true,
+          },
           { status: 403 },
         )
       }
@@ -908,7 +908,7 @@ export async function POST(request: NextRequest) {
         totalReviewed:  rawReviews.length,
         plan,
         isLimited:      plan === 'free' && !isAdminUser,
-        isPartial:      !(!isAdminUser && plan === 'free'),
+        isPartial:      !isAdminUser && plan !== 'free',
         lowReviewCount: rawReviews.length < 30,
       })
       }) // end runWithSessionTokens
