@@ -263,8 +263,10 @@ export async function scrapeAmazon(input: string, plan = 'starter', userId?: str
   const domain = DOMAIN_MAP[marketplace] ?? 'US'
 
   // Cache-first: return immediately if fresh cache exists (< 7 days)
+  // BUG 8 fix: only use cache if it has >= 50 reviews, otherwise treat as miss
+  // to prevent free-plan scrape (~20 reviews) from polluting the paid cache.
   const cachedEarly = await readReviewCache(asin, domain)
-  if (cachedEarly && cachedEarly.length > 0) {
+  if (cachedEarly && cachedEarly.length >= 50) {
     console.log(`[Cache] HIT for ${asin}/${domain} — skipping scrape`)
     console.log(`[Scraper] Cache hit for ${asin}/${domain} — skipping Canopy`)
     const [{ product: productData }, qaData] = await Promise.all([

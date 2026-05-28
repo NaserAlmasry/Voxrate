@@ -283,7 +283,8 @@ describe('POST /api/analyze — input validation and credit-gating', () => {
 
   // ── 4. Insufficient credits — deduct_credits RPC failure ───────
   it('returns 402-style 403 if user has no analyses remaining', async () => {
-    // User has 0 own_analyses_remaining
+    // RPC returns false (atomic check failed — no balance)
+    mockRpc.mockResolvedValueOnce({ data: false, error: null })
     mockFrom.mockImplementation((table: string) => {
       if (table === 'users') {
         const c = buildChain()

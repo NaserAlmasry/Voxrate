@@ -51,6 +51,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   if (msg.type === 'VOXRATE_TOKEN') {
+    // BUG 9 fix: verify sender origin before accepting the token
+    if (!sender.url || !sender.url.startsWith('https://voxrate.app/')) {
+      console.warn('[Voxrate] VOXRATE_TOKEN rejected — unexpected sender origin:', sender.url)
+      return
+    }
     chrome.storage.local.set({ extensionToken: msg.token }, () => {
       console.log('[Voxrate] Token auto-captured from voxrate.app page')
     })
