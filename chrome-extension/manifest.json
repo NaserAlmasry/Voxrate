@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Voxrate for Amazon Sellers",
   "version": "1.0.0",
-  "description": "Voxrate companion extension — competitor sidebar, listing change alerts, review velocity tracking, and Seller Central health monitoring.",
+  "description": "AI-powered Amazon review analysis — competitor insights, listing alerts, review velocity, and Seller Central monitoring.",
   "permissions": ["storage", "tabs", "alarms", "scripting"],
   "host_permissions": [
     "https://voxrate.app/*",
