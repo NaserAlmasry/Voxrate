@@ -20,8 +20,8 @@ export async function POST(request: NextRequest) {
   if (!Array.isArray(rawAsins) || rawAsins.length === 0) {
     return NextResponse.json({ error: 'asins must be a non-empty array' }, { status: 400 })
   }
-  if (rawAsins.length > 5) {
-    return NextResponse.json({ error: 'Maximum 5 ASINs per bulk request' }, { status: 400 })
+  if (rawAsins.length > 10) {
+    return NextResponse.json({ error: 'Maximum 10 ASINs per bulk request' }, { status: 400 })
   }
   if (typeof marketplace !== 'string' || !marketplace.trim()) {
     return NextResponse.json({ error: 'marketplace is required' }, { status: 400 })
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
   const plan    = userData?.plan || 'free'
 
   if (!isAdmin) {
-    const BULK_CAP: Record<string, number> = { free: 2, trial: 2, starter: 3, growth: 5, pro: 5 }
+    const BULK_CAP: Record<string, number> = { free: 2, trial: 2, starter: 3, growth: 5, pro: 10 }
     const maxBulk = BULK_CAP[plan] ?? 3
     if (asins.length > maxBulk) {
       return NextResponse.json(

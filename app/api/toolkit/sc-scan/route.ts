@@ -63,6 +63,12 @@ export async function POST(req: NextRequest) {
   const supabase = adminClient()
   const userId = session.user_id
 
+  // SC Scanner is a Pro-only feature
+  const { data: userData } = await supabase.from('users').select('plan, is_admin').eq('id', userId).single()
+  if (!userData?.is_admin && userData?.plan !== 'pro') {
+    return NextResponse.json({ error: 'SC Scanner is available on the Pro plan.', upgradeRequired: true, upgradePrompt: 'pro' }, { status: 403 })
+  }
+
   if (scan_type !== 'heartbeat') {
     await supabase.from('sc_scans').insert({ user_id: userId, scan_type, data })
   }
