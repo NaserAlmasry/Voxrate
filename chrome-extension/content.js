@@ -1,323 +1,168 @@
 // Voxrate Extension — Amazon Review Content Script
-// AJAX POST to /hz/reviews-render/ajax/reviews/get/ using nextPageToken cursor.
-// CSRF token is in <script type="a-state"> JSON blocks under the "csrfToken" key.
-// Falls back to URL navigation (capped at page 2 per filter) if CSRF unavailable.
+// Navigation-only approach: no AJAX calls, no internal Amazon endpoints.
+// The extension navigates through review pages like a human — full page loads
+// with random delays. Amazon cannot distinguish this from normal browsing.
 
-const STAR_FILTERS = ['five_star', 'four_star', 'three_star', 'two_star', 'one_star']
+const STAR_FILTERS = ['one_star', 'two_star', 'five_star', 'four_star', 'three_star']
 
 ;(async () => {
-  // ── Resume path: navigation fallback ────────────────────────────
+  // ── Resume path: already mid-collection ─────────────────────────
   const saved = sessionStorage.getItem('voxrate_job')
   if (saved) {
-    let state
-    try { state = JSON.parse(saved) } catch { sessionStorage.removeItem('voxrate_job'); return }
-
-    // Schema compat across extension versions
-    state.currentPage   = state.currentPage   ?? 1
-    state.currentFilter = state.currentFilter ?? 'five_star'
-    state.seenIds       = state.seenIds       ?? []
-    state.reviews       = state.reviews       ?? []
-
-    if (isCaptchaOrLoginWall(document)) {
-      sessionStorage.removeItem('voxrate_job')
-      chrome.runtime.sendMessage({ type: 'AMAZON_NOT_LOGGED_IN', jobId: state.jobId })
-      return
-    }
-
-    const batch   = parseReviews(document, state.asin, state.marketplace)
-    const newOnes = batch.filter(r => !state.seenIds.includes(r.id))
-    chrome.runtime.sendMessage({ type: 'CONTENT_LOG', msg: `Nav fallback ${state.currentFilter} p${state.currentPage}: ${newOnes.length} new` })
-
-    state.reviews.push(...newOnes)
-    newOnes.forEach(r => state.seenIds.push(r.id))
-
-    // Page 3+ always duplicates without nextPageToken — hard cap at page 2 per filter.
-    // Amazon uses nextPageToken as a server-side cursor; ?pageNumber=N is decorative after page 2.
-    const noMore = newOnes.length === 0 || state.currentPage >= 2
-    const tld    = state.marketplace.replace('amazon.', '')
-
-    if (state.reviews.length >= state.maxReviews || noMore) {
-      const nextFilter = nextStarFilter(state.currentFilter)
-      if (!nextFilter || state.reviews.length >= state.maxReviews) {
-        sessionStorage.removeItem('voxrate_job')
-        finish(state.jobId, state.asin, state.reviews)
-        return
-      }
-      state.currentFilter = nextFilter
-      state.currentPage   = 1
-    } else {
-      state.currentPage++
-    }
-
-    sessionStorage.setItem('voxrate_job', JSON.stringify(state))
-    location.assign(filterUrl(tld, state.asin, state.currentFilter, state.currentPage))
+    await runResumePath(saved)
     return
   }
 
-  // ── First load — get job from background ────────────────────────
+  // ── First load: pick up job from background ──────────────────────
   let job = null
   try {
-    const response = await new Promise((resolve) => {
+    job = await new Promise((resolve) => {
       chrome.runtime.sendMessage({ type: 'CONTENT_READY', url: location.href }, (res) => {
         if (chrome.runtime.lastError) resolve(null)
-        else resolve(res)
+        else resolve(res?.job || null)
       })
     })
-    job = response?.job || null
   } catch { return }
 
   if (!job) return
 
   const { id: jobId, asin, marketplace, maxReviews } = job
+  const tld = marketplace.replace('amazon.', '')
 
   if (isCaptchaOrLoginWall(document)) {
     chrome.runtime.sendMessage({ type: 'AMAZON_NOT_LOGGED_IN', jobId })
     return
   }
 
-  const max        = maxReviews || 500
-  const tld        = marketplace.replace('amazon.', '')
-  const refererUrl = `https://www.amazon.${tld}/product-reviews/${asin}`
+  // Collect whatever is already on the page (unfiltered first page)
+  const page1 = parseReviews(document, asin, marketplace)
+  chrome.runtime.sendMessage({ type: 'CONTENT_LOG', msg: `Start: ${page1.length} reviews on first page` })
 
-  // Amazon injects the CSRF token into a <meta name="anti-csrftoken-a2z"> tag
-  // dynamically via a lazy /render XHR after page load — wait up to 8s for it.
-  const csrfResult = await waitForCsrfToken(tld)
-  const csrfToken = csrfResult?.token || null
-  chrome.runtime.sendMessage({ type: 'CONTENT_LOG', msg: `csrfToken: ${csrfToken ? `found (${csrfResult.source}) prefix=${csrfToken.slice(0,8)}` : 'NOT FOUND'}` })
+  const state = {
+    jobId, asin, marketplace,
+    maxReviews: maxReviews || 500,
+    reviews:    page1,
+    seenIds:    page1.map(r => r.id),
+    filterIdx:  0,
+    page:       1,
+  }
 
-  if (!csrfToken) {
-    // No CSRF — nav fallback (max ~50 reviews: 5 filters × 2 pages)
-    const page1 = parseReviews(document, asin, marketplace)
-    chrome.runtime.sendMessage({ type: 'CONTENT_LOG', msg: `No CSRF, nav fallback. Page 1: ${page1.length} reviews` })
-    const state = {
-      jobId, asin, marketplace, maxReviews: max,
-      reviews: page1, seenIds: page1.map(r => r.id),
-      currentFilter: 'five_star', currentPage: 1,
-    }
-    sessionStorage.setItem('voxrate_job', JSON.stringify(state))
-    location.assign(filterUrl(tld, asin, 'five_star', 1))
+  sessionStorage.setItem('voxrate_job', JSON.stringify(state))
+
+  // Human pause before starting filter navigation (simulate reading the page)
+  await sleep(jitter(2500, 5000))
+  location.assign(reviewUrl(tld, asin, STAR_FILTERS[0], 1))
+})()
+
+// ── Resume: called on every subsequent page load ─────────────────
+
+async function runResumePath(saved) {
+  let state
+  try { state = JSON.parse(saved) } catch {
+    sessionStorage.removeItem('voxrate_job')
     return
   }
 
-  // ── AJAX path — collect 100+ reviews without navigating ─────────
-  const allReviews = []
-  const seenIds    = new Set()
+  const { jobId, asin, marketplace } = state
+  const tld = marketplace.replace('amazon.', '')
 
-  // Collect page 1 unfiltered reviews (already loaded in the DOM)
-  const page1 = parseReviews(document, asin, marketplace)
-  page1.forEach(r => { allReviews.push(r); seenIds.add(r.id) })
-  chrome.runtime.sendMessage({ type: 'CONTENT_LOG', msg: `Page 1 (all): ${page1.length} reviews` })
+  if (isCaptchaOrLoginWall(document)) {
+    sessionStorage.removeItem('voxrate_job')
+    chrome.runtime.sendMessage({ type: 'AMAZON_NOT_LOGGED_IN', jobId })
+    return
+  }
 
-  // Collect negative reviews first — they're the most valuable for complaints analysis
-  // and often limited in supply. Dynamic rolling quotas: each filter's allocation is
-  // recalculated from the remaining budget so depleted filters roll unused slots forward.
-  const FILTER_ORDER   = ['one_star', 'two_star', 'five_star', 'four_star', 'three_star']
-  const FILTER_WEIGHTS = { one_star: 3, two_star: 2, five_star: 2, four_star: 1, three_star: 1 }
-  let budget = max - page1.length
-
-  for (let fi = 0; fi < FILTER_ORDER.length; fi++) {
-    if (budget <= 0) break
-    const filter = FILTER_ORDER[fi]
-
-    // Quota = proportional share of remaining budget across remaining filters
-    const remainingWeight = FILTER_ORDER.slice(fi).reduce((s, f) => s + FILTER_WEIGHTS[f], 0)
-    const quota = Math.round(budget * FILTER_WEIGHTS[filter] / remainingWeight)
-
-    let page          = 1
-    let nextPageToken = null
-    let filterCount   = 0
-
-    while (page <= 30 && filterCount < quota) {
-      let html = null
-      for (let attempt = 1; attempt <= 3; attempt++) {
-        try {
-          html = await fetchReviewsViaAjax(asin, tld, filter, page, nextPageToken, csrfToken, refererUrl)
-          break
-        } catch (err) {
-          chrome.runtime.sendMessage({ type: 'CONTENT_LOG', msg: `AJAX ${filter} p${page} attempt ${attempt}: ${err.message}` })
-          if (attempt < 3) await sleep(1000 * attempt)
-        }
-      }
-
-      if (!html) break
-
-      const doc     = new DOMParser().parseFromString(html, 'text/html')
-      const batch   = parseReviews(doc, asin, marketplace)
-      const newOnes = batch.filter(r => !seenIds.has(r.id))
-
-      chrome.runtime.sendMessage({ type: 'CONTENT_LOG', msg: `AJAX ${filter} p${page}: ${batch.length} total, ${newOnes.length} new` })
-
-      if (newOnes.length === 0) break
-
-      newOnes.forEach(r => { allReviews.push(r); seenIds.add(r.id) })
-      filterCount += newOnes.length
-      budget      -= newOnes.length
-
-      nextPageToken = extractNextPageTokenFromDoc(doc)
-      if (!nextPageToken) break
-      await sleep(300)
-      page++
+  // Detect Amazon's "limited selection" throttle
+  if (isThrottled(document)) {
+    state.throttleCount = (state.throttleCount ?? 0) + 1
+    chrome.runtime.sendMessage({ type: 'CONTENT_LOG', msg: `Throttle detected (${state.throttleCount}) — filter ${STAR_FILTERS[state.filterIdx]} p${state.page}` })
+    if (state.throttleCount >= 2) {
+      sessionStorage.removeItem('voxrate_job')
+      finish(jobId, asin, state.reviews, true)
+      return
     }
-  }
-
-  finish(jobId, asin, allReviews)
-})()
-
-// ── AJAX POST to Amazon's internal reviews endpoint ───────────────
-
-async function fetchReviewsViaAjax(asin, tld, filter, page, nextPageToken, csrfToken, refererUrl) {
-  const body = new URLSearchParams({
-    sortBy:           'recent',
-    reviewerType:     'all_reviews',
-    formatType:       '',
-    mediaType:        'all_reviews',
-    filterByStar:     filter,
-    pageNumber:       String(page),
-    filterByLanguage: '',
-    filterByKeyword:  '',
-    shouldAppend:     nextPageToken ? 'true' : 'false',
-    deviceType:       'desktop',
-    canShowIntHeader: 'true',
-    reftag:           `cm_cr_arp_d_paging_btm_next_${page}`,
-    pageSize:         '10',
-    asin,
-  })
-  if (nextPageToken) body.set('nextPageToken', nextPageToken)
-
-  const res = await fetch(`https://www.amazon.${tld}/portal/customer-reviews/ajax/reviews/get/`, {
-    method:      'POST',
-    credentials: 'include',
-    headers: {
-      'Content-Type':       'application/x-www-form-urlencoded;charset=UTF-8',
-      'anti-csrftoken-a2z': csrfToken,
-      'x-requested-with':   'XMLHttpRequest',
-      'Accept':             'text/html,*/*',
-    },
-    body: body.toString(),
-  })
-
-  if (!res.ok) {
-    // Log response body on 403 to diagnose what Amazon is rejecting
-    const errBody = await res.text().catch(() => '')
-    throw new Error(`HTTP ${res.status} — ${errBody.slice(0, 300)}`)
-  }
-
-  const text = await res.text()
-  return parseTurboResponse(text)
-}
-
-// ── Parse Amazon's &&& turbo streaming response ───────────────────
-// Format: chunks split by &&&, each chunk is a JSON array of
-// [operation, cssSelector, htmlOrData] triples.
-
-function parseTurboResponse(text) {
-  const htmlParts = []
-
-  for (const chunk of text.split(/&&&/)) {
-    const trimmed = chunk.trim()
-    if (!trimmed) continue
-    try {
-      const parsed = JSON.parse(trimmed)
-      if (!Array.isArray(parsed)) continue
-      // Flat format: ["op", "#selector", "html"]
-      if (typeof parsed[0] === 'string' && parsed.length >= 3 && typeof parsed[2] === 'string') {
-        htmlParts.push(parsed[2])
-      } else {
-        // Nested format: [["op", "#selector", "html"], ...]
-        for (const entry of parsed) {
-          if (Array.isArray(entry) && entry.length >= 3 && typeof entry[2] === 'string') {
-            htmlParts.push(entry[2])
-          }
-        }
-      }
-    } catch {
-      // Chunk isn't valid JSON — fall back to extracting "html" string fields
-      const re = /"html"\s*:\s*"((?:[^"\\]|\\.)*)"/gs
-      let m
-      while ((m = re.exec(trimmed)) !== null) {
-        try { htmlParts.push(JSON.parse(`"${m[1]}"`)) } catch {}
-      }
+    // Back off: skip to next filter
+    state.filterIdx++
+    state.page = 1
+    state.throttleCount = 0
+    if (state.filterIdx >= STAR_FILTERS.length || state.reviews.length >= state.maxReviews) {
+      sessionStorage.removeItem('voxrate_job')
+      finish(jobId, asin, state.reviews, true)
+      return
     }
+    sessionStorage.setItem('voxrate_job', JSON.stringify(state))
+    await sleep(jitter(5000, 10000))
+    location.assign(reviewUrl(tld, asin, STAR_FILTERS[state.filterIdx], 1))
+    return
   }
 
-  return htmlParts.join('')
-}
+  state.throttleCount = 0
 
-// ── Extract nextPageToken from show-more / pagination button ──────
+  const batch   = parseReviews(document, asin, marketplace)
+  const newOnes = batch.filter(r => !state.seenIds.includes(r.id))
 
-function extractNextPageTokenFromDoc(doc) {
-  const selectors = [
-    'a[data-hook="show-more-button"]',
-    '[data-hook="pagination-bar"] li.a-last a',
-    '[data-hook="pagination-bar"] a.a-last',
-    '[data-hook="next-page-link"]',
-    'li.a-last a',
-  ]
-  for (const sel of selectors) {
-    const btn = doc.querySelector(sel)
-    if (!btn) continue
-    try {
-      const params = JSON.parse(btn.getAttribute('data-reviews-state-param') || '{}')
-      if (params.nextPageToken) return params.nextPageToken
-    } catch {}
+  state.reviews.push(...newOnes)
+  newOnes.forEach(r => state.seenIds.push(r.id))
+
+  const filter = STAR_FILTERS[state.filterIdx]
+  chrome.runtime.sendMessage({ type: 'CONTENT_LOG', msg: `${filter} p${state.page}: ${newOnes.length} new (total ${state.reviews.length})` })
+
+  // Decide next step
+  const done       = state.reviews.length >= state.maxReviews
+  const exhausted  = newOnes.length === 0
+  const maxPages   = 20 // ~200 reviews per filter at 10/page
+
+  if (done) {
+    sessionStorage.removeItem('voxrate_job')
+    finish(jobId, asin, state.reviews, false)
+    return
   }
-  return null
-}
 
-// ── Wait for anti-CSRF token ──────────────────────────────────────
-// Amazon injects <meta name="anti-csrftoken-a2z"> dynamically via a lazy
-// /render XHR after page load. We observe the DOM for up to `timeoutMs`
-// and also poll other locations as fallbacks.
-
-async function waitForCsrfToken(tld) {
-  // #cr-state-object is present in the initial HTML — check immediately.
-  // If not yet parsed (very early execution), poll briefly.
-  for (let i = 0; i < 10; i++) {
-    const result = extractCsrfToken()
-    if (result) return result
-    await sleep(200)
-  }
-  return null
-}
-
-// ── Extract anti-CSRF token (synchronous, checks current DOM state) ───────────
-// Primary location: <meta name="anti-csrftoken-a2z"> injected by Amazon's
-// lazy /render XHR. Also checks a-state blocks and inline scripts as fallbacks.
-
-function extractCsrfToken() {
-  // Primary: reviews-specific CSRF token stored in #cr-state-object data-state JSON.
-  // This is the exact token Amazon's own show-more button uses for the reviews AJAX endpoint.
-  try {
-    const crState = document.querySelector('#cr-state-object')?.getAttribute('data-state')
-    if (crState) {
-      const data = JSON.parse(crState)
-      if (data.reviewsCsrfToken && data.reviewsCsrfToken.length >= 10) {
-        return { token: data.reviewsCsrfToken, source: 'cr-state' }
-      }
+  if (exhausted || state.page >= maxPages) {
+    // Move to next star filter
+    state.filterIdx++
+    state.page = 1
+    if (state.filterIdx >= STAR_FILTERS.length) {
+      sessionStorage.removeItem('voxrate_job')
+      finish(jobId, asin, state.reviews, false)
+      return
     }
-  } catch {}
+    sessionStorage.setItem('voxrate_job', JSON.stringify(state))
+    // Longer pause between filters — humans don't instantly click the next filter
+    await sleep(jitter(3000, 7000))
+    location.assign(reviewUrl(tld, asin, STAR_FILTERS[state.filterIdx], 1))
+    return
+  }
 
-  return null
+  // Next page of same filter
+  state.page++
+  sessionStorage.setItem('voxrate_job', JSON.stringify(state))
+  // Pause that mimics a human reading through the page before clicking Next
+  await sleep(jitter(2500, 5500))
+  location.assign(reviewUrl(tld, asin, filter, state.page))
 }
 
 // ── Helpers ───────────────────────────────────────────────────────
 
-function nextStarFilter(current) {
-  const idx = STAR_FILTERS.indexOf(current)
-  return idx >= 0 && idx < STAR_FILTERS.length - 1 ? STAR_FILTERS[idx + 1] : null
-}
-
-function filterUrl(tld, asin, filter, page) {
+function reviewUrl(tld, asin, filter, page) {
   return `https://www.amazon.${tld}/product-reviews/${asin}?reviewerType=all_reviews&filterByStar=${filter}&sortBy=recent&pageNumber=${page}`
 }
 
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms))
+function jitter(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min
 }
 
-function finish(jobId, asin, reviews) {
-  chrome.runtime.sendMessage({ type: 'CONTENT_LOG', msg: `Done: ${reviews.length} unique reviews` })
-  chrome.runtime.sendMessage({ type: 'REVIEWS_DONE', jobId, asin, reviews, amazonLoggedIn: true })
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)) }
+
+function finish(jobId, asin, reviews, wasThrottled) {
+  chrome.runtime.sendMessage({ type: 'CONTENT_LOG', msg: `Done: ${reviews.length} reviews${wasThrottled ? ' (throttled)' : ''}` })
+  chrome.runtime.sendMessage({ type: 'REVIEWS_DONE', jobId, asin, reviews, amazonLoggedIn: true, wasThrottled })
+}
+
+function isThrottled(doc) {
+  const text = (doc.body?.textContent || '').toLowerCase()
+  return text.includes('limited selection of reviews') ||
+         text.includes('to see more reviews, you can send a request')
 }
 
 function isCaptchaOrLoginWall(doc) {
@@ -334,9 +179,6 @@ function parseReviews(doc, asin, marketplace) {
   const reviews = []
   doc.querySelectorAll('[data-hook="review"]').forEach((el, i) => {
     try {
-      // Prefer Amazon's canonical review ID (e.g. "R1ABC123XYZ") from the element id attribute.
-      // Extract from title link href if absent. Never use Date.now() as a fallback — it generates
-      // unique IDs per page load, defeating deduplication across navigations.
       let id = el.id || ''
       if (!id) {
         const href = el.querySelector('a[data-hook="review-title"]')?.getAttribute('href') || ''
@@ -351,12 +193,10 @@ function parseReviews(doc, asin, marketplace) {
       const rating      = ratingMatch ? Math.round(parseFloat(ratingMatch[1])) : 0
       if (rating < 1 || rating > 5) return
 
-      // Direct child span to avoid capturing star-rating sibling text
       const titleEl = el.querySelector('[data-hook="review-title"] > span:not(.a-icon-alt)')
                    || el.querySelector('[data-hook="review-title"] > span')
       const title   = (titleEl?.textContent || '').trim()
 
-      // textContent works on both live DOM and DOMParser documents; innerText requires a layout engine
       const bodyEl = el.querySelector('[data-hook="review-body"] span')
                   || el.querySelector('.review-text span')
                   || el.querySelector('.review-text')

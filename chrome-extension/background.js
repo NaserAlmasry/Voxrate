@@ -222,6 +222,11 @@ async function poll() {
     chrome.storage.local.remove('voxrate_trial_expired')
     const data = await res.json()
     job = data.job
+    if (data.cooldown) {
+      chrome.storage.local.set({ voxrate_cooldown_until: Date.now() + data.waitSeconds * 1000 })
+      return
+    }
+    chrome.storage.local.remove('voxrate_cooldown_until')
   } catch {
     return
   }
@@ -245,9 +250,9 @@ async function startJob(job, token) {
 
   // Use chrome.alarms for timeout — setTimeout is killed when the service worker suspends.
   // 5 minutes covers AJAX path (100+ reviews) and nav fallback (5 filters × 2 pages).
-  chrome.alarms.create(JOB_TIMEOUT_ALARM, { delayInMinutes: 10 })
+  chrome.alarms.create(JOB_TIMEOUT_ALARM, { delayInMinutes: 25 })
 
-  chrome.tabs.create({ url, active: false }, (tab) => {
+  chrome.tabs.create({ url, active: true }, (tab) => {
     const err = chrome.runtime.lastError
     if (err) {
       if (err.message?.includes('Frame')) {
@@ -281,15 +286,13 @@ async function handleJobTimeout() {
 }
 
 async function handleReviewsDone(msg) {
-  const { jobId, reviews, amazonLoggedIn, asin } = msg
+  const { jobId, reviews, amazonLoggedIn, asin, wasThrottled } = msg
   if (jobId !== activeJobId) return
 
   const token = activeJobToken
   const tabId = activeJobTabId
-  // Cancel the timeout alarm immediately so handleJobTimeout can't fire during submit,
-  // but keep activeJobId live so poll() cannot start a new job during the 15s submit window.
   chrome.alarms.clear(JOB_TIMEOUT_ALARM)
-  await submitJob(jobId, reviews, amazonLoggedIn, token, null)
+  await submitJob(jobId, reviews, amazonLoggedIn, token, wasThrottled ? 'amazon_throttled' : null)
   cleanupState()
   if (tabId) chrome.tabs.remove(tabId).catch(() => {})
 
