@@ -204,7 +204,7 @@ describe('Stripe webhook — POST /api/stripe/webhook', () => {
     expect(res.status).toBe(200)
     expect(mockRpc).toHaveBeenCalledWith('renew_analyses_with_rollover', {
       p_user_id:            'user_abc',
-      p_own_monthly:        60,
+      p_own_monthly:        65,
       p_competitor_monthly: 15,
       p_rollover_cap:       2,
     })

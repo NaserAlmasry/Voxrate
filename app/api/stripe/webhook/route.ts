@@ -218,12 +218,7 @@ export async function POST(request: NextRequest) {
         if (!userId || !plan) break
         if (!['starter', 'growth', 'pro'].includes(plan)) break
 
-        const RENEW_ANALYSES_MAP: Record<string, { own: number; competitor: number; rolloverCap: number }> = {
-          starter: { own: 25,  competitor: 3,  rolloverCap: 2 },
-          growth:  { own: 60,  competitor: 15, rolloverCap: 2 },
-          pro:     { own: 150, competitor: 40, rolloverCap: 3 },
-        }
-        const allotment = RENEW_ANALYSES_MAP[plan] ?? RENEW_ANALYSES_MAP.starter
+        const allotment = PLAN_ANALYSES[plan as keyof typeof PLAN_ANALYSES] ?? PLAN_ANALYSES.starter
 
         const periodEnd = (subscription as any).current_period_end ?? null
         console.log(`[Webhook] Monthly renewal for user ${userId} — rolling over ${allotment.own} own + ${allotment.competitor} competitor analyses (cap ${allotment.rolloverCap}x)`)

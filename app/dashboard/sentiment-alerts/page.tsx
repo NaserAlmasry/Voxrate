@@ -209,7 +209,7 @@ export default function SentimentAlertsPage() {
                     <span>·</span>
                     <span>{FREQ_LABEL[a.frequency]}</span>
                     <span>·</span>
-                    <span className="text-orange-600 font-semibold">{FREQ_CREDITS[a.frequency]} credits / {FREQ_PER_LABEL[a.frequency]}</span>
+                    <span className="text-orange-600 font-semibold">1 analysis / {FREQ_PER_LABEL[a.frequency]}</span>
                   </div>
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-neutral-400 mt-2">
                     <span>Last run: {fmtDate(a.last_run_at)}</span>
@@ -246,8 +246,8 @@ export default function SentimentAlertsPage() {
             {[
               'On your chosen schedule, Voxrate scans your ASIN for new 1★ and 2★ reviews',
               'You get an email digest with the rating, title and a snippet of each new negative review',
-              'Credits are only charged when the scan actually runs',
-              'Pause anytime — paused alerts stop charging credits immediately',
+              '1 analysis is used each time the scan actually runs',
+              'Pause anytime — paused alerts stop using analyses immediately',
             ].map((s, i) => (
               <div key={i} className="flex items-start gap-2">
                 <span className="w-4 h-4 bg-orange-500 rounded-full text-white text-[9px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{i + 1}</span>
@@ -347,14 +347,14 @@ export default function SentimentAlertsPage() {
                       }`}
                     >
                       <span className="block font-semibold">{FREQ_LABEL[f]}</span>
-                      <span className="block text-[10px] opacity-70 mt-0.5">{FREQ_CREDITS[f]} credits / run</span>
+                      <span className="block text-[10px] opacity-70 mt-0.5">1 analysis / run</span>
                     </button>
                   ))}
                 </div>
               </div>
 
               <div className="text-[11px] text-neutral-400 bg-neutral-50 rounded-lg p-3 leading-relaxed">
-                Credits are only deducted when the alert actually runs. You won't be charged on setup.
+                1 analysis is used when the alert actually runs. You won't be charged on setup.
               </div>
 
               {error && <p className="text-xs text-red-500">{error}</p>}
@@ -364,7 +364,7 @@ export default function SentimentAlertsPage() {
                 disabled={submitting || !asin.trim()}
                 className="w-full py-3 bg-black text-white text-sm font-medium rounded-xl hover:bg-neutral-800 transition-colors disabled:opacity-50"
               >
-                {submitting ? 'Creating...' : `Create alert (${FREQ_CREDITS[frequency]} cr per run)`}
+                {submitting ? 'Creating...' : 'Create alert (1 analysis per run)'}
               </button>
             </div>
           </div>

@@ -21,11 +21,11 @@ const FAQ_ITEMS = [
   },
   {
     q: "Can I analyze a competitor's listing?",
-    a: "Yes. Paste any Amazon product URL or ASIN — including a competitor's. Voxrate analyzes their reviews, shows you their top weaknesses, what they do well, and gives you a side-by-side comparison with exact positioning language to use. Competitor analysis costs 35 credits (vs 20 for own listings). Starter gets 1 per month. Growth unlocks up to 3 per product per month. Pro unlocks up to 10 per product per month. Resets on the 1st of each month.",
+    a: "Yes. Paste any Amazon product URL or ASIN — including a competitor's. Voxrate analyzes their reviews, shows you their top weaknesses, what they do well, and gives you a side-by-side comparison with exact positioning language to use. All plans use the same analysis quota — own listings and competitor listings each use 1 analysis. Starter gets 35/month. Growth gets 80/month. Pro gets 220/month. Resets on the 1st of each month.",
   },
   {
-    q: 'What are credits and do they expire?',
-    a: 'Credits are the currency used for analyses. Each own-listing analysis costs 20 credits. Each competitor analysis costs 35 credits. All other tools (description rewriter, listing grader, review reply generator, listing builder) are completely free — no credits needed. Credits purchased in one-time packs never expire. Subscription credits refresh monthly.',
+    q: 'How does the analysis quota work?',
+    a: 'Each analysis — whether your own listing or a competitor — uses 1 analysis from your monthly quota. All other tools (description rewriter, listing grader, review reply generator, listing builder) are completely free. Subscription analyses refresh monthly on the 1st.',
   },
   {
     q: "Is my data and my customers' data private?",
