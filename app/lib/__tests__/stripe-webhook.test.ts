@@ -157,8 +157,8 @@ describe('Stripe webhook — POST /api/stripe/webhook', () => {
     }))
   })
 
-  // ── checkout.session.completed — credit pack ──────────────────
-  it('adds pack credits on credit_pack purchase', async () => {
+  // ── checkout.session.completed — credit_pack (removed feature) ─
+  it('ignores credit_pack purchase and returns 200 without calling any RPC', async () => {
     mockConstructEvent.mockReturnValue({
       id: 'evt_003',
       type: 'checkout.session.completed',
@@ -172,29 +172,10 @@ describe('Stripe webhook — POST /api/stripe/webhook', () => {
 
     const selectChain = chainSelect(null)
     mockFrom.mockReturnValue({ ...selectChain, upsert: vi.fn().mockResolvedValue({ error: null }), update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) }) })
-    mockRpc.mockResolvedValue({ error: null })
 
     const res = await POST(makeRequest())
     expect(res.status).toBe(200)
-    expect(mockRpc).toHaveBeenCalledWith('add_pack_credits', { p_user_id: 'user_abc', p_amount: 300 })
-  })
-
-  it('rejects pack credit amount above cap (700)', async () => {
-    mockConstructEvent.mockReturnValue({
-      id: 'evt_004',
-      type: 'checkout.session.completed',
-      data: {
-        object: {
-          metadata: { user_id: 'user_abc', type: 'credit_pack', credits: '9999' },
-        },
-      },
-    })
-    const selectChain = chainSelect(null)
-    mockFrom.mockReturnValue({ ...selectChain, upsert: vi.fn().mockResolvedValue({ error: null }), update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) }) })
-
-    const res = await POST(makeRequest())
-    expect(res.status).toBe(200)
-    expect(mockRpc).not.toHaveBeenCalledWith('add_pack_credits', expect.objectContaining({ p_amount: 9999 }))
+    expect(mockRpc).not.toHaveBeenCalled()
   })
 
   // ── invoice.payment_succeeded — renewal ───────────────────────
