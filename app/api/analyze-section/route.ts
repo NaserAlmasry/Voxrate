@@ -38,6 +38,10 @@ export async function POST(request: NextRequest) {
   const csrfError = checkCsrf(request)
   if (csrfError) return csrfError
 
+  // BUG 5 fix: hoist mutex state outside the try so it's accessible in finally
+  let mutexAcquiredOuter = false
+  let mutexKeyOuter = ''
+
   try {
     const body    = await request.json()
     const reportId = body?.reportId
@@ -112,9 +116,12 @@ export async function POST(request: NextRequest) {
     // Acquire mutex — prevents duplicate LLM calls from concurrent section requests
     let mutexAcquired = false
     const mutexKey = `section-lock:${reportId}:${section}`
+    // BUG 5 fix: mirror into outer-scope vars so finally can always release
+    mutexKeyOuter = mutexKey
     if (redis) {
       const acquired = await redis.set(mutexKey, '1', { nx: true, ex: 120 })
       mutexAcquired = acquired === 'OK'
+      mutexAcquiredOuter = mutexAcquired
       if (!mutexAcquired) {
         return NextResponse.json({ error: 'Section already being processed. Please wait a moment and refresh.' }, { status: 409 })
       }
@@ -399,6 +406,10 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error: any) {
+    // BUG 5 fix: release mutex unconditionally on error when it was acquired
+    if (redis && mutexAcquiredOuter && mutexKeyOuter) {
+      await redis.del(mutexKeyOuter).catch(() => {})
+    }
     console.error('[AnalyzeSection] Error:', error instanceof Error ? error.message : String(error))
     return NextResponse.json({ error: 'Section analysis failed. Please try again.' }, { status: 500 })
   }

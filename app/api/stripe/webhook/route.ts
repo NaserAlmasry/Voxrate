@@ -56,9 +56,11 @@ export async function POST(request: NextRequest) {
     }
 
     if (useProcessedFlag) {
+      // BUG 7 fix: insert with processed:true immediately so that any crash after this
+      // point does not allow a retry to re-grant credits (mark-before-grant pattern).
       const { error: upsertError } = await supabase
         .from('processed_webhook_events')
-        .upsert({ stripe_event_id: event.id, processed: false }, { onConflict: 'stripe_event_id' })
+        .upsert({ stripe_event_id: event.id, processed: true }, { onConflict: 'stripe_event_id' })
       if (upsertError && /column .* does not exist/i.test(upsertError.message || '')) {
         useProcessedFlag = false
       } else if (upsertError) {
@@ -154,19 +156,20 @@ export async function POST(request: NextRequest) {
           }).eq('id', userId)
 
           if (updateError) {
-            console.error(`[Webhook] User plan update failed:`, updateError.message)
-            await supabase.from('processed_webhook_events').delete().eq('stripe_event_id', event.id)
+            // BUG 7 fix: do NOT delete the idempotency row on failure — log and return error
+            // so retries are blocked and the issue requires manual intervention.
+            console.error(`[Webhook] User plan update failed — MANUAL REVIEW NEEDED:`, updateError.message)
             return NextResponse.json({ error: 'Plan update failed' }, { status: 500 })
           }
 
-          // Set analyses remaining (initial checkout: just set, don't roll over)
+          // Set analyses remaining (initial checkout: just SET, don't increment — BUG 7: use SET not INCREMENT)
           const { error: rpcError } = await supabase.from('users').update({
             own_analyses_remaining:        planAllotment.own,
             competitor_analyses_remaining: planAllotment.competitor,
           }).eq('id', userId)
           if (rpcError) {
-            console.error(`[Webhook] analyses update failed on subscription:`, rpcError.message)
-            await supabase.from('processed_webhook_events').delete().eq('stripe_event_id', event.id)
+            // BUG 7 fix: do NOT delete idempotency row — log for manual resolution
+            console.error(`[Webhook] analyses update failed on subscription — MANUAL REVIEW NEEDED:`, rpcError.message)
             return NextResponse.json({ error: 'Analyses update failed' }, { status: 500 })
           }
 
@@ -225,8 +228,8 @@ export async function POST(request: NextRequest) {
 
         const { error: renewUpdateError } = await supabase.from('users').update({ plan, stripe_current_period_end: periodEnd }).eq('id', userId)
         if (renewUpdateError) {
-          console.error(`[Webhook] Renewal plan update failed:`, renewUpdateError.message)
-          await supabase.from('processed_webhook_events').delete().eq('stripe_event_id', event.id)
+          // BUG 7 fix: do NOT delete idempotency row — log for manual resolution
+          console.error(`[Webhook] Renewal plan update failed — MANUAL REVIEW NEEDED:`, renewUpdateError.message)
           return NextResponse.json({ error: 'Plan update failed' }, { status: 500 })
         }
 
@@ -241,8 +244,8 @@ export async function POST(request: NextRequest) {
         // Reset emergency re-analyze override — non-fatal
         try { await supabase.rpc('reset_reanalyze_override', { p_user_id: userId }) } catch (_) {}
         if (rolloverError) {
-          console.error(`[Webhook] Rollover RPC failed on renewal:`, rolloverError.message)
-          await supabase.from('processed_webhook_events').delete().eq('stripe_event_id', event.id)
+          // BUG 7 fix: do NOT delete idempotency row — log for manual resolution
+          console.error(`[Webhook] Rollover RPC failed on renewal — MANUAL REVIEW NEEDED:`, rolloverError.message)
           return NextResponse.json({ error: 'Analyses rollover failed' }, { status: 500 })
         }
         console.log(`[Webhook] ✅ Rollover applied for user ${userId} on plan ${plan}`)
@@ -303,17 +306,9 @@ export async function POST(request: NextRequest) {
         console.log(`[Webhook] Unhandled event: ${event.type}`)
     }
 
-    // Mark as fully processed for idempotency
-    if (useProcessedFlag) {
-      try {
-        await supabase
-          .from('processed_webhook_events')
-          .update({ processed: true })
-          .eq('stripe_event_id', event.id)
-      } catch (e: any) {
-        console.warn('[Webhook] Could not mark event processed:', e?.message)
-      }
-    }
+    // BUG 7 fix: processed:true is set BEFORE credit grants (mark-before-grant pattern).
+    // No need to update again here — if grant fails, the row stays processed:true
+    // so retries do not re-grant. Errors are logged above in each event handler.
 
     return NextResponse.json({ received: true })
 

@@ -115,11 +115,23 @@ async function runResumePath(saved) {
 
   // ── Simulate human reading before doing anything ──────────────
   const batch   = parseReviews(document, asin, marketplace)
-  const newOnes = batch.filter(r => !state.seenIds.includes(r.id))
+  // BUG 2 fix: use a Set for O(1) duplicate checks
+  const seenSet = new Set(state.seenIds)
+  const newOnes = batch.filter(r => !seenSet.has(r.id))
   await simulatePageReading(profile, newOnes.length)
 
-  state.reviews.push(...newOnes)
+  // BUG 1 fix: merge AJAX-intercepted reviews before pushing to state.reviews
+  const ajaxNew = ajaxBatch.filter(r => !seenSet.has(r.id) && !newOnes.some(n => n.id === r.id))
+
+  state.reviews.push(...newOnes, ...ajaxNew)
   newOnes.forEach(r => state.seenIds.push(r.id))
+  ajaxNew.forEach(r => state.seenIds.push(r.id))
+
+  // BUG 2 fix: cap seenIds to the last 1000 entries to prevent unbounded growth
+  if (state.seenIds.length > 1000) {
+    state.seenIds = state.seenIds.slice(state.seenIds.length - 1000)
+  }
+
   state.totalPages = (state.totalPages ?? 0) + 1
 
   // ── Phase: unfiltered (1–2 pages of all-star reviews) ─────────

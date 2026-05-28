@@ -4,6 +4,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import type { AmazonReview } from '@/app/lib/amazon-types'
+import { checkRateLimit } from '@/app/lib/rate-limit'
+
+// 20 submissions per hour per token (3600s window, sliding per 10-min bucket × 6)
+const SUBMIT_RATE_LIMIT = 20
+
+// HTML tag pattern for review content validation
+const HTML_TAG_RE = /<[^>]+>/
 
 function adminClient() {
   return createClient(
@@ -29,6 +36,12 @@ export async function POST(req: NextRequest) {
 
   const session = await getUserFromToken(token)
   if (!session) return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
+
+  // BUG 4 fix: rate limit — 20 submissions per hour per token
+  const rateLimitResult = await checkRateLimit(`ext-submit:${token}`, 'user', SUBMIT_RATE_LIMIT)
+  if (!rateLimitResult.allowed) {
+    return NextResponse.json({ error: 'Too many submissions. Please wait before submitting again.' }, { status: 429 })
+  }
 
   // Check plan access — paid plans OR active trial only
   const supabaseCheck = adminClient()
@@ -67,8 +80,15 @@ export async function POST(req: NextRequest) {
 
   if (!job) return NextResponse.json({ error: 'Job not found' }, { status: 404 })
 
+  // BUG 4 fix: validate review content — max 5000 chars body, no HTML tags
   const validReviews = (reviews || [])
-    .filter((r: AmazonReview) => r.rating >= 1 && r.rating <= 5 && r.body && r.body.trim().length >= 20)
+    .filter((r: AmazonReview) => {
+      if (r.rating < 1 || r.rating > 5) return false
+      if (!r.body || r.body.trim().length < 20) return false
+      if (r.body.length > 5000) return false
+      if (HTML_TAG_RE.test(r.body)) return false
+      return true
+    })
     .slice(0, 500)
 
   const partialErrors = new Set(['timeout', 'amazon_throttled'])
