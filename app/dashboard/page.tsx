@@ -212,11 +212,11 @@ function DashboardHomeInner() {
         if (!user?.id) { setLoading(false); return }
 
         const { data: userData } = await supabase
-          .from('users').select('analyses_count, plan, is_admin, credits').eq('id', user.id).single()
+          .from('users').select('analyses_count, plan, is_admin, own_analyses_remaining').eq('id', user.id).single()
 
         if (userData) {
           setAnalysesCount(userData.analyses_count || 0)
-          setCredits(userData.credits ?? 0)
+          setCredits(userData.own_analyses_remaining ?? 0)
           if (userData.plan) setUserPlan(userData.plan)
           if (userData.is_admin === true) setIsAdminUser(true)
         }
@@ -473,11 +473,11 @@ function DashboardHomeInner() {
           <div className="flex items-center gap-2.5">
             <AlertTriangle size={15} className="text-orange-500 flex-shrink-0" />
             <p className="text-xs text-orange-800">
-              <span className="font-semibold">You're out of free credits.</span> Get more to keep analyzing.
+              <span className="font-semibold">You've used all your free analyses.</span> Upgrade to keep analyzing.
             </p>
           </div>
           <a href="/#pricing" className="flex-shrink-0 px-3 py-1.5 bg-orange-500 text-white text-xs font-semibold rounded-lg hover:bg-orange-600 transition-colors">
-            Get credits →
+            Upgrade →
           </a>
         </div>
       )}

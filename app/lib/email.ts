@@ -186,7 +186,7 @@ export async function sendReportFailed({
     <div style="padding:24px;">
       <h1 style="font-size:16px;font-weight:700;color:#111;margin:0 0 8px;">Analysis failed</h1>
       <p style="font-size:13px;color:#6b7280;margin:0 0 16px;">
-        We ran into an issue analyzing <strong>${h(productName)}</strong>. Your credits have been refunded automatically.
+        We ran into an issue analyzing <strong>${h(productName)}</strong>. Your analysis has been refunded automatically.
       </p>
       <p style="font-size:13px;color:#6b7280;margin:0 0 20px;">
         You can try again from your dashboard. If the problem persists, reply to this email and we'll look into it.
@@ -270,7 +270,7 @@ export async function sendSentimentAlert({
       <a href="${SITE_URL}/dashboard/sentiment-alerts" style="display:block;text-align:center;padding:14px;background:#f05a1e;color:#fff;text-decoration:none;border-radius:10px;font-size:13px;font-weight:700;margin-top:16px;">
         Manage alerts â†’
       </a>
-      <p style="font-size:11px;color:#9ca3af;margin:14px 0 0;text-align:center;">${creditsCharged} credit${creditsCharged === 1 ? '' : 's'} used for this scan.</p>
+      <p style="font-size:11px;color:#9ca3af;margin:14px 0 0;text-align:center;">${creditsCharged > 0 ? '1 analysis used for this scan.' : ''}</p>
     </div>
     <div style="padding:16px 24px;border-top:1px solid #f3f4f6;text-align:center;">
       <p style="font-size:11px;color:#9ca3af;margin:0;">
