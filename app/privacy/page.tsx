@@ -89,7 +89,7 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-base font-semibold text-neutral-900 mb-3">7. Your Rights (GDPR)</h2>
+            <h2 className="text-base font-semibold text-neutral-900 mb-3">7. Your Rights (GDPR — EEA Users)</h2>
             <p>If you are located in the European Economic Area, you have the right to:</p>
             <ul className="list-disc pl-5 mt-2 space-y-1">
               <li>Access the personal data we hold about you</li>
@@ -98,26 +98,38 @@ export default function PrivacyPage() {
               <li>Object to or restrict processing of your data</li>
               <li>Request a portable copy of your data</li>
             </ul>
-            <p className="mt-3">To exercise any of these rights, email <a href="mailto:info@voxrate.app" className="underline text-black">info@voxrate.app</a>. We will respond within 30 days. You may also delete your account directly from the Settings page, which removes your data immediately.</p>
+            <p className="mt-3">To exercise any of these rights, email <a href="mailto:info@voxrate.app" className="underline text-black">info@voxrate.app</a>. We will respond within 30 days. You may also delete your account directly from <strong>Settings → Delete Account</strong> in your dashboard, which initiates removal of your personal data within 30 days.</p>
           </section>
 
           <section>
-            <h2 className="text-base font-semibold text-neutral-900 mb-3">8. Data Retention</h2>
+            <h2 className="text-base font-semibold text-neutral-900 mb-3">8. Your Rights (CCPA — California Residents)</h2>
+            <p>If you are a California resident, you have the right to:</p>
+            <ul className="list-disc pl-5 mt-2 space-y-1">
+              <li>Know what personal information we collect about you and how it is used</li>
+              <li>Request deletion of your personal information</li>
+              <li>Opt out of the sale of your personal information — <span className="font-medium text-neutral-800">we do not sell personal information</span></li>
+              <li>Non-discrimination for exercising your privacy rights</li>
+            </ul>
+            <p className="mt-3">To submit a request, email <a href="mailto:info@voxrate.app" className="underline text-black">info@voxrate.app</a> with the subject "CCPA Request". We will respond within 45 days.</p>
+          </section>
+
+          <section>
+            <h2 className="text-base font-semibold text-neutral-900 mb-3">9. Data Retention</h2>
             <p>We retain your data for as long as your account is active. If you delete your account, your personal data is removed within 30 days. Analysis reports may be retained in anonymized form for product improvement.</p>
           </section>
 
           <section>
-            <h2 className="text-base font-semibold text-neutral-900 mb-3">9. Children's Privacy</h2>
+            <h2 className="text-base font-semibold text-neutral-900 mb-3">10. Children's Privacy</h2>
             <p>Voxrate is not intended for use by children under the age of 13. We do not knowingly collect personal data from children. If you believe a child has provided us with personal data, contact us at <a href="mailto:info@voxrate.app" className="underline text-black">info@voxrate.app</a>.</p>
           </section>
 
           <section>
-            <h2 className="text-base font-semibold text-neutral-900 mb-3">10. Changes to This Policy</h2>
+            <h2 className="text-base font-semibold text-neutral-900 mb-3">11. Changes to This Policy</h2>
             <p>We may update this Privacy Policy from time to time. We will notify you of material changes via email or an in-app notice. Continued use of the Service after changes constitutes acceptance.</p>
           </section>
 
           <section>
-            <h2 className="text-base font-semibold text-neutral-900 mb-3">11. Contact</h2>
+            <h2 className="text-base font-semibold text-neutral-900 mb-3">12. Contact</h2>
             <p>For any privacy-related questions or requests, contact us at <a href="mailto:info@voxrate.app" className="underline text-black">info@voxrate.app</a>.</p>
           </section>
 
