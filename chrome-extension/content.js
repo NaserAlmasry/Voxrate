@@ -4,7 +4,12 @@
 // Session profile randomises timing, filter order, burst size, and distraction
 // rate so every user produces a unique fingerprint.
 
+// Each filter+sort combo has an independent 100-review cap (10 pages × 10 reviews).
+// We cycle through all combos to maximize yield — Amazon's WAF doesn't share state
+// across different filter URLs so each is a fresh 100-review window.
 const STAR_FILTERS = ['one_star', 'two_star', 'three_star', 'four_star', 'five_star']
+// Additional verified-purchase filter combos — separate 100-review cap per star tier
+const VERIFIED_FILTERS = ['one_star', 'five_star'] // most valuable for analysis: extremes
 
 ;(async () => {
   const url      = location.href
@@ -12,6 +17,9 @@ const STAR_FILTERS = ['one_star', 'two_star', 'three_star', 'four_star', 'five_s
   const onReview = url.includes('/product-reviews/')
 
   if (!onDp && !onReview) return
+
+  // Inject XHR interceptor early so we capture Amazon's own pagination AJAX calls
+  injectXhrInterceptor()
 
   // ── Resumed job ────────────────────────────────────────────────
   const saved = sessionStorage.getItem('voxrate_job')
@@ -100,6 +108,10 @@ async function runResumePath(saved) {
     state.phase = 'unfiltered'
     state.page  = 1
   }
+
+  // Collect AJAX-intercepted reviews (Amazon's own pagination XHR)
+  const ajaxBatch = []
+  listenForAjaxReviews(asin, marketplace, (batch) => ajaxBatch.push(...batch))
 
   // ── Simulate human reading before doing anything ──────────────
   const batch   = parseReviews(document, asin, marketplace)
@@ -210,9 +222,13 @@ async function runResumePath(saved) {
 
 function generateSessionProfile() {
   const patience = Math.random()
+  // Build filter order: star filters first, then verified-purchase passes for 1★ and 5★
+  // Each verified pass has an independent review cap — doubles yield for extremes
+  const baseFilters = shuffle([...STAR_FILTERS])
+  const verifiedFilters = VERIFIED_FILTERS.map(f => `${f}:avp`)
   return {
     patience,
-    filterOrder:  shuffle([...STAR_FILTERS]),
+    filterOrder:  [...baseFilters, ...verifiedFilters],
     burstSize:    2 + Math.floor(Math.random() * 4),     // 2–5 pages per burst
     distractRate: 0.04 + Math.random() * 0.10,           // 4–14% distraction chance
     skipChance:   0.10 + Math.random() * 0.15,           // 10–25% chance to skip a filter
@@ -330,16 +346,21 @@ function findNextPageButton(doc) {
 }
 
 async function navigateToFilter(tld, asin, filter, page) {
+  const starFilter = filter.replace(':avp', '')
+  const avp = filter.endsWith(':avp')
   // Try clicking the actual filter link so Amazon sees a real user gesture
-  if (page === 1) {
-    const link = document.querySelector(`a[href*="filterByStar=${filter}"]`)
+  if (page === 1 && !avp) {
+    const link = document.querySelector(`a[href*="filterByStar=${starFilter}"]`)
     if (link) { link.click(); return }
   }
   location.assign(buildFilterUrl(tld, asin, filter, page))
 }
 
 function buildFilterUrl(tld, asin, filter, page) {
-  return `https://www.amazon.${tld}/product-reviews/${asin}?reviewerType=all_reviews&filterByStar=${filter}&sortBy=recent&pageNumber=${page}`
+  const starFilter = filter.replace(':avp', '')
+  const avp = filter.endsWith(':avp')
+  const reviewerType = avp ? 'avp_only_reviews' : 'all_reviews'
+  return `https://www.amazon.${tld}/product-reviews/${asin}?reviewerType=${reviewerType}&filterByStar=${starFilter}&sortBy=recent&pageNumber=${page}`
 }
 
 // ── Helpers: detection ────────────────────────────────────────────
@@ -358,6 +379,61 @@ function isCaptchaOrLoginWall(doc) {
   const reviews = doc.querySelector('#cm_cr-review_list, [data-hook="review"]')
   if (signIn && !reviews) return true
   return false
+}
+
+// ── XHR Intercept: capture Amazon's own internal pagination AJAX ──
+// Amazon's /reviews-render/ajax/ endpoint is called by their own JS when
+// clicking next page. We intercept the response in page context and relay
+// the HTML fragment back to content script via a custom event, letting us
+// parse reviews from AJAX without triggering extra WAF-visible requests.
+
+function injectXhrInterceptor() {
+  const script = document.createElement('script')
+  script.textContent = `(function() {
+    const _open = XMLHttpRequest.prototype.open
+    const _send = XMLHttpRequest.prototype.send
+    XMLHttpRequest.prototype.open = function(method, url, ...rest) {
+      this._voxrateUrl = url
+      return _open.call(this, method, url, ...rest)
+    }
+    XMLHttpRequest.prototype.send = function(...args) {
+      this.addEventListener('load', function() {
+        if (this._voxrateUrl && this._voxrateUrl.includes('reviews-render')) {
+          document.dispatchEvent(new CustomEvent('voxrate-ajax-reviews', {
+            detail: { html: this.responseText, url: this._voxrateUrl }
+          }))
+        }
+      })
+      return _send.apply(this, args)
+    }
+    // Also intercept fetch (Amazon may use either)
+    const _fetch = window.fetch
+    window.fetch = function(input, init) {
+      const url = typeof input === 'string' ? input : (input?.url ?? '')
+      const p = _fetch.call(this, input, init)
+      if (url.includes('reviews-render')) {
+        p.then(res => res.clone().text().then(html => {
+          document.dispatchEvent(new CustomEvent('voxrate-ajax-reviews', {
+            detail: { html, url }
+          }))
+        })).catch(() => {})
+      }
+      return p
+    }
+  })()`
+  ;(document.head || document.documentElement).appendChild(script)
+  script.remove()
+}
+
+function listenForAjaxReviews(asin, marketplace, onBatch) {
+  document.addEventListener('voxrate-ajax-reviews', (e) => {
+    try {
+      const tmp = document.createElement('div')
+      tmp.innerHTML = e.detail.html
+      const batch = parseReviews(tmp, asin, marketplace)
+      if (batch.length > 0) onBatch(batch)
+    } catch {}
+  })
 }
 
 // ── Helpers: parse & finish ───────────────────────────────────────
