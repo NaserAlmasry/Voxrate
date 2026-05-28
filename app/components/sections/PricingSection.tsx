@@ -71,7 +71,7 @@ const PLANS = [
       '220 analyses/month — own or competitor',
       'Rollover unused analyses (up to 3 months)',
       'Unlimited ASIN watchlist',
-      '⚡ Priority queue — skip the line',
+      'Priority queue — skip the line (coming soon)',
       'Seller Central scanner (exclusive)',
       'Bulk analyze 10 at once',
     ],
@@ -90,7 +90,7 @@ const COMPARISON: { category: string; rows: { label: string; tip?: string; start
       { label: 'Rollover',              starter: '2 months',  growth: '2 months',   pro: '3 months'  },
       { label: 'Burst rate',            tip: 'Max analyses per 30 minutes', starter: '5 / 30 min', growth: '10 / 30 min', pro: '20 / 30 min' },
       { label: 'Re-analyze cooldown',   starter: '7 days',    growth: '3 days',     pro: 'None'      },
-      { label: 'Priority queue',        tip: 'Pro jobs run first when the system is busy', starter: false, growth: false, pro: '⚡ First' },
+      { label: 'Priority queue',        tip: 'Pro jobs run first when the system is busy', starter: false, growth: false, pro: 'soon' },
     ],
   },
   {
