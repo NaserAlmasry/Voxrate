@@ -94,7 +94,7 @@ describe('Stripe webhook — POST /api/stripe/webhook', () => {
   })
 
   // ── checkout.session.completed — subscription ─────────────────
-  it('upgrades user to starter plan and sets 25 own + 3 competitor analyses', async () => {
+  it('upgrades user to starter plan and sets 30 own + 5 competitor analyses', async () => {
     mockConstructEvent.mockReturnValue({
       id: 'evt_001',
       type: 'checkout.session.completed',
@@ -122,12 +122,12 @@ describe('Stripe webhook — POST /api/stripe/webhook', () => {
     expect(updateFn).toHaveBeenCalledWith(expect.objectContaining({ plan: 'starter' }))
     // Second update: analyses remaining
     expect(updateFn).toHaveBeenCalledWith(expect.objectContaining({
-      own_analyses_remaining: 25,
-      competitor_analyses_remaining: 3,
+      own_analyses_remaining: 30,
+      competitor_analyses_remaining: 5,
     }))
   })
 
-  it('upgrades user to pro plan and sets 150 own + 40 competitor analyses', async () => {
+  it('upgrades user to pro plan and sets 175 own + 45 competitor analyses', async () => {
     mockConstructEvent.mockReturnValue({
       id: 'evt_001b',
       type: 'checkout.session.completed',
@@ -152,8 +152,8 @@ describe('Stripe webhook — POST /api/stripe/webhook', () => {
     const res = await POST(makeRequest())
     expect(res.status).toBe(200)
     expect(updateFn).toHaveBeenCalledWith(expect.objectContaining({
-      own_analyses_remaining: 150,
-      competitor_analyses_remaining: 40,
+      own_analyses_remaining: 175,
+      competitor_analyses_remaining: 45,
     }))
   })
 
@@ -204,7 +204,7 @@ describe('Stripe webhook — POST /api/stripe/webhook', () => {
     expect(res.status).toBe(200)
     expect(mockRpc).toHaveBeenCalledWith('renew_analyses_with_rollover', {
       p_user_id:            'user_abc',
-      p_own_monthly:        60,
+      p_own_monthly:        65,
       p_competitor_monthly: 15,
       p_rollover_cap:       2,
     })

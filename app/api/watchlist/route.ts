@@ -62,9 +62,25 @@ export async function POST(request: NextRequest) {
 
   if (!isAdmin && plan === 'free') {
     return NextResponse.json(
-      { error: 'Competitor watchlist is available on Starter and Pro plans.', upgradeRequired: true },
+      { error: 'Competitor watchlist is available on Starter and above.', upgradeRequired: true },
       { status: 403 },
     )
+  }
+
+  // Enforce per-plan ASIN cap
+  const WATCHLIST_CAP: Record<string, number> = { starter: 5, growth: 20, pro: Infinity }
+  const cap = isAdmin ? Infinity : (WATCHLIST_CAP[plan] ?? 5)
+  if (cap !== Infinity) {
+    const { count } = await supabase
+      .from('watchlist')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+    if ((count ?? 0) >= cap) {
+      return NextResponse.json(
+        { error: `Your ${plan} plan supports up to ${cap} watchlist ASINs. Upgrade to add more.`, upgradeRequired: true },
+        { status: 403 },
+      )
+    }
   }
 
   const body     = await request.json()

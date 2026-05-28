@@ -2,11 +2,11 @@ import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
   title: 'FAQ – Voxrate Amazon Review Analyzer',
-  description: 'Common questions about Voxrate — how it works, pricing, credits, competitor analysis, and data privacy for Amazon sellers.',
+  description: 'Common questions about Voxrate — how it works, pricing, analyses, competitor analysis, and data privacy for Amazon sellers.',
   alternates: { canonical: 'https://voxrate.app/faq' },
   openGraph: {
     title: 'FAQ – Voxrate Amazon Review Analyzer',
-    description: 'Everything Amazon sellers ask before signing up. Credits, competitor analysis, privacy, and more.',
+    description: 'Everything Amazon sellers ask before signing up. Pricing, analyses, competitor analysis, privacy, and more.',
     url: 'https://voxrate.app/faq',
   },
 }
@@ -33,12 +33,12 @@ const FAQ_SCHEMA = {
     {
       '@type': 'Question',
       name: "Can I analyze a competitor's listing?",
-      acceptedAnswer: { '@type': 'Answer', text: "Yes. You can paste any public Amazon listing URL — including competitors'. Voxrate will analyze their reviews, show you their top weaknesses, what they do well, and give you a side-by-side comparison. Competitor analysis costs 35 credits." },
+      acceptedAnswer: { '@type': 'Answer', text: "Yes. You can paste any public Amazon listing URL — including competitors'. Voxrate will analyze their reviews, show you their top weaknesses, what they do well, and give you a side-by-side comparison. Competitor analyses use 1 analysis from your monthly quota, same as own listings." },
     },
     {
       '@type': 'Question',
-      name: 'What are credits and do they expire?',
-      acceptedAnswer: { '@type': 'Answer', text: 'Credits are the currency used for analyses. Each own-listing analysis costs 20 credits. Each competitor analysis costs 35 credits. All other tools are free. Credits purchased in one-time packs never expire. Subscription credits refresh monthly.' },
+      name: 'How does the analysis quota work?',
+      acceptedAnswer: { '@type': 'Answer', text: 'Each analysis — whether your own listing or a competitor — uses 1 analysis from your monthly quota. All other tools are free. Subscription analyses refresh monthly on the 1st.' },
     },
     {
       '@type': 'Question',

@@ -168,26 +168,26 @@ const jsonLd = {
         {
           "@type": "Offer",
           name: "Starter",
-          price: "9.99",
+          price: "14.99",
           priceCurrency: "USD",
           billingIncrement: "P1M",
-          description: "300 credits/month — ~15 analyses",
+          description: "35 analyses/month — own or competitor",
         },
         {
           "@type": "Offer",
           name: "Growth",
-          price: "24.99",
+          price: "39.99",
           priceCurrency: "USD",
           billingIncrement: "P1M",
-          description: "800 credits/month — ~40 analyses + competitor analysis",
+          description: "80 analyses/month — own or competitor",
         },
         {
           "@type": "Offer",
           name: "Pro",
-          price: "49.17",
+          price: "59.99",
           priceCurrency: "USD",
           billingIncrement: "P1M",
-          description: "2,000 credits/month — ~100 analyses + all features",
+          description: "220 analyses/month — own or competitor",
         },
       ],
       featureList: [
@@ -269,7 +269,7 @@ const jsonLd = {
           name: "Is Voxrate free to try?",
           acceptedAnswer: {
             "@type": "Answer",
-            text: "Yes. Your first analysis is completely free with no credit card required. Paid plans start at $9.99/month for 300 credits (~15 analyses).",
+            text: "Yes. Your first analysis is completely free with no credit card required. Paid plans start at $14.99/month for 35 analyses.",
           },
         },
         {

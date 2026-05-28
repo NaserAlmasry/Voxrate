@@ -294,7 +294,7 @@ export default function WatchlistPage() {
               "We re-check competitor listings weekly to detect score changes",
               "Score drops 5+ points on their side = your opportunity to step in",
               "Score increases on their side = they're raising the bar, watch closely",
-              "Use 'Re-check' to manually get fresh data at any time (costs credits)",
+              "Use 'Re-check' to manually get fresh data at any time (uses 1 analysis)",
             ].map((s, i) => (
               <div key={i} className="flex items-start gap-2">
                 <span className="w-4 h-4 bg-orange-500 rounded-full text-white text-[9px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{i + 1}</span>

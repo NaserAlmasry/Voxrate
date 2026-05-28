@@ -21,11 +21,11 @@ const FAQ_ITEMS = [
   },
   {
     q: 'Can I analyze a competitor\'s listing?',
-    a: "Yes. Competitor analysis runs both products through the AI simultaneously and produces a battle card — why buyers choose them over you, your exact keyword gaps, and a ranked fix list. It costs 35 credits (vs 20 for own listings). Starter gets 1 competitor analysis per month. Growth unlocks up to 3 per product per month. Pro unlocks up to 10 per product per month. Resets on the 1st of each month.",
+    a: "Yes. Competitor analysis runs both products through the AI simultaneously and produces a battle card — why buyers choose them over you, your exact keyword gaps, and a ranked fix list. Competitor analyses use 1 analysis from your quota, same as own listings. Starter gets 35 analyses/month. Growth gets 80. Pro gets 220. Resets on the 1st of each month.",
   },
   {
-    q: 'What are credits and do they expire?',
-    a: 'Credits are the currency used for analyses. Each own-listing analysis costs 20 credits, each competitor analysis costs 35 credits. All other tools (rewriter, grader, reply generator, listing builder) are free. Credits purchased in packs never expire. Subscription credits refresh monthly.',
+    q: 'How does the analysis quota work?',
+    a: 'Each analysis — whether your own listing or a competitor — uses 1 analysis from your monthly quota. All other tools (rewriter, grader, reply generator, listing builder) are free. Subscription analyses refresh monthly on the 1st.',
   },
   {
     q: 'Is my data and my customers\' data private?',

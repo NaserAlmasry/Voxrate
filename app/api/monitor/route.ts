@@ -62,9 +62,9 @@ export async function POST(request: NextRequest) {
   const plan    = userData?.plan || 'free'
   const isAdmin = userData?.is_admin === true
 
-  if (!isAdmin && plan === 'free') {
+  if (!isAdmin && !['growth', 'pro'].includes(plan)) {
     return NextResponse.json(
-      { error: 'Review monitoring is available on Starter and Pro plans.', upgradeRequired: true },
+      { error: 'Review monitoring is available on Growth and Pro plans.', upgradeRequired: true, upgradePrompt: 'growth' },
       { status: 403 },
     )
   }
