@@ -89,29 +89,45 @@ async function runResumePath(saved) {
   chrome.runtime.sendMessage({ type: 'ENSURE_TAB_ACTIVE' })
   await ensureVisible()
 
-  // ── Throttle detection ────────────────────────────────────────
+  // ── Amazon "limited selection" gate ──────────────────────────
+  // Amazon now shows this to everyone by default — it's not bot detection,
+  // it's a UI gate. Click "send a request" to unlock full reviews, then wait.
   if (isThrottled(document)) {
-    state.throttleCount = (state.throttleCount ?? 0) + 1
-    chrome.runtime.sendMessage({ type: 'CONTENT_LOG', msg: `Throttle #${state.throttleCount}` })
-    if (state.throttleCount >= 2) {
-      sessionStorage.removeItem('voxrate_job')
-      finish(jobId, asin, state.reviews, true)
+    const unlocked = await clickUnlockButton()
+    if (unlocked) {
+      chrome.runtime.sendMessage({ type: 'CONTENT_LOG', msg: 'Clicked "send a request" — waiting for reviews to load' })
+      await sleep(humanDelay(3000, 6000, 4000, profile))
+      // Re-check — if still throttled after clicking, skip this filter
+      if (isThrottled(document)) {
+        state.filterIdx++
+        state.page = 1
+        if (state.filterIdx >= profile.filterOrder.length || state.reviews.length >= state.maxReviews) {
+          sessionStorage.removeItem('voxrate_job')
+          finish(jobId, asin, state.reviews, false)
+          return
+        }
+        sessionStorage.setItem('voxrate_job', JSON.stringify(state))
+        await sleep(humanDelay(4000, 8000, 5000, profile))
+        await navigateToFilter(tld, asin, profile.filterOrder[state.filterIdx], 1)
+        return
+      }
+      // Unlocked — fall through and collect reviews normally
+    } else {
+      // No button found — skip this filter
+      chrome.runtime.sendMessage({ type: 'CONTENT_LOG', msg: 'Limited selection — no unlock button found, skipping filter' })
+      state.filterIdx++
+      state.page = 1
+      if (state.filterIdx >= profile.filterOrder.length || state.reviews.length >= state.maxReviews) {
+        sessionStorage.removeItem('voxrate_job')
+        finish(jobId, asin, state.reviews, false)
+        return
+      }
+      sessionStorage.setItem('voxrate_job', JSON.stringify(state))
+      await sleep(humanDelay(4000, 8000, 5000, profile))
+      await navigateToFilter(tld, asin, profile.filterOrder[state.filterIdx], 1)
       return
     }
-    state.filterIdx++
-    state.page = 1
-    state.throttleCount = 0
-    if (state.filterIdx >= profile.filterOrder.length || state.reviews.length >= state.maxReviews) {
-      sessionStorage.removeItem('voxrate_job')
-      finish(jobId, asin, state.reviews, true)
-      return
-    }
-    sessionStorage.setItem('voxrate_job', JSON.stringify(state))
-    await sleep(humanDelay(8000, 20000, 12000, profile))
-    await navigateToFilter(tld, asin, profile.filterOrder[state.filterIdx], 1)
-    return
   }
-  state.throttleCount = 0
 
   // ── Phase: product → unfiltered ───────────────────────────────
   if (state.phase === 'product') {
@@ -357,6 +373,42 @@ function isThrottled(doc) {
   const text = (doc.body?.textContent ?? '').toLowerCase()
   return text.includes('limited selection of reviews') ||
          text.includes('to see more reviews, you can send a request')
+}
+
+// Finds and clicks Amazon's "send a request" unlock button.
+// Amazon shows this gate to everyone now — clicking it reveals full reviews.
+async function clickUnlockButton() {
+  const selectors = [
+    // Direct text match on buttons/links
+    'button',
+    'a',
+    'span[role="button"]',
+    '[data-hook="cr-filter-info-section"] button',
+    '[data-hook="cr-filter-info-section"] a',
+    '.cr-lighthouse-terms button',
+    '.cr-lighthouse-terms a',
+  ]
+
+  // Search by text content — "send a request" or "request"
+  const allClickable = document.querySelectorAll('a, button, [role="button"], input[type="submit"]')
+  for (const el of allClickable) {
+    const txt = (el.textContent || el.value || '').toLowerCase().trim()
+    if (txt.includes('send a request') || txt === 'request' || txt.includes('see more reviews')) {
+      el.click()
+      return true
+    }
+  }
+
+  // Fallback: look for any link near the "limited selection" text
+  const allText = document.querySelectorAll('p, div, span')
+  for (const el of allText) {
+    if ((el.textContent || '').toLowerCase().includes('limited selection of reviews')) {
+      const nearby = el.querySelector('a, button') || el.nextElementSibling?.querySelector('a, button')
+      if (nearby) { nearby.click(); return true }
+    }
+  }
+
+  return false
 }
 
 function isCaptchaOrLoginWall(doc) {
