@@ -487,7 +487,7 @@ function DashboardHomeInner() {
       {/* ── Usage card ── */}
       {credits !== null && userPlan !== 'free' && !simulatingUser && (() => {
         const PLAN_POOL: Record<string, number> = { trial: 5, starter: 35, growth: 80, pro: 220 }
-        const PLAN_BURST: Record<string, number> = { trial: 2, starter: 3, growth: 5, pro: 8 }
+        const PLAN_BURST: Record<string, number> = { trial: 2, starter: 5, growth: 10, pro: 20 }
         const pool  = PLAN_POOL[userPlan]  ?? 35
         const burst = PLAN_BURST[userPlan] ?? 3
         const used  = Math.max(0, pool - credits)

@@ -23,12 +23,12 @@ const PLANS = [
     icon:       <Zap size={16} className="text-blue-500" />,
     badge:      null,
     popular:    false,
-    ownAnalyses: 25,
-    competitorAnalyses: 3,
+    ownAnalyses: 30,
+    competitorAnalyses: 5,
     rollover:   '2 months',
     features: [
-      '25 own-listing analyses/month',
-      '3 competitor analyses/month',
+      '35 analyses/month — own or competitor',
+      'Up to 5 analyses per 30 min',
       'Unused analyses roll over (up to 2 months)',
       '7-day re-analyze cooldown',
       'ASIN watchlist (5 ASINs)',
@@ -47,12 +47,12 @@ const PLANS = [
     icon:       <TrendingUp size={16} className="text-orange-500" />,
     badge:      'Most popular',
     popular:    true,
-    ownAnalyses: 60,
+    ownAnalyses: 65,
     competitorAnalyses: 15,
     rollover:   '2 months',
     features: [
-      '60 own-listing analyses/month',
-      '15 competitor analyses/month',
+      '80 analyses/month — own or competitor',
+      'Up to 10 analyses per 30 min',
       'Unused analyses roll over (up to 2 months)',
       '3-day re-analyze cooldown',
       'ASIN watchlist (20 ASINs)',
@@ -73,12 +73,12 @@ const PLANS = [
     icon:       <Shield size={16} className="text-purple-500" />,
     badge:      'Best value',
     popular:    false,
-    ownAnalyses: 150,
-    competitorAnalyses: 40,
+    ownAnalyses: 175,
+    competitorAnalyses: 45,
     rollover:   '3 months',
     features: [
-      '150 own-listing analyses/month',
-      '40 competitor analyses/month',
+      '220 analyses/month — own or competitor',
+      'Up to 20 analyses per 30 min',
       'Unused analyses roll over (up to 3 months)',
       'Re-analyze any time — no cooldown',
       'Unlimited ASIN watchlist',
@@ -98,9 +98,10 @@ export default function PricingSection({
   const ownNeeded = calcFrequency === 'monthly' ? calcProducts : Math.ceil(calcProducts / 3)
   const competitorNeeded = calcFrequency === 'monthly' ? Math.ceil(calcProducts * 0.5) : Math.ceil(calcProducts * 0.5 / 3)
 
-  const recommended = ownNeeded <= 25 && competitorNeeded <= 3
+  const totalNeeded = ownNeeded + competitorNeeded
+  const recommended = totalNeeded <= 35
     ? 'starter'
-    : ownNeeded <= 60 && competitorNeeded <= 15
+    : totalNeeded <= 80
     ? 'growth'
     : 'pro'
 
@@ -263,7 +264,7 @@ export default function PricingSection({
               <div>
                 <p className="text-xs text-neutral-500 mb-0.5">Recommended plan</p>
                 <p className="text-lg font-black text-neutral-900">{recommended.charAt(0).toUpperCase() + recommended.slice(1)}</p>
-                <p className="text-xs text-neutral-400">~{ownNeeded} own analyses + ~{competitorNeeded} competitor/mo needed</p>
+                <p className="text-xs text-neutral-400">~{totalNeeded} analyses/mo needed ({ownNeeded} own + {competitorNeeded} competitor)</p>
               </div>
               <div className="text-right">
                 <p className="text-2xl font-black text-orange-600">
