@@ -96,6 +96,7 @@ export async function POST(request: NextRequest) {
       .update({
         plan: rewardPlan,
         stripe_current_period_end: periodEndUnix,
+        reward_expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
         referral_count: 0,
       })
       .eq('id', user.id)

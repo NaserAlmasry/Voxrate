@@ -23,7 +23,7 @@ import {
   validateSemanticConstraints,
 } from '@/app/lib/health-score'
 import { applyPlanLimits } from '@/app/lib/plan-limits'
-import { enforceRateLimit } from '@/app/lib/rate-limit'
+import { enforceRateLimit, MAX_REQUESTS } from '@/app/lib/rate-limit'
 import { checkCsrf } from '@/app/lib/csrf'
 import {
   generateDomainAndSeo,
@@ -220,9 +220,9 @@ async function analyzeProduct(
     ? `BSR: #${ctx.bsr.toLocaleString()} in ${ctx.bsrCategory || 'Unknown Category'}`
     : 'BSR: Not ranked'
 
-  const contextBlock = `PRODUCT: <product_title>${product.title}</product_title>
-ASIN: ${product.asin || ''}
-MARKETPLACE: ${product.marketplace || 'amazon.com'}
+  const contextBlock = `PRODUCT: <product_title>${escapePromptInput(product.title || '')}</product_title>
+ASIN: ${escapePromptInput(product.asin || '')}
+MARKETPLACE: ${escapePromptInput(product.marketplace || 'amazon.com')}
 PRICE: $${product.price || 'N/A'}
 RATING: ${product.averageRating || product.rating}/5
 TOTAL RATINGS: ${ctx.totalReviewCount.toLocaleString()}
@@ -523,9 +523,12 @@ export async function POST(request: NextRequest) {
     if (!analysisDeducted || !analysisRefundUserId || analysisRefunded) return
     analysisRefunded = true
     try {
-      const supabase = await createClient()
+      const adminSupabase = createAdminClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      )
       const rpc = analysisRefundType === 'competitor' ? 'refund_competitor_analysis' : 'refund_own_analysis'
-      const { error } = await supabase.rpc(rpc, { p_user_id: analysisRefundUserId })
+      const { error } = await adminSupabase.rpc(rpc, { p_user_id: analysisRefundUserId })
       if (error) {
         console.error('[Analyze] Analysis refund RPC failed — MANUAL REVIEW NEEDED:', {
           userId: analysisRefundUserId, type: analysisRefundType, error: error.message,
@@ -594,13 +597,16 @@ export async function POST(request: NextRequest) {
     const reanalyzeOverrides           = userData?.reanalyze_overrides ?? 0
 
     // Dedup: prevent same user+product within 60 seconds (double-click protection)
+    // Normalize to ASIN so that full URL and bare ASIN for the same product match
+    const asinMatch = productUrl.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})/i) || productUrl.match(/^([A-Z0-9]{10})$/i)
+    const dedupeKey = asinMatch ? asinMatch[1].toUpperCase() : productUrl
     {
       const sixtySecondsAgo = new Date(Date.now() - 60_000).toISOString()
       const { data: recentReport } = await supabase
         .from('reports')
         .select('id, status')
         .eq('user_id', user.id)
-        .eq('product_url', productUrl)
+        .ilike('product_url', `%${dedupeKey}%`)
         .gte('created_at', sixtySecondsAgo)
         .not('status', 'eq', 'failed')
         .limit(1)
@@ -614,8 +620,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (!isAdminUser) {
-      const limit = await enforceRateLimit(user.id, ip)
+    {
+      const adminMultiplier = isAdminUser ? 10 : 1
+      const limit = await enforceRateLimit(user.id, ip, MAX_REQUESTS * adminMultiplier)
       if (!limit.allowed) {
         const resetIn = Math.ceil((limit.resetAt - Date.now()) / 60000)
         return NextResponse.json(
@@ -761,8 +768,8 @@ export async function POST(request: NextRequest) {
         await supabase.from('reports').update({ status: 'failed', product_name: amazonProduct.title || null }).eq('id', reportId)
         await refundAnalysis()
         const msg = scrapeResult.fromCache === false
-          ? 'Our data provider is temporarily unavailable. Please try again in a few minutes. Your credits have been refunded.'
-          : 'No reviews found for this product. Your credits have been refunded.'
+          ? 'Our data provider is temporarily unavailable. Please try again in a few minutes. Your analysis has been refunded.'
+          : 'No reviews found for this product. Your analysis has been refunded.'
         return NextResponse.json({ error: msg }, { status: 400 })
       }
 
@@ -831,9 +838,9 @@ export async function POST(request: NextRequest) {
         .eq('id', reportId)
 
       if (reportUpdateError) {
-        console.error('[Analyze] Report update failed — credits refunded:', reportUpdateError.message)
+        console.error('[Analyze] Report update failed — analysis refunded:', reportUpdateError.message)
         await refundAnalysis()
-        return NextResponse.json({ error: 'Failed to save analysis. Your credits have been refunded.' }, { status: 500 })
+        return NextResponse.json({ error: 'Failed to save analysis. Your analysis has been refunded.' }, { status: 500 })
       }
 
       await supabase
@@ -901,14 +908,14 @@ export async function POST(request: NextRequest) {
       console.error('[Analyze] Request timed out after 270s')
       await refundAnalysis()
       return NextResponse.json(
-        { error: 'Analysis timed out — your credits have been refunded. Please try again.' },
+        { error: 'Analysis timed out — your analysis has been refunded. Please try again.' },
         { status: 504 },
       )
     }
     console.error('[Analyze] Unhandled error:', error instanceof Error ? error.message : String(error))
     await refundAnalysis()
     return NextResponse.json(
-      { error: 'Analysis failed — your credits have been refunded. Please try again.' },
+      { error: 'Analysis failed — your analysis has been refunded. Please try again.' },
       { status: 500 },
     )
   }

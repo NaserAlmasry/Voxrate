@@ -1,48 +1,35 @@
 // ============================================================
 // app/lib/cron-auth.ts
-//
-// Cron HMAC verification — timing-safe secret check, IP allowlist,
-// and replay-prevention window for internal cron-triggered requests.
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server'
+import { timingSafeEqual } from 'crypto'
 
-/**
- * Timing-safe comparison of cron secret header vs env secret.
- * Pads both buffers to same length before compare to avoid leaking
- * secret length via timing (early return on length mismatch is a side-channel).
- */
+function safeCompare(a: string, b: string): boolean {
+  const maxLen = Math.max(a.length, b.length)
+  const bufA = Buffer.alloc(maxLen)
+  const bufB = Buffer.alloc(maxLen)
+  Buffer.from(a).copy(bufA)
+  Buffer.from(b).copy(bufB)
+  return timingSafeEqual(bufA, bufB) && a.length === b.length
+}
+
 export function isCronRequest(request: NextRequest): boolean {
   const cronSecret = process.env.CRON_SECRET
   const cronHeader = request.headers.get('x-cron-secret')
   if (!cronSecret || !cronHeader) return false
-  try {
-    const maxLen = Math.max(cronSecret.length, cronHeader.length)
-    const a = Buffer.alloc(maxLen)
-    const b = Buffer.alloc(maxLen)
-    Buffer.from(cronSecret).copy(a)
-    Buffer.from(cronHeader).copy(b)
-    return require('crypto').timingSafeEqual(a, b)
-  } catch { return false }
+  return safeCompare(cronSecret, cronHeader)
 }
 
-/**
- * Verifies an incoming cron request: timing-safe secret, optional IP
- * allowlist, and a 5-minute replay-prevention window.
- *
- * Returns null when the request is a valid cron call (caller should proceed),
- * or a NextResponse with the appropriate error when invalid.
- *
- * Returns `{ isCron: false }` when this is NOT a cron request — caller should
- * fall back to normal session/CSRF auth.
- */
 export function verifyCronRequest(
   request: NextRequest,
 ): { isCron: true; error: NextResponse | null } | { isCron: false } {
   if (!isCronRequest(request)) return { isCron: false }
 
-  // H3: if cron secret matches, also verify the caller IP is in the allowlist
   const allowedIps = (process.env.CRON_ALLOWED_IPS ?? '').split(',').map(s => s.trim()).filter(Boolean)
+  if (allowedIps.length === 0 && process.env.NODE_ENV === 'production') {
+    console.warn('[CronAuth] SECURITY: CRON_ALLOWED_IPS not set — cron bypass accepts any IP. Set this to Vercel internal IPs for defense in depth.')
+  }
   if (allowedIps.length > 0) {
     const callerIp =
       request.headers.get('x-real-ip') ||
@@ -53,7 +40,6 @@ export function verifyCronRequest(
     }
   }
 
-  // Replay-prevention: cron caller must include a fresh x-cron-ts timestamp
   const cronTs = request.headers.get('x-cron-ts')
   if (!cronTs) {
     return { isCron: true, error: NextResponse.json({ error: 'Missing x-cron-ts header' }, { status: 401 }) }
@@ -64,4 +50,28 @@ export function verifyCronRequest(
   }
 
   return { isCron: true, error: null }
+}
+
+// Used by Vercel-scheduled cron routes (Authorization: Bearer pattern)
+export function verifyCronBearer(request: NextRequest): NextResponse | null {
+  const cronSecret = process.env.CRON_SECRET
+  if (!cronSecret) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const authHeader = request.headers.get('authorization') || ''
+  if (!safeCompare(`Bearer ${cronSecret}`, authHeader)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const allowedIps = (process.env.CRON_ALLOWED_IPS ?? '').split(',').map(s => s.trim()).filter(Boolean)
+  if (allowedIps.length > 0) {
+    const callerIp =
+      request.headers.get('x-real-ip') ||
+      request.headers.get('x-forwarded-for')?.split(',').at(0)?.trim() ||
+      ''
+    if (!allowedIps.includes(callerIp)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+  }
+
+  return null
 }

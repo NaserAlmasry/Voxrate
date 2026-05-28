@@ -8,8 +8,8 @@
 //   5. Update last_run_at and reschedule next_run_at
 
 import { NextRequest, NextResponse } from 'next/server'
-import { timingSafeEqual } from 'crypto'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { verifyCronBearer } from '@/app/lib/cron-auth'
 import { scrapeAmazonFree } from '@/app/lib/amazon-scraper'
 import { sendSentimentAlert } from '@/app/lib/email'
 import { FREQUENCY_CREDITS, FREQUENCY_DAYS } from '@/app/api/sentiment-alerts/route'
@@ -23,14 +23,8 @@ function nextRunISO(freq: Frequency, from = new Date()): string {
 }
 
 export async function GET(request: NextRequest) {
-  const cronSecret = process.env.CRON_SECRET
-  if (!cronSecret) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const authHeader = request.headers.get('authorization') || ''
-  const expected = Buffer.from(`Bearer ${cronSecret}`)
-  const actual   = Buffer.from(authHeader)
-  if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const authError = verifyCronBearer(request)
+  if (authError) return authError
 
   const supabase = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

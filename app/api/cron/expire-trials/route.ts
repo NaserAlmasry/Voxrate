@@ -1,33 +1,47 @@
-// Runs daily — expires free trials that have passed their 14-day window
+// Runs daily — expires free trials and referral reward plans that have passed their window
 
 import { NextRequest, NextResponse } from 'next/server'
-import { timingSafeEqual } from 'crypto'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { verifyCronBearer } from '@/app/lib/cron-auth'
 
 export const maxDuration = 60
 
 export async function GET(request: NextRequest) {
-  const cronSecret = process.env.CRON_SECRET
-  if (!cronSecret) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const authHeader = request.headers.get('authorization') || ''
-  const expected   = Buffer.from(`Bearer ${cronSecret}`)
-  const actual     = Buffer.from(authHeader)
-  if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const authError = verifyCronBearer(request)
+  if (authError) return authError
 
   const supabase = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   )
 
-  const { data: count, error } = await supabase.rpc('expire_free_trials')
-  if (error) {
-    console.error('[ExpireTrials] RPC failed:', error.message)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  // Expire free trials
+  const { data: trialCount, error: trialError } = await supabase.rpc('expire_free_trials')
+  if (trialError) {
+    console.error('[ExpireTrials] RPC failed:', trialError.message)
+    return NextResponse.json({ error: trialError.message }, { status: 500 })
   }
 
-  console.log(`[ExpireTrials] Expired ${count} trial(s)`)
-  return NextResponse.json({ expired: count })
+  // Downgrade referral reward plans that have expired
+  const now = new Date().toISOString()
+  const { data: expiredRewards, error: rewardError } = await supabase
+    .from('users')
+    .update({
+      plan:                          'free',
+      own_analyses_remaining:        0,
+      competitor_analyses_remaining: 0,
+      reward_expires_at:             null,
+    })
+    .not('reward_expires_at', 'is', null)
+    .lt('reward_expires_at', now)
+    .is('stripe_subscription_id', null)
+    .select('id')
+
+  if (rewardError) {
+    console.error('[ExpireTrials] Reward expiry failed:', rewardError.message)
+  }
+
+  const expiredRewardCount = expiredRewards?.length ?? 0
+  console.log(`[ExpireTrials] Expired ${trialCount} trial(s), ${expiredRewardCount} reward(s)`)
+  return NextResponse.json({ expiredTrials: trialCount, expiredRewards: expiredRewardCount })
 }

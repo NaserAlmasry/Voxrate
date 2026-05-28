@@ -19,6 +19,16 @@ export async function POST(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   )
 
+  const { data: existing } = await admin
+    .from('users')
+    .select('trial_activated')
+    .eq('id', user.id)
+    .single()
+
+  if (existing?.trial_activated) {
+    return NextResponse.json({ error: 'Trial already activated' }, { status: 409 })
+  }
+
   const { error } = await admin.rpc('activate_free_trial', { p_user_id: user.id })
   if (error) {
     console.error('[Trial] activate_free_trial failed:', error.message)

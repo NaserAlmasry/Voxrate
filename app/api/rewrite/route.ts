@@ -22,7 +22,8 @@ export async function POST(request: NextRequest) {
 
   const body        = await request.json()
   const description = typeof body?.description === 'string' ? body.description.trim().slice(0, 3000) : ''
-  const reportId    = typeof body?.reportId     === 'string' ? body.reportId    : null
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  const reportId = typeof body?.reportId === 'string' && UUID_RE.test(body.reportId) ? body.reportId : null
   const productName = typeof body?.productName  === 'string' ? body.productName.slice(0, 200) : ''
 
   if (!description) return NextResponse.json({ error: 'Description is required' }, { status: 400 })
