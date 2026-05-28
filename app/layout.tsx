@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { DM_Sans } from "next/font/google";
-import { Analytics } from "@vercel/analytics/next";
 import { ToastProvider } from "@/app/components/Toast";
 import CookieBanner from "@/app/components/CookieBanner";
 import "./globals.css";
@@ -309,7 +308,6 @@ export default function RootLayout({
           {children}
         </ToastProvider>
         <CookieBanner />
-        <Analytics />
       </body>
     </html>
   );
