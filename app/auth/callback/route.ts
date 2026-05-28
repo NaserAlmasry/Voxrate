@@ -12,7 +12,6 @@ export async function GET(request: Request) {
   const type           = searchParams.get('type')
   const pendingPlan    = searchParams.get('pendingPlan')
   const pendingBilling = searchParams.get('pendingBilling')
-  const pendingPack    = searchParams.get('pendingPack')
 
   // Password reset flow — verify the token then send to reset page
   if (tokenHash && type === 'recovery') {
@@ -54,10 +53,6 @@ export async function GET(request: Request) {
         console.error('[Auth Callback] Trial activation failed (non-fatal):', e)
       }
     }
-  }
-
-  if (pendingPack && ['starter_pack', 'growth_pack', 'pro_pack'].includes(pendingPack)) {
-    return NextResponse.redirect(`${origin}/dashboard?pack=${pendingPack}${isEmailVerification ? '&verified=true' : ''}`)
   }
 
   if (

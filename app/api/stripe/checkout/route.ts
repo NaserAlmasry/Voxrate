@@ -23,23 +23,6 @@ const SUBSCRIPTION_PRICE_IDS: Record<string, string> = {
   pro_annual:      process.env.STRIPE_PRICE_PRO_ANNUAL!,
 }
 
-const SUBSCRIPTION_CREDITS: Record<string, number> = {
-  starter: 300,
-  growth:  800,
-  pro:     2000,
-}
-
-const CREDIT_PACK_PRICE_IDS: Record<string, string> = {
-  starter_pack: process.env.STRIPE_PRICE_STARTER_PACK!,
-  growth_pack:  process.env.STRIPE_PRICE_GROWTH_PACK!,
-  pro_pack:     process.env.STRIPE_PRICE_PRO_PACK!,
-}
-
-const CREDIT_PACK_AMOUNTS: Record<string, number> = {
-  starter_pack: 100,
-  growth_pack:  300,
-  pro_pack:     700,
-}
 
 export async function POST(request: NextRequest) {
   const stripe = getStripe()
@@ -57,39 +40,10 @@ export async function POST(request: NextRequest) {
     if (!limit.allowed) return NextResponse.json({ error: 'Too many requests.' }, { status: 429 })
 
     const body = await request.json()
-    const { type, plan, billing, pack } = body
+    const { plan, billing } = body
 
     const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://voxrate.app'
     const window = Math.floor(Date.now() / 60000)
-
-    // ── Credit pack (one-time payment) ────────────────────────
-    if (type === 'credit_pack') {
-      if (!pack || !CREDIT_PACK_PRICE_IDS[pack]) {
-        return NextResponse.json({ error: 'Invalid credit pack selected' }, { status: 400 })
-      }
-
-      const idempotencyKey = `creditpack_${user.id}_${pack}_${window}`
-
-      const session = await stripe.checkout.sessions.create(
-        {
-          mode: 'payment',
-          payment_method_types: ['card'],
-          line_items: [{ price: CREDIT_PACK_PRICE_IDS[pack], quantity: 1 }],
-          success_url: `${SITE_URL}/dashboard?upgraded=true`,
-          cancel_url:  `${SITE_URL}/#pricing`,
-          customer_email: user.email,
-          metadata: {
-            user_id:     user.id,
-            type:        'credit_pack',
-            pack,
-            credits:     String(CREDIT_PACK_AMOUNTS[pack]),
-          },
-        },
-        { idempotencyKey },
-      )
-
-      return NextResponse.json({ url: session.url })
-    }
 
     // ── Subscription ──────────────────────────────────────────
     const billingMode = billing || 'monthly'
@@ -103,7 +57,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid plan selected' }, { status: 400 })
     }
 
-    const subscriptionCredits = SUBSCRIPTION_CREDITS[plan] ?? 300
     const idempotencyKey = `checkout_${user.id}_${plan}_${billingMode}_${window}`
 
     const session = await stripe.checkout.sessions.create(
@@ -119,15 +72,13 @@ export async function POST(request: NextRequest) {
           type:    'subscription',
           plan,
           billing: billingMode,
-          credits: String(subscriptionCredits),
-        },
+                  },
         subscription_data: {
           metadata: {
             user_id: user.id,
             plan,
             billing: billingMode,
-            credits: String(subscriptionCredits),
-          },
+                      },
         },
       },
       { idempotencyKey },

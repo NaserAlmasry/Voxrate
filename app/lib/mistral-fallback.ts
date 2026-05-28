@@ -219,8 +219,7 @@ export async function callMistralLatest(messages: Message[], maxTokens: number):
   throw new Error('All LLM providers exhausted after 3 attempts')
 }
 
-// ── Legacy export used by csv-analysis.ts (callWithFallback) ──────────────
-// Kept for backward compatibility — internally uses the same 3-tier chain.
+// ── Legacy export (callWithFallback) — kept for backward compatibility ──────
 
 export async function callWithFallback(
   _groqFn: () => Promise<string>,

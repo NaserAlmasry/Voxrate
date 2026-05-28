@@ -4,8 +4,7 @@ import { useState } from 'react'
 import { createClient } from '@/app/lib/supabase/client'
 
 type Plan = 'free' | 'starter' | 'growth' | 'pro'
-type Pack = 'starter_pack' | 'growth_pack' | 'pro_pack'
-type Selection = { type: 'plan'; plan: Plan } | { type: 'pack'; pack: Pack }
+type Selection = { type: 'plan'; plan: Plan }
 
 const PLANS = [
   {
@@ -15,50 +14,45 @@ const PLANS = [
     sub: '',
     badge: 'No credit card',
     badgeCls: 'bg-neutral-100 text-neutral-600',
-    desc: '1 partial analysis included · expires in 7 days',
-    features: ['20 credits (1 analysis)', 'Listing grader', 'AI rewriter', 'Reply generator'],
+    desc: '14-day trial · 3 own + 2 competitor analyses',
+    features: ['3 own analyses + 2 competitor', 'Listing grader', 'AI rewriter', 'Reply generator'],
     highlight: false,
   },
   {
     id: 'starter' as Plan,
     name: 'Starter',
-    price: '$9.99',
+    price: '$14.99',
     sub: '/mo',
     badge: 'Monthly',
     badgeCls: 'bg-neutral-200 text-neutral-700',
-    desc: '300 credits/month · ≈15 analyses',
-    features: ['300 credits/month', '1 competitor analysis/month', 'Full own-listing reports', 'All free tools'],
+    desc: '25 own analyses + 3 competitor/month',
+    features: ['25 own analyses/month', '3 competitor analyses/month', 'Full listing reports', 'All free tools'],
     highlight: false,
   },
   {
     id: 'growth' as Plan,
     name: 'Growth',
-    price: '$24.99',
+    price: '$39.99',
     sub: '/mo',
     badge: 'Most popular',
     badgeCls: 'bg-orange-500 text-white',
-    desc: '800 credits/month · ≈40 analyses',
-    features: ['800 credits/month', '3 competitor analyses per product/mo', 'Side-by-side battle card', 'All free tools'],
+    desc: '60 own analyses + 15 competitor/month',
+    features: ['60 own analyses/month', '15 competitor analyses/month', 'Review velocity alerts', 'All free tools'],
     highlight: true,
   },
   {
     id: 'pro' as Plan,
     name: 'Pro',
-    price: '$49.99',
+    price: '$59.99',
     sub: '/mo',
     badge: 'Best value',
     badgeCls: 'bg-neutral-200 text-neutral-700',
-    desc: '2,000 credits/month · ≈100 analyses',
-    features: ['2,000 credits/month', '10 competitor analyses per product/mo', 'Priority support', 'All free tools'],
+    desc: '150 own analyses + 40 competitor/month',
+    features: ['150 own analyses/month', '40 competitor analyses/month', 'Priority support', 'All free tools'],
     highlight: false,
   },
 ]
 
-const PACKS = [
-  { id: 'starter_pack' as Pack, name: 'Starter Pack', price: '$4.99', credits: '100 credits', analyses: '≈5 analyses' },
-  { id: 'growth_pack' as Pack, name: 'Growth Pack', price: '$12.99', credits: '300 credits', analyses: '≈15 analyses', popular: true },
-  { id: 'pro_pack' as Pack, name: 'Pro Pack', price: '$24.99', credits: '700 credits', analyses: '≈35 analyses' },
-]
 
 function GoogleIcon() {
   return (
@@ -80,7 +74,6 @@ interface Props {
 export default function AuthModal({ onClose, initialStep = 'plan', initialAuthMode = 'signup' }: Props) {
   const supabase = createClient()
 
-  const [tab, setTab]             = useState<'subscription' | 'packs'>('subscription')
   const [step, setStep]           = useState<'plan' | 'auth'>(initialStep)
   const [authMode, setAuthMode]   = useState<'signup' | 'login'>(initialAuthMode)
   const [selection, setSelection] = useState<Selection | null>(null)
@@ -92,9 +85,8 @@ export default function AuthModal({ onClose, initialStep = 'plan', initialAuthMo
 
   const redirectUrl = (sel: Selection) => {
     const base = window.location.origin
-    if (sel.type === 'plan' && sel.plan === 'free') return `${base}/auth/callback`
-    if (sel.type === 'plan') return `${base}/auth/callback?pendingPlan=${sel.plan}&pendingBilling=monthly`
-    return `${base}/auth/callback?pendingPack=${sel.pack}`
+    if (sel.plan === 'free') return `${base}/auth/callback`
+    return `${base}/auth/callback?pendingPlan=${sel.plan}&pendingBilling=monthly`
   }
 
   const handleGoogle = async () => {
@@ -135,13 +127,9 @@ export default function AuthModal({ onClose, initialStep = 'plan', initialAuthMo
     }
   }
 
-  const selectPlan = (sel: Selection) => { setSelection(sel); setStep('auth') }
+  const selectPlan = (plan: Plan) => { setSelection({ type: 'plan', plan }); setStep('auth') }
 
-  const selLabel = selection
-    ? selection.type === 'plan'
-      ? PLANS.find(p => p.id === selection.plan)?.name + ' plan'
-      : PACKS.find(p => p.id === selection.pack)?.name
-    : ''
+  const selLabel = selection ? PLANS.find(p => p.id === selection.plan)?.name + ' plan' : ''
 
   return (
     <div
@@ -170,58 +158,28 @@ export default function AuthModal({ onClose, initialStep = 'plan', initialAuthMo
           {/* ── STEP 1: Plan picker ── */}
           {!emailSent && step === 'plan' && (
             <>
-              <div className="flex gap-1 bg-neutral-100 p-1 rounded-xl mb-4">
-                {(['subscription', 'packs'] as const).map(t => (
-                  <button key={t} onClick={() => setTab(t)}
-                    className={`flex-1 py-1.5 text-xs font-medium rounded-lg transition-all ${tab === t ? 'bg-white shadow-sm text-black' : 'text-neutral-500 hover:text-black'}`}>
-                    {t === 'subscription' ? 'Monthly plans' : 'One-time packs'}
+              <div className="space-y-2.5">
+                {PLANS.map(p => (
+                  <button key={p.id} onClick={() => selectPlan(p.id)}
+                    className={`w-full text-left p-4 rounded-xl border-2 transition-all group ${p.highlight ? 'border-black bg-black text-white' : 'border-neutral-200 hover:border-black'}`}>
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-sm">{p.name}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${p.badgeCls}`}>{p.badge}</span>
+                      </div>
+                      <span className="font-bold text-sm">{p.price}<span className={`text-xs font-normal ${p.highlight ? 'text-neutral-400' : 'text-neutral-400'}`}>{p.sub}</span></span>
+                    </div>
+                    <p className={`text-xs mb-2 ${p.highlight ? 'text-neutral-400' : 'text-neutral-500'}`}>{p.desc}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {p.features.map(f => (
+                        <span key={f} className={`text-xs flex items-center gap-1 ${p.highlight ? 'text-neutral-300' : 'text-neutral-500'}`}>
+                          <span className={p.highlight ? 'text-orange-400' : 'text-green-500'}>✓</span>{f}
+                        </span>
+                      ))}
+                    </div>
                   </button>
                 ))}
               </div>
-
-              {tab === 'subscription' && (
-                <div className="space-y-2.5">
-                  {PLANS.map(p => (
-                    <button key={p.id} onClick={() => selectPlan({ type: 'plan', plan: p.id })}
-                      className={`w-full text-left p-4 rounded-xl border-2 transition-all group ${p.highlight ? 'border-black bg-black text-white' : 'border-neutral-200 hover:border-black'}`}>
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-sm">{p.name}</span>
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${p.badgeCls}`}>{p.badge}</span>
-                        </div>
-                        <span className="font-bold text-sm">{p.price}<span className={`text-xs font-normal ${p.highlight ? 'text-neutral-400' : 'text-neutral-400'}`}>{p.sub}</span></span>
-                      </div>
-                      <p className={`text-xs mb-2 ${p.highlight ? 'text-neutral-400' : 'text-neutral-500'}`}>{p.desc}</p>
-                      <div className="flex flex-wrap gap-2">
-                        {p.features.map(f => (
-                          <span key={f} className={`text-xs flex items-center gap-1 ${p.highlight ? 'text-neutral-300' : 'text-neutral-500'}`}>
-                            <span className={p.highlight ? 'text-orange-400' : 'text-green-500'}>✓</span>{f}
-                          </span>
-                        ))}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {tab === 'packs' && (
-                <div className="space-y-2.5">
-                  <p className="text-xs text-neutral-500 mb-3">One-time purchase · credits never expire · no subscription needed</p>
-                  {PACKS.map(p => (
-                    <button key={p.id} onClick={() => selectPlan({ type: 'pack', pack: p.id })}
-                      className={`w-full text-left p-4 rounded-xl border-2 transition-all ${p.popular ? 'border-black bg-black text-white' : 'border-neutral-200 hover:border-black'}`}>
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-sm">{p.name}</span>
-                          {p.popular && <span className="text-xs bg-orange-500 text-white px-2 py-0.5 rounded-full">Popular</span>}
-                        </div>
-                        <span className="font-bold text-sm">{p.price}</span>
-                      </div>
-                      <p className={`text-xs ${p.popular ? 'text-neutral-400' : 'text-neutral-500'}`}>{p.credits} · {p.analyses} · never expire</p>
-                    </button>
-                  ))}
-                </div>
-              )}
 
               <div className="mt-5 pt-4 border-t border-neutral-100 text-center">
                 <span className="text-xs text-neutral-400">Already have an account?{' '}</span>

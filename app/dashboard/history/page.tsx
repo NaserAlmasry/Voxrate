@@ -156,7 +156,6 @@ export default function HistoryPage() {
       <div className="space-y-3">
         {reports.map(report => {
           const sc = scoreColor(report.health_score || 0)
-          const isCsv = report.product_url?.startsWith('csv:')
           const date = new Date(report.created_at).toLocaleDateString('en-US', {
             month: 'short', day: 'numeric', year: 'numeric'
           })
@@ -169,9 +168,6 @@ export default function HistoryPage() {
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
-                    {isCsv && (
-                      <span className="text-[10px] font-medium bg-neutral-100 text-neutral-500 px-1.5 py-0.5 rounded">CSV</span>
-                    )}
                     <h3 className="font-medium text-sm truncate">{report.product_name || 'Unnamed product'}</h3>
                   </div>
                   <div className="flex items-center gap-2 text-xs text-neutral-400 flex-wrap">
