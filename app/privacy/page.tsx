@@ -64,18 +64,20 @@ export default function PrivacyPage() {
 
           <section>
             <h2 className="text-base font-semibold text-neutral-900 mb-3">6. Chrome Extension</h2>
-            <p>The Voxrate Chrome extension ("Voxrate for Amazon Sellers") operates entirely within your browser and collects data on your behalf to power the features described below.</p>
+            <p>The Voxrate Chrome extension ("Voxrate for Amazon Sellers") has a single purpose: to read Amazon product review data from pages the user is actively viewing in their authenticated Amazon session and send that data to the Voxrate API for AI-powered analysis.</p>
             <ul className="list-disc pl-5 mt-3 space-y-2">
-              <li><span className="font-medium text-neutral-800">Amazon review pages:</span> The extension reads publicly visible review text from Amazon product pages you visit. This data is sent to Voxrate servers solely to populate your analysis reports. It is the same data visible to any browser visitor.</li>
+              <li><span className="font-medium text-neutral-800">Amazon review pages:</span> The extension reads publicly visible review text, star ratings, and product listing metadata from Amazon product pages you visit. This data is transmitted over HTTPS to the Voxrate API (voxrate.app) for analysis and may then be forwarded to third-party AI processing partners solely to generate the analysis output. It is the same data visible to any logged-in browser visitor.</li>
               <li><span className="font-medium text-neutral-800">Seller Central pages:</span> When you visit your Amazon Seller Central account, the extension reads account health metrics, stranded inventory counts, and return summaries that are already displayed on-screen. This data is sent to Voxrate to generate alerts. The extension never accesses, stores, or transmits your Amazon credentials, payment information, or buyer order details.</li>
               <li><span className="font-medium text-neutral-800">Listing monitoring:</span> The extension checks product listing pages (title, price, images, buy box status) at regular intervals you configure. Changes are sent to Voxrate to generate alerts.</li>
               <li><span className="font-medium text-neutral-800">Local storage:</span> The extension stores your Voxrate session token locally in Chrome storage to authenticate API calls. It is never shared with third parties.</li>
             </ul>
+            <p className="mt-3">The extension does not collect, store, or transmit any Amazon customer&apos;s personally identifiable information. It reads only review text content, star ratings, and product listing metadata visible on pages the user has loaded. It does not access any Amazon pages the user has not explicitly navigated to.</p>
             <p className="mt-3">The extension does not collect browsing history outside of Amazon domains. It does not inject ads, track affiliate links, or run any code on non-Amazon pages (except voxrate.app for authentication). All data transmitted by the extension is covered by this Privacy Policy.</p>
+            <p className="mt-3">Review and listing data transmitted by the extension is processed on AWS infrastructure in us-east-1. Analysis results are stored in your Voxrate account. Raw review text transmitted for analysis is not retained beyond the duration of the API request unless it forms part of a saved report in your account.</p>
             <p className="mt-3 font-medium text-neutral-800">Permissions used and why:</p>
             <ul className="list-disc pl-5 mt-1 space-y-1">
               <li><span className="font-medium">storage</span> — stores your session token and cached report data locally</li>
-              <li><span className="font-medium">tabs</span> — opens the review scraper in a background tab to collect paginated reviews</li>
+              <li><span className="font-medium">tabs</span> — opens Amazon review pages within your existing Amazon session to collect paginated reviews. The extension does not read, monitor, or access URLs of any tabs outside of amazon.com domains.</li>
               <li><span className="font-medium">alarms</span> — schedules periodic listing checks for monitoring alerts</li>
               <li><span className="font-medium">scripting</span> — injects content scripts on Amazon pages to read on-screen data</li>
               <li><span className="font-medium">host_permissions (Amazon domains)</span> — required to read Amazon page content in the above scripts</li>
