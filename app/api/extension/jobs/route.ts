@@ -4,7 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-const JOB_TIMEOUT_MS = 120_000 // abandon jobs older than 2 minutes (extension wasn't running)
+const JOB_TIMEOUT_MS = 30 * 60_000  // abandon stale jobs after 30 min (nav-only takes up to 25 min)
 
 function adminClient() {
   return createClient(

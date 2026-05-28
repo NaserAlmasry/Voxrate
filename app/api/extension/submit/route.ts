@@ -71,9 +71,10 @@ export async function POST(req: NextRequest) {
     .filter((r: AmazonReview) => r.rating >= 1 && r.rating <= 5 && r.body && r.body.trim().length >= 20)
     .slice(0, 500)
 
+  const partialErrors = new Set(['timeout', 'amazon_throttled'])
   const status = !amazonLoggedIn
     ? 'amazon_not_logged_in'
-    : error === 'timeout'
+    : partialErrors.has(error ?? '')
     ? 'partial'
     : error
     ? 'failed'

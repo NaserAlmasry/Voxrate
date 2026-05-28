@@ -349,7 +349,16 @@ function DashboardHomeInner() {
         signal: controller.signal,
       })
       const data = await response.json()
-      if (!response.ok) { setError(data.error || 'Analysis failed.'); setLoading(false); return }
+      if (!response.ok) {
+        if (data.extensionCooldown && data.waitSeconds) {
+          const mins = Math.ceil(data.waitSeconds / 60)
+          setError(`⏳ Extension cooling down — next analysis ready in ${mins > 1 ? `${mins} min` : `${data.waitSeconds}s`}. This protects your Amazon account from being flagged.`)
+        } else {
+          setError(data.error || 'Analysis failed.')
+        }
+        setLoading(false)
+        return
+      }
       window.location.href = `/dashboard/report/${data.reportId}`
     } catch (err: any) {
       if (!cancelledRef.current && err?.name !== 'AbortError') setError('Something went wrong.')

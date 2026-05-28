@@ -743,10 +743,25 @@ export async function POST(request: NextRequest) {
       console.log(`[Pipeline] Starting Amazon scrape: ${productUrl} (plan: ${plan})`)
 
       const isFreeUser   = !isAdminUser && plan === 'free'
-      const scrapeResult = await withRetry(
-        () => isFreeUser ? scrapeAmazonFree(productUrl) : scrapeAmazon(productUrl, plan, user.id),
-        2,
-      )
+      let scrapeResult
+      try {
+        scrapeResult = await withRetry(
+          () => isFreeUser ? scrapeAmazonFree(productUrl) : scrapeAmazon(productUrl, plan, user.id),
+          2,
+        )
+      } catch (err: any) {
+        if (err?.message?.startsWith('extension_cooldown:')) {
+          const waitSec = parseInt(err.message.split(':')[1] ?? '60')
+          const mins = Math.ceil(waitSec / 60)
+          await refundAnalysis()
+          return NextResponse.json({
+            error: `Your extension is cooling down to protect your Amazon account. Please wait ${mins > 1 ? `${mins} minutes` : `${waitSec} seconds`} before starting the next analysis.`,
+            extensionCooldown: true,
+            waitSeconds: waitSec,
+          }, { status: 429 })
+        }
+        throw err
+      }
       const { product: amazonProduct, reviews: rawReviews, qa } = scrapeResult
 
       const product = {

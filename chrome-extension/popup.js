@@ -26,7 +26,17 @@ async function init() {
   $('trial-expired-view').style.display = 'none'
 
   $('jobs-today').textContent = status.jobsToday
-  $('busy-row').style.display = status.busy ? 'flex' : 'none'
+
+  // Show cooldown if active
+  const { voxrate_cooldown_until } = await chrome.storage.local.get('voxrate_cooldown_until')
+  const cooldownLeft = voxrate_cooldown_until ? Math.max(0, voxrate_cooldown_until - Date.now()) : 0
+  if (cooldownLeft > 0 && !status.busy) {
+    const mins = Math.ceil(cooldownLeft / 60000)
+    $('busy-row').style.display = 'flex'
+    $('busy-row').querySelector('span').textContent = `Next analysis ready in ~${mins} min`
+  } else {
+    $('busy-row').style.display = status.busy ? 'flex' : 'none'
+  }
 
   if (status.lastAsin) {
     $('last-asin').textContent = status.lastAsin

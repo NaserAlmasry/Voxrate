@@ -140,15 +140,25 @@ const DOMAIN_MAP: Record<string, string> = {
 }
 
 // ── Chrome Extension scraper ──────────────────────────────────────
+// Per-plan cooldown between extension jobs (protects user's IP from Amazon flagging)
+const EXTENSION_COOLDOWN_MS: Record<string, number> = {
+  starter: 5 * 60_000,   // 5 min
+  growth:  3 * 60_000,   // 3 min
+  pro:     90_000,        // 90 sec
+  trial:   10 * 60_000,  // 10 min
+  free:    5 * 60_000,
+}
+
 // Creates a job in extension_jobs, waits up to 60s for the extension to
 // complete it, then returns the reviews. Returns null if no extension is
-// connected or if it times out.
+// connected or if it times out. Throws 'extension_cooldown:Xs' if too soon.
 
 async function fetchFromExtension(
   asin: string,
   marketplace: string,
   maxReviews: number,
   userId: string,
+  plan = 'starter',
 ): Promise<AmazonReview[] | null> {
   const supabase = getAdminClient()
 
@@ -164,6 +174,25 @@ async function fetchFromExtension(
   if (!session) {
     console.log('[Extension] No active extension session for user — skipping')
     return null
+  }
+
+  // Enforce per-plan cooldown — check last completed job
+  const cooldownMs = EXTENSION_COOLDOWN_MS[plan] ?? EXTENSION_COOLDOWN_MS.starter
+  const { data: lastJob } = await supabase
+    .from('extension_jobs')
+    .select('completed_at')
+    .eq('user_id', userId)
+    .in('status', ['completed', 'partial'])
+    .order('completed_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (lastJob?.completed_at) {
+    const msSinceLast = Date.now() - new Date(lastJob.completed_at).getTime()
+    if (msSinceLast < cooldownMs) {
+      const waitSec = Math.ceil((cooldownMs - msSinceLast) / 1000)
+      throw new Error(`extension_cooldown:${waitSec}`)
+    }
   }
 
   // Create a pending job
@@ -278,7 +307,7 @@ export async function scrapeAmazon(input: string, plan = 'starter', userId?: str
   // Primary: Chrome Extension (user's own logged-in browser — bypasses all Amazon blocks)
   if (userId) {
     try {
-      const extReviews = await fetchFromExtension(asin, marketplace, maxReviews, userId)
+      const extReviews = await fetchFromExtension(asin, marketplace, maxReviews, userId, plan)
       if (extReviews && extReviews.length > 0) {
         allReviews      = rebalanceReviews(extReviews, productData.ratingBreakdown)
         scraperProvider = 'extension'
