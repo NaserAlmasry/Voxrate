@@ -127,6 +127,14 @@ async function runResumePath(saved) {
       return
     }
 
+    // Bail early if Amazon is walling us — unfiltered page returned 0 reviews on first page
+    if (state.unfilteredPages === 1 && newOnes.length === 0 && state.reviews.length === 0) {
+      chrome.runtime.sendMessage({ type: 'CONTENT_LOG', msg: 'Zero reviews on unfiltered page — aws-waf-token likely missing. Browse Amazon naturally for a few minutes, then retry.' })
+      sessionStorage.removeItem('voxrate_job')
+      finish(jobId, asin, [], false)
+      return
+    }
+
     // Transition to filtered phase
     state.phase     = 'filtered'
     state.filterIdx = 0
