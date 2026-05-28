@@ -7,7 +7,7 @@
 import { useState, useEffect, useRef, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/app/lib/supabase/client'
-import { AlertTriangle, Lightbulb, TrendingUp, Crosshair, Dumbbell, BarChart2, Sparkles } from 'lucide-react'
+import { AlertTriangle, Lightbulb, TrendingUp, Crosshair, Dumbbell, BarChart2, Sparkles, Zap, RotateCcw, Clock } from 'lucide-react'
 
 export const SIMULATE_USER_KEY = 'voxrate_simulate_user'
 
@@ -27,6 +27,7 @@ function DashboardHomeInner() {
   const [cachedReport, setCachedReport] = useState<{ id: string; productName: string } | null>(null)
   const [analysesCount, setAnalysesCount] = useState(0)
   const [credits, setCredits] = useState<number | null>(null)
+  const [planRenewalDate, setPlanRenewalDate] = useState<string | null>(null)
   const [latestReport, setLatestReport] = useState<any>(null)
   const [simulatingUser, setSimulatingUser] = useState(false)
   const [userPlan, setUserPlan] = useState('free')
@@ -212,11 +213,12 @@ function DashboardHomeInner() {
         if (!user?.id) { setLoading(false); return }
 
         const { data: userData } = await supabase
-          .from('users').select('analyses_count, plan, is_admin, own_analyses_remaining').eq('id', user.id).single()
+          .from('users').select('analyses_count, plan, is_admin, own_analyses_remaining, competitor_analyses_remaining, stripe_current_period_end, trial_ends_at').eq('id', user.id).single()
 
         if (userData) {
           setAnalysesCount(userData.analyses_count || 0)
-          setCredits(userData.own_analyses_remaining ?? 0)
+          setCredits((userData.own_analyses_remaining ?? 0) + (userData.competitor_analyses_remaining ?? 0))
+          setPlanRenewalDate(userData.stripe_current_period_end ?? userData.trial_ends_at ?? null)
           if (userData.plan) setUserPlan(userData.plan)
           if (userData.is_admin === true) setIsAdminUser(true)
         }
@@ -481,6 +483,67 @@ function DashboardHomeInner() {
           </a>
         </div>
       )}
+
+      {/* ── Usage card ── */}
+      {credits !== null && userPlan !== 'free' && !simulatingUser && (() => {
+        const PLAN_POOL: Record<string, number> = { trial: 5, starter: 35, growth: 80, pro: 220 }
+        const PLAN_BURST: Record<string, number> = { trial: 2, starter: 3, growth: 5, pro: 8 }
+        const pool  = PLAN_POOL[userPlan]  ?? 35
+        const burst = PLAN_BURST[userPlan] ?? 3
+        const used  = Math.max(0, pool - credits)
+        const pct   = Math.min(100, Math.round((used / pool) * 100))
+        const renewLabel = planRenewalDate
+          ? new Date(planRenewalDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+          : 'next billing date'
+        const barColor = pct >= 90 ? 'bg-red-500' : pct >= 65 ? 'bg-orange-500' : 'bg-green-500'
+        return (
+          <div className="bg-white border border-neutral-200 rounded-2xl p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Zap size={15} className="text-orange-500" />
+                <p className="text-sm font-semibold text-neutral-800">Analyses this month</p>
+              </div>
+              <span className="text-xs text-neutral-400 capitalize">{userPlan} plan</span>
+            </div>
+
+            {/* Progress bar */}
+            <div className="mb-1.5">
+              <div className="h-2 bg-neutral-100 rounded-full overflow-hidden">
+                <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${pct}%` }} />
+              </div>
+            </div>
+            <div className="flex items-center justify-between text-xs text-neutral-500 mb-4">
+              <span><span className="font-semibold text-neutral-800">{credits}</span> remaining of {pool}</span>
+              <span>{pct}% used</span>
+            </div>
+
+            {/* Two stat pills */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex items-center gap-2 bg-neutral-50 rounded-xl px-3 py-2.5">
+                <Clock size={13} className="text-neutral-400 flex-shrink-0" />
+                <div>
+                  <p className="text-[10px] text-neutral-400">Burst limit</p>
+                  <p className="text-xs font-semibold text-neutral-700">{burst} per 30 min</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 bg-neutral-50 rounded-xl px-3 py-2.5">
+                <RotateCcw size={13} className="text-neutral-400 flex-shrink-0" />
+                <div>
+                  <p className="text-[10px] text-neutral-400">Resets</p>
+                  <p className="text-xs font-semibold text-neutral-700">{renewLabel}</p>
+                </div>
+              </div>
+            </div>
+
+            {credits < 5 && (
+              <div className="mt-3 flex items-center justify-between gap-2 p-2.5 bg-orange-50 border border-orange-100 rounded-xl">
+                <p className="text-xs text-orange-700">Running low — unused analyses roll over next month.</p>
+                <a href="/#pricing" className="flex-shrink-0 text-xs font-semibold text-orange-600 hover:text-orange-700 underline underline-offset-2">Upgrade</a>
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       {/* ── Weekly digest card ── */}
       {weeklyDigest && !digestDismissed && (
