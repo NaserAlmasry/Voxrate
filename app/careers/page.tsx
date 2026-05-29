@@ -51,17 +51,17 @@ export default function CareersPage() {
       <section className="px-6 py-20 max-w-4xl mx-auto text-center animate-fadeIn">
         <p className="text-xs uppercase tracking-widest text-[#f05a1e] font-semibold mb-4">Voxrate Ambassadors</p>
         <h1 className="text-4xl md:text-6xl font-bold tracking-tight mb-6">
-          Earn 30% on every customer you bring.
+          Earn up to 40% on every customer you bring.
         </h1>
         <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-          Join as a Brand Ambassador. 3-month paid internship, real commission, certificate of completion, and a path to a full-time role.
+          Join as a Brand Ambassador. 3-month commission-based internship, real earnings, certificate of completion, and a path to a full-time role.
         </p>
       </section>
 
       <section className="px-6 pb-20 max-w-5xl mx-auto">
         <div className="grid md:grid-cols-4 gap-4 scroll-fade">
           {[
-            { icon: DollarSign, title: 'Commission', body: '$4.99 – $80 per sale, recurring' },
+            { icon: DollarSign, title: 'Commission', body: '$4.99 – $23.99 per sale, recurring' },
             { icon: Award, title: 'Certificate', body: 'Official letter upon completion' },
             { icon: Crown, title: 'Pro Access', body: 'Free Voxrate Pro on request' },
             { icon: Briefcase, title: 'Career Path', body: 'Full-time after 12 months' },
@@ -99,24 +99,33 @@ export default function CareersPage() {
         <div className="overflow-hidden rounded-2xl border border-gray-100">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-gray-500 uppercase text-xs tracking-wider">
-              <tr><th className="text-left px-6 py-4">Plan</th><th className="text-left px-6 py-4">Monthly</th><th className="text-right px-6 py-4">Your commission</th></tr>
+              <tr>
+                <th className="text-left px-6 py-4">Plan</th>
+                <th className="text-left px-6 py-4">Monthly</th>
+                <th className="text-right px-6 py-4 text-gray-400">Commission (monthly)</th>
+                <th className="text-left px-6 py-4 border-l border-gray-100 pl-6">Annual</th>
+                <th className="text-right px-6 py-4 text-gray-400">Commission (one-time)</th>
+              </tr>
             </thead>
             <tbody>
               {[
-                { p: 'Starter', m: '$14.99', c: '$4.99' },
-                { p: 'Growth', m: '$49.99', c: '$16.49' },
-                { p: 'Pro', m: '$99.99', c: '$32.99' },
+                { p: 'Starter', m: '$14.99', cm: '$4.99',  a: '$149.99', ca: '$49.99'  },
+                { p: 'Growth',  m: '$39.99', cm: '$14.99', a: '$389.99', ca: '$89.99'  },
+                { p: 'Pro',     m: '$59.99', cm: '$23.99', a: '$589.99', ca: '$189.99' },
               ].map(r => (
                 <tr key={r.p} className="border-t border-gray-100">
                   <td className="px-6 py-4 font-semibold">{r.p}</td>
                   <td className="px-6 py-4 text-gray-600">{r.m}</td>
-                  <td className="px-6 py-4 text-right text-[#f05a1e] font-bold">{r.c}</td>
+                  <td className="px-6 py-4 text-right text-[#f05a1e] font-bold">{r.cm}</td>
+                  <td className="px-6 py-4 text-gray-600 border-l border-gray-100 pl-6">{r.a}</td>
+                  <td className="px-6 py-4 text-right text-[#f05a1e] font-bold">{r.ca}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        <p className="text-xs text-gray-500 text-center mt-4">Recurring for as long as they stay subscribed.</p>
+        <p className="text-xs text-gray-500 text-center mt-4">Monthly commission recurs for as long as they stay subscribed. Annual commission is paid once when they purchase.</p>
+        <p className="text-xs text-[#f05a1e] text-center mt-1 font-medium">+$2/month extra when you refer a friend ambassador who brings their first customer.</p>
       </section>
 
       <section className="px-6 py-20 bg-gray-50">
