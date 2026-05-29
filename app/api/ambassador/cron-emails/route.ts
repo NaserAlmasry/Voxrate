@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
     const lastDay = a.last_email_day || 0
     const due = DAYS.filter(d => d <= ageDays && d > lastDay)
     if (due.length === 0) continue
-    const day = due[due.length - 1]
+    const day = due[0]
 
     try {
       if (day === 2) await sendAmbassadorDay2(a.email, a.name)

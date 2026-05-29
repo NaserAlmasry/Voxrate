@@ -110,12 +110,16 @@ export default function AuthModal({ onClose, initialStep = 'plan', initialAuthMo
 
   const redirectUrl = (sel: Selection) => {
     const base = window.location.origin
-    if (sel.plan === 'free') return `${base}/auth/callback`
-    return `${base}/auth/callback?pendingPlan=${sel.plan}&pendingBilling=monthly`
+    const pending = sessionStorage.getItem('voxrate_pending_pro')
+    const proParam = pending ? `&pendingProCode=${encodeURIComponent(JSON.parse(pending).code)}` : ''
+    if (sel.plan === 'free') return `${base}/auth/callback${proParam ? '?' + proParam.slice(1) : ''}`
+    return `${base}/auth/callback?pendingPlan=${sel.plan}&pendingBilling=monthly${proParam}`
   }
 
   const handleGoogle = async () => {
-    const redirect = selection ? redirectUrl(selection) : `${window.location.origin}/auth/callback`
+    const pending = sessionStorage.getItem('voxrate_pending_pro')
+    const proParam = pending ? `?pendingProCode=${encodeURIComponent(JSON.parse(pending).code)}` : ''
+    const redirect = selection ? redirectUrl(selection) : `${window.location.origin}/auth/callback${proParam}`
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
