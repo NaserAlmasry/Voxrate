@@ -94,8 +94,9 @@ export async function GET(
     const plan = isOwnerOrAdmin ? (userData?.plan || 'free') : 'free'
     const filteredReport = applyPlanLimits(report.full_report, plan, isAdmin && isOwnerOrAdmin)
 
+    const { user_id: _uid, ...safeReport } = report
     return NextResponse.json({
-      ...report,
+      ...safeReport,
       full_report: filteredReport,
       _isSharedView: !isOwnerOrAdmin,
     })

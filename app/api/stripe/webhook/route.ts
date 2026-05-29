@@ -56,11 +56,9 @@ export async function POST(request: NextRequest) {
     }
 
     if (useProcessedFlag) {
-      // BUG 7 fix: insert with processed:true immediately so that any crash after this
-      // point does not allow a retry to re-grant credits (mark-before-grant pattern).
       const { error: upsertError } = await supabase
         .from('processed_webhook_events')
-        .upsert({ stripe_event_id: event.id, processed: true }, { onConflict: 'stripe_event_id' })
+        .upsert({ stripe_event_id: event.id, processed: false }, { onConflict: 'stripe_event_id' })
       if (upsertError && /column .* does not exist/i.test(upsertError.message || '')) {
         useProcessedFlag = false
       } else if (upsertError) {
@@ -226,13 +224,6 @@ export async function POST(request: NextRequest) {
         const periodEnd = (subscription as any).current_period_end ?? null
         console.log(`[Webhook] Monthly renewal for user ${userId} — rolling over ${allotment.own} own + ${allotment.competitor} competitor analyses (cap ${allotment.rolloverCap}x)`)
 
-        const { error: renewUpdateError } = await supabase.from('users').update({ plan, stripe_current_period_end: periodEnd }).eq('id', userId)
-        if (renewUpdateError) {
-          // BUG 7 fix: do NOT delete idempotency row — log for manual resolution
-          console.error(`[Webhook] Renewal plan update failed — MANUAL REVIEW NEEDED:`, renewUpdateError.message)
-          return NextResponse.json({ error: 'Plan update failed' }, { status: 500 })
-        }
-
         // Rollover: add monthly allotment to remaining, cap at rolloverCap × monthly
         const { error: rolloverError } = await supabase.rpc('renew_analyses_with_rollover', {
           p_user_id:            userId,
@@ -241,13 +232,19 @@ export async function POST(request: NextRequest) {
           p_rollover_cap:       allotment.rolloverCap,
         })
 
-        // Reset emergency re-analyze override — non-fatal
-        try { await supabase.rpc('reset_reanalyze_override', { p_user_id: userId }) } catch (_) {}
         if (rolloverError) {
-          // BUG 7 fix: do NOT delete idempotency row — log for manual resolution
           console.error(`[Webhook] Rollover RPC failed on renewal — MANUAL REVIEW NEEDED:`, rolloverError.message)
           return NextResponse.json({ error: 'Analyses rollover failed' }, { status: 500 })
         }
+
+        const { error: renewUpdateError } = await supabase.from('users').update({ plan, stripe_current_period_end: periodEnd }).eq('id', userId)
+        if (renewUpdateError) {
+          console.error(`[Webhook] Renewal plan update failed — MANUAL REVIEW NEEDED:`, renewUpdateError.message)
+          return NextResponse.json({ error: 'Plan update failed' }, { status: 500 })
+        }
+
+        // Reset emergency re-analyze override — non-fatal
+        try { await supabase.rpc('reset_reanalyze_override', { p_user_id: userId }) } catch (_) {}
         console.log(`[Webhook] ✅ Rollover applied for user ${userId} on plan ${plan}`)
         break
       }
@@ -258,7 +255,12 @@ export async function POST(request: NextRequest) {
         const userId = sub.metadata?.user_id
         if (!userId) break
         const periodEnd = (sub as any).current_period_end ?? null
-        await supabase.from('users').update({ stripe_current_period_end: periodEnd }).eq('id', userId)
+        const newPlan = sub.metadata?.plan
+        const updatePayload: any = { stripe_current_period_end: periodEnd }
+        if (newPlan && ['starter','growth','pro'].includes(newPlan)) {
+          updatePayload.plan = newPlan
+        }
+        await supabase.from('users').update(updatePayload).eq('id', userId)
         break
       }
 
@@ -283,8 +285,8 @@ export async function POST(request: NextRequest) {
         console.log(`[Webhook] Subscription cancelled for user ${userId} — downgrading to free`)
         await supabase.from('users').update({
           plan:                          'free',
-          own_analyses_remaining:        0,
-          competitor_analyses_remaining: 0,
+          own_analyses_remaining:        PLAN_ANALYSES.free.own,
+          competitor_analyses_remaining: PLAN_ANALYSES.free.competitor,
           stripe_current_period_end:     null,
         }).eq('id', userId)
         break
@@ -306,9 +308,12 @@ export async function POST(request: NextRequest) {
         console.log(`[Webhook] Unhandled event: ${event.type}`)
     }
 
-    // BUG 7 fix: processed:true is set BEFORE credit grants (mark-before-grant pattern).
-    // No need to update again here — if grant fails, the row stays processed:true
-    // so retries do not re-grant. Errors are logged above in each event handler.
+    if (useProcessedFlag) {
+      await supabase
+        .from('processed_webhook_events')
+        .update({ processed: true })
+        .eq('stripe_event_id', event.id)
+    }
 
     return NextResponse.json({ received: true })
 

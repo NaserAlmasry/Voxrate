@@ -173,10 +173,6 @@ async function poll() {
     chrome.storage.local.remove('voxrate_trial_expired')
     const data = await res.json()
     job = data.job
-    if (data.cooldown) {
-      chrome.storage.local.set({ voxrate_cooldown_until: Date.now() + data.waitSeconds * 1000 })
-      return
-    }
     chrome.storage.local.remove('voxrate_cooldown_until')
   } catch {
     return

@@ -521,19 +521,23 @@ export async function POST(request: NextRequest) {
 
   const refundAnalysis = async () => {
     if (!analysisDeducted || !analysisRefundUserId || analysisRefunded) return
-    analysisRefunded = true
     try {
       const adminSupabase = createAdminClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.SUPABASE_SERVICE_ROLE_KEY!,
       )
       const rpc = analysisRefundType === 'competitor' ? 'refund_competitor_analysis' : 'refund_own_analysis'
-      const { error } = await adminSupabase.rpc(rpc, { p_user_id: analysisRefundUserId })
+      let { error } = await adminSupabase.rpc(rpc, { p_user_id: analysisRefundUserId })
+      if (error) {
+        const retry = await adminSupabase.rpc(rpc, { p_user_id: analysisRefundUserId })
+        error = retry.error
+      }
       if (error) {
         console.error('[Analyze] Analysis refund RPC failed — MANUAL REVIEW NEEDED:', {
           userId: analysisRefundUserId, type: analysisRefundType, error: error.message,
         })
       } else {
+        analysisRefunded = true
         console.log(`[Analyze] Refunded 1 ${analysisRefundType} analysis to ${analysisRefundUserId}`)
       }
     } catch (e: any) {
@@ -586,12 +590,15 @@ export async function POST(request: NextRequest) {
 
     const { data: userData } = await supabase
       .from('users')
-      .select('plan, is_admin, own_analyses_remaining, competitor_analyses_remaining, reanalyze_overrides')
+      .select('plan, is_admin, own_analyses_remaining, competitor_analyses_remaining, reanalyze_overrides, stripe_current_period_end')
       .eq('id', user.id)
       .single()
 
     const isAdminUser                  = userData?.is_admin === true
-    const plan                         = userData?.plan    || 'free'
+    const planExpired = userData?.stripe_current_period_end &&
+      new Date(userData.stripe_current_period_end * 1000) < new Date()
+    const effectivePlan                = planExpired ? 'free' : (userData?.plan || 'free')
+    const plan                         = effectivePlan
     const ownRemaining                 = userData?.own_analyses_remaining ?? 0
     const competitorRemaining          = userData?.competitor_analyses_remaining ?? 0
     const reanalyzeOverrides           = userData?.reanalyze_overrides ?? 0
@@ -640,17 +647,6 @@ export async function POST(request: NextRequest) {
           { status: 403 },
         )
       }
-      if (competitorRemaining <= 0) {
-        const limits = PLAN_ANALYSES[plan as keyof typeof PLAN_ANALYSES] ?? PLAN_ANALYSES.free
-        return NextResponse.json(
-          {
-            error: `You've used all ${limits.competitor} competitor analyses this month. Rolls over on the 1st.${plan !== 'pro' ? ' Upgrade for more.' : ''}`,
-            upgradeRequired: plan !== 'pro',
-            upgradePrompt: plan === 'starter' ? 'growth' : 'pro',
-          },
-          { status: 403 },
-        )
-      }
     }
 
     // ── Re-analyze cooldown (plan-aware) ──────────────────────
@@ -665,7 +661,7 @@ export async function POST(request: NextRequest) {
           .from('reports')
           .select('last_analyzed_at')
           .eq('user_id', user.id)
-          .ilike('product_url', `%${cooldownAsin}%`)
+          .ilike('product_url', `%/dp/${cooldownAsin}%`)
           .eq('status', 'completed')
           .order('created_at', { ascending: false })
           .limit(1)
@@ -675,12 +671,17 @@ export async function POST(request: NextRequest) {
           const daysSince = (Date.now() - new Date(lastReport.last_analyzed_at).getTime()) / 86_400_000
           if (daysSince < cooldownDays) {
             if (emergencyReanalyze && reanalyzeOverrides > 0) {
-              // Burn one emergency override — non-fatal if it fails
-              await supabase
+              const { error: decErr } = await supabase
                 .from('users')
                 .update({ reanalyze_overrides: reanalyzeOverrides - 1 })
                 .eq('id', user.id)
-                .catch((e: any) => console.warn('[Analyze] override decrement failed:', e?.message))
+              if (decErr) {
+                console.error('[Analyze] override decrement failed:', decErr.message)
+                return NextResponse.json(
+                  { error: 'Could not consume re-analyze override. Please try again.' },
+                  { status: 503 },
+                )
+              }
             } else {
               return NextResponse.json(
                 {
@@ -858,9 +859,10 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Failed to save analysis. Your analysis has been refunded.' }, { status: 500 })
       }
 
-      await supabase
+      const { error: usageErr } = await supabase
         .from('usage_logs')
         .insert({ user_id: user.id, report_id: reportId, tokens_used: getSessionTokens() })
+      if (usageErr) console.error('[Analyze] usage_log insert failed:', usageErr.message)
 
       // Fire-and-forget cost log — never blocks or fails the analysis
       void Promise.resolve(
