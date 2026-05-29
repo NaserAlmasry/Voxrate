@@ -247,8 +247,8 @@ describe('Stripe webhook — POST /api/stripe/webhook', () => {
     expect(res.status).toBe(200)
     expect(updateFn).toHaveBeenCalledWith(expect.objectContaining({
       plan: 'free',
-      own_analyses_remaining: 0,
-      competitor_analyses_remaining: 0,
+      own_analyses_remaining: 3,
+      competitor_analyses_remaining: 2,
       stripe_current_period_end: null,
     }))
   })
