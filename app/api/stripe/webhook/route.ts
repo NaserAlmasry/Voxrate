@@ -10,6 +10,104 @@ import { PLAN_ANALYSES } from '@/app/lib/credit-costs'
 let _stripe: Stripe | null = null
 const getStripe = () => _stripe ??= new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-06-20' as any })
 
+async function applyAmbassadorCommission(invoice: Stripe.Invoice, stripe: Stripe) {
+  let customerEmail = invoice.customer_email
+  if (!customerEmail && invoice.customer) {
+    try {
+      const cust = await stripe.customers.retrieve(invoice.customer as string)
+      customerEmail = (cust as any)?.email || null
+    } catch {}
+  }
+  if (!customerEmail) return
+
+  const email = customerEmail.toLowerCase()
+  const adminSupa = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  )
+
+  const { data: attribution } = await adminSupa
+    .from('ambassador_attribution')
+    .select('ambassador_id')
+    .eq('subscriber_email', email)
+    .maybeSingle()
+
+  if (!attribution) return
+
+  const { data: ambassador } = await adminSupa
+    .from('ambassadors')
+    .select('id, email, commission_rate, friend_bonus_active, status, internship_end')
+    .eq('id', attribution.ambassador_id)
+    .single()
+
+  if (!ambassador || ambassador.status !== 'active') return
+  if (new Date(ambassador.internship_end) < new Date()) return
+  if (ambassador.email?.toLowerCase() === email) return
+
+  const planPrice = invoice.amount_paid / 100
+  const commissionAmount = Math.round(planPrice * Number(ambassador.commission_rate)) / 100
+  const friendBonus = ambassador.friend_bonus_active ? 2 : 0
+  const now = new Date()
+  const payableAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
+  const lineItem = invoice.lines?.data?.[0] as any
+  const planNickname = lineItem?.price?.nickname || lineItem?.plan?.nickname || 'unknown'
+
+  const { data: existing } = await adminSupa
+    .from('ambassador_conversions')
+    .select('id')
+    .eq('ambassador_id', ambassador.id)
+    .eq('subscriber_email', email)
+    .maybeSingle()
+
+  if (existing) {
+    await adminSupa.from('ambassador_conversions').update({
+      status: 'payable',
+      paid_at: now.toISOString(),
+      payable_at: payableAt,
+      commission_rate: ambassador.commission_rate,
+      commission_amount: commissionAmount,
+      friend_bonus_amount: friendBonus,
+      plan: planNickname,
+      plan_price: planPrice,
+      stripe_customer_id: invoice.customer as string,
+    }).eq('id', existing.id)
+  } else {
+    await adminSupa.from('ambassador_conversions').insert({
+      ambassador_id: ambassador.id,
+      subscriber_email: email,
+      stripe_customer_id: invoice.customer as string,
+      plan: planNickname,
+      plan_price: planPrice,
+      commission_rate: ambassador.commission_rate,
+      commission_amount: commissionAmount,
+      friend_bonus_amount: friendBonus,
+      status: 'payable',
+      paid_at: now.toISOString(),
+      payable_at: payableAt,
+    })
+  }
+
+  const { data: inviter } = await adminSupa
+    .from('ambassadors')
+    .select('id, friend_bonus_active')
+    .eq('friend_invited_id', ambassador.id)
+    .maybeSingle()
+
+  if (inviter && !inviter.friend_bonus_active) {
+    const { count } = await adminSupa
+      .from('ambassador_conversions')
+      .select('id', { count: 'exact', head: true })
+      .eq('ambassador_id', ambassador.id)
+      .in('status', ['payable', 'paid'])
+
+    if ((count ?? 0) >= 1) {
+      await adminSupa.from('ambassadors')
+        .update({ friend_bonus_active: true })
+        .eq('id', inviter.id)
+    }
+  }
+}
+
 export async function POST(request: NextRequest) {
   const stripe = getStripe()
   const body      = await request.text()
@@ -207,6 +305,13 @@ export async function POST(request: NextRequest) {
       case 'invoice.payment_succeeded': {
         const invoice        = event.data.object as Stripe.Invoice
         const subscriptionId = (invoice as any).subscription
+
+        try {
+          await applyAmbassadorCommission(invoice, stripe)
+        } catch (ambassadorErr: any) {
+          console.error('[Webhook] Ambassador commission failed:', ambassadorErr?.message)
+        }
+
         if (!subscriptionId) break
 
         // Only handle renewals (not initial payment — already handled above)

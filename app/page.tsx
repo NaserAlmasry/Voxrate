@@ -50,6 +50,16 @@ export default function LandingPage() {
       const ref = params.get('ref')
       if (ref && /^[A-Za-z0-9_-]{1,32}$/.test(ref)) {
         localStorage.setItem('voxrate_ref_code', ref)
+        const existing = document.cookie.split('; ').find(c => c.startsWith('voxrate_ref='))
+        if (!existing) {
+          const maxAge = 90 * 24 * 60 * 60
+          document.cookie = `voxrate_ref=${ref}; Max-Age=${maxAge}; Path=/; SameSite=Lax`
+          fetch('/api/ambassador/track-click', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ referralCode: ref }),
+          }).catch(() => {})
+        }
       }
     } catch {}
   }, [])

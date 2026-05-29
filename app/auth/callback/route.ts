@@ -1,5 +1,6 @@
 import { createClient } from '@/app/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
 export async function GET(request: Request) {
@@ -51,6 +52,22 @@ export async function GET(request: Request) {
         await admin.rpc('activate_free_trial', { p_user_id: data.session.user.id })
       } catch (e) {
         console.error('[Auth Callback] Trial activation failed (non-fatal):', e)
+      }
+
+      try {
+        const cookieStore = await cookies()
+        const ref = cookieStore.get('voxrate_ref')?.value
+        const userEmail = data.session.user.email
+        if (ref && userEmail) {
+          const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || origin
+          await fetch(`${baseUrl}/api/ambassador/track-signup`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ referralCode: ref, email: userEmail }),
+          })
+        }
+      } catch (e) {
+        console.error('[Auth Callback] Ambassador signup tracking failed (non-fatal):', e)
       }
     }
   }

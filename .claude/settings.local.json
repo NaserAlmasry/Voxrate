@@ -225,7 +225,8 @@
       "Bash(grep -v \"//.*NEXT_PUBLIC\")",
       "Bash(grep -E \"\\(price|plan|analyses|credits|trial|days|\\\\$[0-9]\\)\")",
       "Bash(grep -E \"\\(price|monthly|annual|\\\\$\\)\")",
-      "Bash(xargs cat)"
+      "Bash(xargs cat)",
+      "Bash(dir C:\\\\Users\\\\Naser\\\\voxrate\\\\app\\\\api *)"
     ]
   }
 }
