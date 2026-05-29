@@ -61,7 +61,7 @@ export default function CareersPage() {
       <section className="px-6 pb-20 max-w-5xl mx-auto">
         <div className="grid md:grid-cols-4 gap-4 scroll-fade">
           {[
-            { icon: DollarSign, title: 'Commission', body: '$4.50 – $17.99 per sale, recurring' },
+            { icon: DollarSign, title: 'Commission', body: '$4.99 – $23.99 per sale, recurring' },
             { icon: Award, title: 'Certificate', body: 'Official letter upon completion' },
             { icon: Crown, title: 'Pro Access', body: 'Free Voxrate Pro on request' },
             { icon: Briefcase, title: 'Career Path', body: 'Full-time after 12 months' },
@@ -103,9 +103,9 @@ export default function CareersPage() {
             </thead>
             <tbody>
               {[
-                { p: 'Starter', m: '$14.99', c: '$4.50' },
-                { p: 'Growth', m: '$39.99', c: '$11.99' },
-                { p: 'Pro', m: '$59.99', c: '$17.99' },
+                { p: 'Starter', m: '$14.99', c: '$4.99' },
+                { p: 'Growth', m: '$39.99', c: '$14.99' },
+                { p: 'Pro', m: '$59.99', c: '$23.99' },
               ].map(r => (
                 <tr key={r.p} className="border-t border-gray-100">
                   <td className="px-6 py-4 font-semibold">{r.p}</td>
