@@ -106,7 +106,10 @@ export default function AdminPage() {
           <h1 className="text-xl font-semibold">Admin dashboard</h1>
           <p className="text-xs text-neutral-400 mt-0.5">Internal view — visible to admins only</p>
         </div>
-        <span className="px-3 py-1 bg-red-50 text-red-600 text-xs font-bold rounded-full border border-red-200">ADMIN</span>
+        <div className="flex items-center gap-2">
+          <a href="/dashboard/admin/ambassadors" className="px-3 py-1 bg-orange-50 text-orange-600 text-xs font-bold rounded-full border border-orange-200 hover:bg-orange-100">Ambassadors</a>
+          <span className="px-3 py-1 bg-red-50 text-red-600 text-xs font-bold rounded-full border border-red-200">ADMIN</span>
+        </div>
       </div>
 
       {/* Stats */}

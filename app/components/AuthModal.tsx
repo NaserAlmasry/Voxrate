@@ -82,6 +82,31 @@ export default function AuthModal({ onClose, initialStep = 'plan', initialAuthMo
   const [loading, setLoading]     = useState(false)
   const [error, setError]         = useState('')
   const [emailSent, setEmailSent] = useState(false)
+  const [showProCode, setShowProCode] = useState(false)
+  const [proCode, setProCode] = useState('')
+  const [proEmail, setProEmail] = useState('')
+  const [proMsg, setProMsg] = useState('')
+  const [proGranted, setProGranted] = useState(false)
+  const [proLoading, setProLoading] = useState(false)
+
+  const submitProCode = async () => {
+    setProMsg(''); setProLoading(true)
+    try {
+      const res = await fetch('/api/ambassador/validate-pro-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        body: JSON.stringify({ code: proCode, email: proEmail }),
+      })
+      const json = await res.json()
+      if (!res.ok || !json.success) { setProMsg(json.error || 'Invalid code'); setProLoading(false); return }
+      sessionStorage.setItem('voxrate_pending_pro', JSON.stringify({ code: proCode, email: proEmail.toLowerCase() }))
+      setProGranted(true)
+      setProMsg('Access granted! Sign in with Google to continue.')
+    } catch {
+      setProMsg('Network error')
+    }
+    setProLoading(false)
+  }
 
   const redirectUrl = (sel: Selection) => {
     const base = window.location.origin
@@ -214,10 +239,47 @@ export default function AuthModal({ onClose, initialStep = 'plan', initialAuthMo
             <>
               {/* Google */}
               <button onClick={handleGoogle}
-                className="w-full flex items-center justify-center gap-3 py-3 border-2 border-neutral-200 rounded-xl text-sm font-medium hover:border-black transition-all mb-4">
+                className="w-full flex items-center justify-center gap-3 py-3 border-2 border-neutral-200 rounded-xl text-sm font-medium hover:border-black transition-all mb-2">
                 <GoogleIcon />
                 Continue with Google
               </button>
+
+              <div className="text-center mb-4">
+                <button
+                  type="button"
+                  onClick={() => setShowProCode(v => !v)}
+                  className="text-xs text-[#f05a1e] hover:underline"
+                >
+                  Have an invite code? Get free access &rarr;
+                </button>
+              </div>
+
+              {showProCode && (
+                <div className="mb-4 p-3 rounded-xl bg-orange-50 border border-orange-100 space-y-2">
+                  {!proGranted && (
+                    <>
+                      <input
+                        type="email" placeholder="Email" value={proEmail}
+                        onChange={e => setProEmail(e.target.value)}
+                        className="w-full px-3 py-2 border border-neutral-200 rounded-lg text-sm"
+                      />
+                      <input
+                        type="text" placeholder="PRO-XXXX-XXXX" value={proCode}
+                        onChange={e => setProCode(e.target.value.toUpperCase())}
+                        className="w-full px-3 py-2 border border-neutral-200 rounded-lg text-sm font-mono"
+                      />
+                      <button
+                        onClick={submitProCode}
+                        disabled={proLoading || !proCode || !proEmail}
+                        className="w-full py-2 bg-[#f05a1e] text-white text-sm font-semibold rounded-lg disabled:opacity-40"
+                      >
+                        {proLoading ? 'Validating...' : 'Activate code'}
+                      </button>
+                    </>
+                  )}
+                  {proMsg && <p className={`text-xs ${proGranted ? 'text-green-700' : 'text-red-600'}`}>{proMsg}</p>}
+                </div>
+              )}
 
               <div className="flex items-center gap-3 mb-4">
                 <div className="flex-1 h-px bg-neutral-200" />
