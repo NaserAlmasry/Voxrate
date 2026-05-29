@@ -13,6 +13,7 @@ export async function GET(request: Request) {
   const type           = searchParams.get('type')
   const pendingPlan    = searchParams.get('pendingPlan')
   const pendingBilling = searchParams.get('pendingBilling')
+  const pendingProCode = searchParams.get('pendingProCode')
 
   // Password reset flow — verify the token then send to reset page
   if (tokenHash && type === 'recovery') {
@@ -65,9 +66,27 @@ export async function GET(request: Request) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ referralCode: ref, email: userEmail }),
           })
+          cookieStore.delete('voxrate_ref')
         }
       } catch (e) {
         console.error('[Auth Callback] Ambassador signup tracking failed (non-fatal):', e)
+      }
+
+      if (pendingProCode) {
+        try {
+          const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || origin
+          await fetch(`${baseUrl}/api/ambassador/claim-pro`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Requested-With': 'XMLHttpRequest',
+              Cookie: request.headers.get('cookie') || '',
+            },
+            body: JSON.stringify({ code: pendingProCode }),
+          })
+        } catch (e) {
+          console.error('[Auth Callback] Pro code claim failed (non-fatal):', e)
+        }
       }
     }
   }

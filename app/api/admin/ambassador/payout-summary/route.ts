@@ -16,7 +16,7 @@ export async function GET() {
   const { data: conversions } = await supa
     .from('ambassador_conversions')
     .select('ambassador_id, commission_amount, friend_bonus_amount, paid_at, status')
-    .in('status', ['payable', 'paid'])
+    .eq('status', 'payable')
     .gte('paid_at', monthStart.toISOString())
 
   const totals: Record<string, number> = {}

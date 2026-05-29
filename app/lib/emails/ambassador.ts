@@ -1,6 +1,6 @@
 import { Resend } from 'resend'
 
-const SITE_URL = 'https://voxrate.app'
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://voxrate.app'
 
 function baseTemplate(body: string) {
   return `<!DOCTYPE html>

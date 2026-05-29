@@ -27,6 +27,8 @@ export async function POST(request: NextRequest) {
 
     if (!codeRow) return NextResponse.json({ error: 'Invalid code' }, { status: 400 })
     if (codeRow.type !== 'pro_access') return NextResponse.json({ error: 'Wrong code type' }, { status: 400 })
+    if (codeRow.used) return NextResponse.json({ error: 'Code already used' }, { status: 400 })
+    if (new Date(codeRow.expires_at) < new Date()) return NextResponse.json({ error: 'Code expired' }, { status: 400 })
     if (!codeRow.assigned_email || codeRow.assigned_email.toLowerCase() !== user.email.toLowerCase()) {
       return NextResponse.json({ error: 'Code not assigned to your email' }, { status: 400 })
     }
@@ -36,6 +38,8 @@ export async function POST(request: NextRequest) {
       .update({ plan: 'pro' })
       .eq('id', user.id)
     if (error) return NextResponse.json({ error: 'Failed to grant pro' }, { status: 500 })
+
+    await supa.from('ambassador_codes').update({ used: true }).eq('id', codeRow.id)
 
     return NextResponse.json({ success: true })
   } catch (err: any) {

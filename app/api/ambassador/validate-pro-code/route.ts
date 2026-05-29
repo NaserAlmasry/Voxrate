@@ -34,8 +34,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'This code is not assigned to that email' }, { status: 400 })
     }
 
-    await supa.from('ambassador_codes').update({ used: true }).eq('id', codeRow.id)
-
     return NextResponse.json({ success: true, grantProAccess: true, email })
   } catch (err: any) {
     console.error('[validate-pro-code] error', err?.message)
