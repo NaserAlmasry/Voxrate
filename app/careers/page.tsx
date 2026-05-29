@@ -102,9 +102,9 @@ export default function CareersPage() {
               <tr>
                 <th className="text-left px-6 py-4">Plan</th>
                 <th className="text-left px-6 py-4">Monthly</th>
-                <th className="text-right px-6 py-4 text-gray-400">Your cut (monthly)</th>
+                <th className="text-right px-6 py-4 text-gray-400">Commission (monthly)</th>
                 <th className="text-left px-6 py-4 border-l border-gray-100 pl-6">Annual</th>
-                <th className="text-right px-6 py-4 text-gray-400">Your cut (once)</th>
+                <th className="text-right px-6 py-4 text-gray-400">Commission (one-time)</th>
               </tr>
             </thead>
             <tbody>
