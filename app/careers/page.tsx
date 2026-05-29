@@ -54,14 +54,14 @@ export default function CareersPage() {
           Earn 30% on every customer you bring.
         </h1>
         <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-          Join as a Brand Ambassador. 3-month paid internship, real commission, certificate of completion, and a path to a full-time role.
+          Join as a Brand Ambassador. 3-month commission-based internship, real earnings, certificate of completion, and a path to a full-time role.
         </p>
       </section>
 
       <section className="px-6 pb-20 max-w-5xl mx-auto">
         <div className="grid md:grid-cols-4 gap-4 scroll-fade">
           {[
-            { icon: DollarSign, title: 'Commission', body: '$4.99 – $80 per sale, recurring' },
+            { icon: DollarSign, title: 'Commission', body: '$4.50 – $17.99 per sale, recurring' },
             { icon: Award, title: 'Certificate', body: 'Official letter upon completion' },
             { icon: Crown, title: 'Pro Access', body: 'Free Voxrate Pro on request' },
             { icon: Briefcase, title: 'Career Path', body: 'Full-time after 12 months' },
@@ -103,9 +103,9 @@ export default function CareersPage() {
             </thead>
             <tbody>
               {[
-                { p: 'Starter', m: '$14.99', c: '$4.99' },
-                { p: 'Growth', m: '$49.99', c: '$16.49' },
-                { p: 'Pro', m: '$99.99', c: '$32.99' },
+                { p: 'Starter', m: '$14.99', c: '$4.50' },
+                { p: 'Growth', m: '$39.99', c: '$11.99' },
+                { p: 'Pro', m: '$59.99', c: '$17.99' },
               ].map(r => (
                 <tr key={r.p} className="border-t border-gray-100">
                   <td className="px-6 py-4 font-semibold">{r.p}</td>
@@ -117,6 +117,7 @@ export default function CareersPage() {
           </table>
         </div>
         <p className="text-xs text-gray-500 text-center mt-4">Recurring for as long as they stay subscribed.</p>
+        <p className="text-xs text-[#f05a1e] text-center mt-1 font-medium">+$2/month extra when you refer a friend ambassador who brings their first customer.</p>
       </section>
 
       <section className="px-6 py-20 bg-gray-50">
