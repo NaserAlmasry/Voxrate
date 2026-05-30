@@ -18,6 +18,8 @@ type MeData = {
     internshipEnd: string
     friendBonusActive: boolean
     friendInvitedId: string | null
+    payoutRequestStatus: string
+    payoutRequestedAt: string | null
   }
   stats: {
     clicks: number
@@ -37,6 +39,8 @@ type MeData = {
     hasFirstCustomer: boolean
     friendBonusActivated: boolean
   }
+  payableBalance: number
+  payoutHistory: { id: string; amount: number; paid_at: string; admin_note: string | null }[]
 }
 
 const SITE = typeof window !== 'undefined' ? window.location.origin : 'https://voxrate.app'
@@ -48,6 +52,8 @@ export default function AmbassadorDashboard() {
   const [copied, setCopied] = useState(false)
   const [friendCode, setFriendCode] = useState('')
   const [friendMsg, setFriendMsg] = useState('')
+  const [requestingPayout, setRequestingPayout] = useState(false)
+  const [payoutMsg, setPayoutMsg] = useState('')
 
   const load = useCallback(async () => {
     const token = localStorage.getItem('voxrate_amb_token')
@@ -95,11 +101,27 @@ export default function AmbassadorDashboard() {
     load()
   }
 
+  async function requestPayout() {
+    const token = localStorage.getItem('voxrate_amb_token')
+    if (!token) return
+    setRequestingPayout(true)
+    setPayoutMsg('')
+    const res = await fetch('/api/ambassador/request-payout', {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest', 'x-ambassador-token': token },
+    })
+    const json = await res.json()
+    setRequestingPayout(false)
+    if (!res.ok) { setPayoutMsg(json.error || 'Something went wrong'); return }
+    setPayoutMsg('')
+    load()
+  }
+
   if (loading || !data) {
     return <div className="min-h-screen flex items-center justify-center text-gray-400" style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>Loading...</div>
   }
 
-  const { ambassador, stats, customers, monthly, milestones } = data
+  const { ambassador, stats, customers, monthly, milestones, payableBalance, payoutHistory } = data
   const link = `${SITE}/?ref=${ambassador.referralCode}`
   const maxMonth = Math.max(1, ...monthly.map(m => m.total))
   const progressPct = Math.min(100, Math.round((stats.daysElapsed / stats.totalDays) * 100))
@@ -140,6 +162,78 @@ export default function AmbassadorDashboard() {
               <div className="text-xs text-gray-500 mt-1">{s.label}</div>
             </div>
           ))}
+        </div>
+
+        {/* Request Payment */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <div className="text-xs uppercase tracking-widest text-gray-500 font-semibold mb-1">Payable balance</div>
+              <div className="text-3xl font-bold">${(payableBalance ?? 0).toFixed(2)}</div>
+              <div className="text-xs text-gray-400 mt-1">Commission earned and ready to pay out</div>
+            </div>
+            <div className="relative group">
+              {ambassador.payoutRequestStatus === 'requested' ? (
+                <button
+                  disabled
+                  className="px-6 py-3 rounded-xl bg-gray-200 text-gray-500 font-bold cursor-not-allowed text-sm"
+                >
+                  Payment Requested ✓
+                </button>
+              ) : (payableBalance ?? 0) >= 15 ? (
+                <button
+                  onClick={requestPayout}
+                  disabled={requestingPayout}
+                  className="px-6 py-3 rounded-xl bg-green-500 hover:bg-green-600 text-white font-bold transition text-sm disabled:opacity-60"
+                >
+                  {requestingPayout ? 'Requesting…' : 'Request Payment'}
+                </button>
+              ) : (
+                <>
+                  <button
+                    disabled
+                    className="px-6 py-3 rounded-xl bg-gray-200 text-gray-400 font-bold cursor-not-allowed text-sm"
+                    title="Button will activate after $15"
+                  >
+                    Request Payment
+                  </button>
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-gray-800 text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">
+                    Button will activate after $15
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+          {payoutMsg && <p className="text-sm text-red-500">{payoutMsg}</p>}
+
+          {/* Payout History */}
+          <div>
+            <div className="text-xs uppercase tracking-widest text-gray-500 font-semibold mb-3">Payout history</div>
+            {(payoutHistory ?? []).length === 0 ? (
+              <p className="text-sm text-gray-400">No payouts yet.</p>
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-xs text-gray-500 uppercase">
+                    <th className="text-left py-2">Date</th>
+                    <th className="text-right py-2">Amount</th>
+                    <th className="text-left py-2 pl-4">Note</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(payoutHistory ?? []).map(h => (
+                    <tr key={h.id} className="border-t border-gray-100">
+                      <td className="py-2 text-gray-600">
+                        {new Date(h.paid_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                      </td>
+                      <td className="py-2 text-right font-bold text-green-600">${Number(h.amount).toFixed(2)}</td>
+                      <td className="py-2 pl-4 text-xs text-gray-400">{h.admin_note || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
         </div>
 
         <div className="bg-white rounded-2xl border border-gray-100 p-6">

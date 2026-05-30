@@ -52,6 +52,7 @@ export async function GET() {
     clicks: clicksByAmb[a.id] || 0,
     paying: payingByAmb[a.id] || 0,
     this_month: Math.round((monthByAmb[a.id] || 0) * 100) / 100,
+    payout_request_status: a.payout_request_status || 'none',
   })).sort((a, b) => b.this_month - a.this_month)
 
   return NextResponse.json({ ambassadors: result })

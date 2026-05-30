@@ -17,6 +17,7 @@ type Ambassador = {
   clicks: number
   paying: number
   this_month: number
+  payout_request_status?: string
 }
 
 type CodeRow = {
@@ -31,12 +32,12 @@ type CodeRow = {
   created_at: string
 }
 
-type PayoutRow = {
-  ambassador_id: string
+type PaymentRequest = {
+  id: string
   name: string
   email: string
-  paypal_email: string
   amount: number
+  requested_at: string
 }
 
 export default function AdminAmbassadorsPage() {
@@ -46,20 +47,22 @@ export default function AdminAmbassadorsPage() {
   const [loading, setLoading] = useState(true)
   const [ambassadors, setAmbassadors] = useState<Ambassador[]>([])
   const [codes, setCodes] = useState<CodeRow[]>([])
-  const [payout, setPayout] = useState<{ period: string; summary: PayoutRow[]; total: number } | null>(null)
+  const [paymentRequests, setPaymentRequests] = useState<PaymentRequest[]>([])
   const [generated, setGenerated] = useState<{ codes: string[]; expiresAt: string } | null>(null)
   const [busy, setBusy] = useState(false)
+  const [adminNotes, setAdminNotes] = useState<Record<string, string>>({})
+  const [markingPaid, setMarkingPaid] = useState<Record<string, boolean>>({})
 
   const loadAll = useCallback(async () => {
     const h = { 'X-Requested-With': 'XMLHttpRequest' }
-    const [a, c, p] = await Promise.all([
+    const [a, c, pr] = await Promise.all([
       fetch('/api/admin/ambassador/list', { headers: h }).then(r => r.json()),
       fetch('/api/admin/ambassador/codes', { headers: h }).then(r => r.json()),
-      fetch('/api/admin/ambassador/payout-summary', { headers: h }).then(r => r.json()),
+      fetch('/api/admin/ambassador/payment-requests', { headers: h }).then(r => r.json()),
     ])
     setAmbassadors(a.ambassadors || [])
     setCodes(c.codes || [])
-    setPayout(p)
+    setPaymentRequests(pr.requests || [])
     setLoading(false)
   }, [])
 
@@ -126,24 +129,15 @@ export default function AdminAmbassadorsPage() {
     loadAll()
   }
 
-  async function exportPayoutCsv() {
-    if (!payout) return
-    const csv = 'name,email,paypal_email,amount\n' + payout.summary.map(r => `${r.name},${r.email},${r.paypal_email},${r.amount}`).join('\n')
-    const blob = new Blob([csv], { type: 'text/csv' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url; a.download = `payout-${payout.period}.csv`; a.click()
-    URL.revokeObjectURL(url)
-  }
-
-  async function markAllPaid() {
-    if (!confirm('Mark current month as paid for all ambassadors?')) return
-    setBusy(true)
+  async function markPaid(ambassadorId: string) {
+    const note = adminNotes[ambassadorId] || ''
+    setMarkingPaid(prev => ({ ...prev, [ambassadorId]: true }))
     const res = await fetch('/api/admin/ambassador/mark-paid', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+      body: JSON.stringify({ ambassadorId, adminNote: note }),
     })
-    setBusy(false)
+    setMarkingPaid(prev => ({ ...prev, [ambassadorId]: false }))
     if (!res.ok) { const j = await res.json(); alert(j.error || 'Failed'); return }
     loadAll()
   }
@@ -228,7 +222,12 @@ export default function AdminAmbassadorsPage() {
             <tbody>
               {ambassadors.map(a => (
                 <tr key={a.id} className="border-t border-neutral-100">
-                  <td className="py-2 font-semibold">{a.name}</td>
+                  <td className="py-2 font-semibold">
+                    {a.name}
+                    {a.payout_request_status === 'requested' && (
+                      <span className="ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-yellow-50 text-yellow-700 border border-yellow-200">⏳ Pending</span>
+                    )}
+                  </td>
                   <td className="py-2 text-xs text-neutral-500">{a.email}</td>
                   <td className="py-2 text-right">{a.clicks}</td>
                   <td className="py-2 text-right">{a.paying}</td>
@@ -260,40 +259,57 @@ export default function AdminAmbassadorsPage() {
         </div>
       </div>
 
+      {/* Payment Requests */}
       <div className="bg-white rounded-2xl border border-neutral-200 p-5">
-        <div className="flex items-center justify-between mb-3">
-          <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">Monthly payout summary {payout?.period}</p>
-          <div className="flex gap-2">
-            <button onClick={exportPayoutCsv} disabled={!payout || payout.summary.length === 0} className="px-3 py-1.5 border border-neutral-300 rounded-lg text-xs font-semibold disabled:opacity-50">Export CSV</button>
-            <button onClick={markAllPaid} disabled={busy || !payout || payout.summary.length === 0} className="px-3 py-1.5 bg-[#f05a1e] text-white rounded-lg text-xs font-semibold disabled:opacity-50">Mark all paid</button>
-          </div>
-        </div>
-        {payout && payout.summary.length > 0 ? (
-          <>
+        <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-3">Payment Requests</p>
+        {paymentRequests.length > 0 ? (
+          <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-xs text-neutral-500 uppercase">
                   <th className="text-left py-2">Name</th>
                   <th className="text-left py-2">Email</th>
-                  <th className="text-left py-2">PayPal</th>
                   <th className="text-right py-2">Amount</th>
+                  <th className="text-left py-2 pl-4">Requested</th>
+                  <th className="text-left py-2 pl-4">Admin Note</th>
+                  <th className="py-2"></th>
                 </tr>
               </thead>
               <tbody>
-                {payout.summary.map(r => (
-                  <tr key={r.ambassador_id} className="border-t border-neutral-100">
-                    <td className="py-2">{r.name}</td>
+                {paymentRequests.map(r => (
+                  <tr key={r.id} className="border-t border-neutral-100">
+                    <td className="py-2 font-semibold">{r.name}</td>
                     <td className="py-2 text-xs text-neutral-500">{r.email}</td>
-                    <td className="py-2 text-xs text-neutral-500">{r.paypal_email || '-'}</td>
-                    <td className="py-2 text-right font-bold">${r.amount.toFixed(2)}</td>
+                    <td className="py-2 text-right font-bold text-[#f05a1e]">${r.amount.toFixed(2)}</td>
+                    <td className="py-2 text-xs text-neutral-500 pl-4">
+                      {new Date(r.requested_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </td>
+                    <td className="py-2 pl-4">
+                      <input
+                        type="text"
+                        placeholder="Optional note"
+                        value={adminNotes[r.id] || ''}
+                        onChange={e => setAdminNotes(prev => ({ ...prev, [r.id]: e.target.value }))}
+                        className="px-3 py-1.5 text-xs border border-neutral-200 rounded-lg outline-none focus:border-neutral-400 w-40"
+                      />
+                    </td>
+                    <td className="py-2 pl-3">
+                      <button
+                        onClick={() => markPaid(r.id)}
+                        disabled={markingPaid[r.id]}
+                        title="Mark paid"
+                        className="w-8 h-8 flex items-center justify-center bg-green-500 hover:bg-green-600 text-white rounded-lg text-base font-bold disabled:opacity-50 transition-colors"
+                      >
+                        {markingPaid[r.id] ? '…' : '✓'}
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            <p className="text-right text-sm mt-3 font-bold">Total: ${payout.total.toFixed(2)}</p>
-          </>
+          </div>
         ) : (
-          <p className="text-sm text-neutral-400">No payable ambassadors this period (min $15).</p>
+          <p className="text-sm text-neutral-400">No pending payment requests.</p>
         )}
       </div>
     </div>

@@ -12,63 +12,62 @@ export async function POST(request: NextRequest) {
   const auth = await requireAdmin()
   if (!auth.ok) return auth.response
 
-  const supa = adminSupa()
-  const now = new Date()
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
-  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1)
-  const period = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  const body = await request.json()
+  const { ambassadorId, adminNote } = body as { ambassadorId: string; adminNote?: string }
 
+  if (!ambassadorId) {
+    return NextResponse.json({ error: 'ambassadorId is required' }, { status: 400 })
+  }
+
+  const supa = adminSupa()
+
+  // Fetch ambassador and verify they have a pending request
+  const { data: amb } = await supa
+    .from('ambassadors')
+    .select('id, name, payout_request_status')
+    .eq('id', ambassadorId)
+    .single()
+
+  if (!amb) return NextResponse.json({ error: 'Ambassador not found' }, { status: 404 })
+  if (amb.payout_request_status !== 'requested') {
+    return NextResponse.json({ error: 'No pending payment request for this ambassador' }, { status: 409 })
+  }
+
+  // Sum payable balance
   const { data: conversions } = await supa
     .from('ambassador_conversions')
-    .select('id, ambassador_id, commission_amount, friend_bonus_amount')
+    .select('id, commission_amount, friend_bonus_amount')
+    .eq('ambassador_id', ambassadorId)
     .eq('status', 'payable')
-    .gte('paid_at', monthStart.toISOString())
-    .lt('paid_at', monthEnd.toISOString())
 
-  const totals: Record<string, number> = {}
-  const conversionsByAmbassador: Record<string, string[]> = {}
-  for (const c of (conversions || []) as any[]) {
-    totals[c.ambassador_id] = (totals[c.ambassador_id] || 0) + Number(c.commission_amount || 0) + Number(c.friend_bonus_amount || 0)
-    if (!conversionsByAmbassador[c.ambassador_id]) conversionsByAmbassador[c.ambassador_id] = []
-    conversionsByAmbassador[c.ambassador_id].push(c.id)
-  }
+  const list = (conversions || []) as any[]
+  const amount = Math.round(
+    list.reduce((s, c) => s + Number(c.commission_amount || 0) + Number(c.friend_bonus_amount || 0), 0) * 100
+  ) / 100
 
-  const allEligible = Object.entries(totals).filter(([, a]) => a >= 15)
+  const now = new Date().toISOString()
 
-  // Only pay ambassadors with verified PayPal email
-  const ambassadorIds = allEligible.map(([ambassadorId]) => ambassadorId)
-  const { data: ambassadorRows } = await supa
-    .from('ambassadors')
-    .select('id, paypal_email_verified')
-    .in('id', ambassadorIds)
+  // Insert payout history record
+  await supa.from('ambassador_payout_history').insert({
+    ambassador_id: ambassadorId,
+    amount,
+    paid_at: now,
+    admin_note: adminNote || null,
+  })
 
-  const verifiedSet = new Set(
-    (ambassadorRows || []).filter((a: any) => a.paypal_email_verified === true).map((a: any) => a.id)
-  )
-  const skippedIds = ambassadorIds.filter(id => !verifiedSet.has(id))
-  if (skippedIds.length > 0) {
-    console.warn('[MarkPaid] Skipping unverified PayPal emails:', skippedIds)
-  }
-
-  const eligibleAmbassadors = allEligible.filter(([ambassadorId]) => verifiedSet.has(ambassadorId))
-  const ids: string[] = eligibleAmbassadors.flatMap(([ambassadorId]) => conversionsByAmbassador[ambassadorId] || [])
-
-  for (const [ambassadorId, amount] of eligibleAmbassadors) {
-    await supa.from('ambassador_payouts').upsert({
-      ambassador_id: ambassadorId,
-      period,
-      total_amount: Math.round(amount * 100) / 100,
-      status: 'paid',
-      paid_at: now.toISOString(),
-    }, { onConflict: 'ambassador_id,period' })
-  }
-
-  if (ids.length) {
+  // Mark conversions as paid
+  if (list.length > 0) {
     await supa
       .from('ambassador_conversions')
-      .update({ status: 'paid', paid_out_at: now.toISOString() })
-      .in('id', ids)
+      .update({ status: 'paid', paid_out_at: now })
+      .in('id', list.map((c: any) => c.id))
   }
 
-  return NextResponse.json({ success: true, period, paid_count: ids.length, skipped_unverified: skippedIds })
+  // Reset ambassador payout request state
+  await supa
+    .from('ambassadors')
+    .update({ payout_request_status: 'none', payout_requested_at: null, payout_admin_note: null })
+    .eq('id', ambassadorId)
+
+  return NextResponse.json({ success: true, amount, ambassador_name: amb.name })
 }
