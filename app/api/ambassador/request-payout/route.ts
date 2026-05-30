@@ -1,9 +1,14 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
+import { checkCsrf } from '@/app/lib/csrf'
 import { getAmbassadorFromToken, adminSupa } from '@/app/lib/ambassador-auth'
 
 export async function POST(request: NextRequest) {
+  // FIX 3: Add CSRF check
+  const csrfError = checkCsrf(request)
+  if (csrfError) return csrfError
+
   const amb = await getAmbassadorFromToken(request)
   if (!amb) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -31,12 +36,18 @@ export async function POST(request: NextRequest) {
   }
 
   const now = new Date().toISOString()
-  const { error } = await supa
+  // FIX 2: Optimistic lock — only update if still 'none' to prevent race condition
+  const { data: updated, error: updateErr } = await supa
     .from('ambassadors')
-    .update({ payout_requested_at: now, payout_request_status: 'requested' })
+    .update({ payout_request_status: 'requested', payout_requested_at: now })
     .eq('id', amb.id)
+    .eq('payout_request_status', 'none') // optimistic lock
+    .select('id')
+    .single()
 
-  if (error) return NextResponse.json({ error: 'Failed to submit request' }, { status: 500 })
+  if (updateErr || !updated) {
+    return NextResponse.json({ error: 'A payout request is already pending.' }, { status: 409 })
+  }
 
   return NextResponse.json({ success: true, requested_at: now })
 }

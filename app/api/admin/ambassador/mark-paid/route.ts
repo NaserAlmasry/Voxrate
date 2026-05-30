@@ -19,6 +19,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'ambassadorId is required' }, { status: 400 })
   }
 
+  // FIX 5: Sanitize adminNote
+  const safeNote = adminNote ? String(adminNote).replace(/[<>"']/g, '').slice(0, 500) : null
+
   const supa = adminSupa()
 
   // Fetch ambassador and verify they have a pending request
@@ -45,29 +48,26 @@ export async function POST(request: NextRequest) {
     list.reduce((s, c) => s + Number(c.commission_amount || 0) + Number(c.friend_bonus_amount || 0), 0) * 100
   ) / 100
 
-  const now = new Date().toISOString()
-
-  // Insert payout history record
-  await supa.from('ambassador_payout_history').insert({
-    ambassador_id: ambassadorId,
-    amount,
-    paid_at: now,
-    admin_note: adminNote || null,
-  })
-
-  // Mark conversions as paid
-  if (list.length > 0) {
-    await supa
-      .from('ambassador_conversions')
-      .update({ status: 'paid', paid_out_at: now })
-      .in('id', list.map((c: any) => c.id))
+  // FIX 4: Guard $0 payout edge case
+  if (amount === 0) {
+    await supa.from('ambassadors')
+      .update({ payout_request_status: 'none', payout_requested_at: null, payout_admin_note: null })
+      .eq('id', ambassadorId)
+    return NextResponse.json({ success: true, amount: 0, note: 'No payable balance — request cleared.' })
   }
 
-  // Reset ambassador payout request state
-  await supa
-    .from('ambassadors')
-    .update({ payout_request_status: 'none', payout_requested_at: null, payout_admin_note: null })
-    .eq('id', ambassadorId)
+  // FIX 1: Replace three separate DB writes with a single atomic RPC call
+  const now = new Date().toISOString()
+  const { error: rpcErr } = await supa.rpc('mark_ambassador_paid', {
+    p_ambassador_id: ambassadorId,
+    p_amount: amount,
+    p_admin_note: safeNote || null,
+    p_paid_at: now,
+  })
+  if (rpcErr) {
+    console.error('[MarkPaid] RPC failed:', rpcErr.message)
+    return NextResponse.json({ error: 'Failed to process payout' }, { status: 500 })
+  }
 
   return NextResponse.json({ success: true, amount, ambassador_name: amb.name })
 }
