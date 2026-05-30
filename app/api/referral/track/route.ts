@@ -48,6 +48,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true, skipped: 'self-referral' })
     }
 
+    const { data: reverseReferral } = await admin
+      .from('referrals')
+      .select('id')
+      .eq('referrer_id', user.id)
+      .eq('referred_user_id', referrer.id)
+      .maybeSingle()
+    if (reverseReferral) {
+      return NextResponse.json({ ok: true, skipped: 'referral-loop' })
+    }
+
     // Idempotent insert — referred_user_id is unique, so duplicates fail cleanly
     const { error: insertErr } = await admin.from('referrals').insert({
       referrer_id: referrer.id,

@@ -21,9 +21,6 @@ export async function POST(request: NextRequest) {
 
   const { data: userData } = await supabase.from('users').select('plan, ai_listing_uses').eq('id', user.id).single()
   const plan = userData?.plan || 'free'
-  if (plan === 'free' && (userData?.ai_listing_uses ?? 0) >= 1) {
-    return NextResponse.json({ error: 'Free plan includes 1 listing generation. Upgrade to continue using this feature.', upgrade: true }, { status: 403 })
-  }
 
   const body        = await request.json()
   const prompt_text = typeof body?.prompt      === 'string' ? body.prompt.trim().slice(0, 1000)   : ''
@@ -70,9 +67,19 @@ Return ONLY valid JSON:
   "seoTips": ["tip 1", "tip 2", "tip 3"]
 }`
 
-  // Increment BEFORE the LLM call to prevent concurrent bypass on free plan
+  // Atomic increment for free plan: only succeeds if ai_listing_uses is currently 0
   if (plan === 'free') {
-    await supabase.rpc('increment_ai_listing_uses', { p_user_id: user.id, p_limit: 1 })
+    const { data: updated } = await supabase
+      .from('users')
+      .update({ ai_listing_uses: 1 })
+      .eq('id', user.id)
+      .eq('ai_listing_uses', 0)
+      .select('ai_listing_uses')
+      .single()
+
+    if (!updated) {
+      return NextResponse.json({ error: 'Free plan includes 1 listing generation. Upgrade to continue using this feature.', upgrade: true }, { status: 403 })
+    }
   }
 
   const messages: Message[] = [

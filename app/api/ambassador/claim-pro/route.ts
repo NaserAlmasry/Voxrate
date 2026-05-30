@@ -19,27 +19,37 @@ export async function POST(request: NextRequest) {
     if (!code) return NextResponse.json({ error: 'Missing code' }, { status: 400 })
 
     const supa = adminSupa()
-    const { data: codeRow } = await supa
-      .from('ambassador_codes')
-      .select('*')
-      .eq('code', code)
-      .single()
+    const now = new Date().toISOString()
 
-    if (!codeRow) return NextResponse.json({ error: 'Invalid code' }, { status: 400 })
-    if (codeRow.type !== 'pro_access') return NextResponse.json({ error: 'Wrong code type' }, { status: 400 })
-    if (codeRow.used) return NextResponse.json({ error: 'Code already used' }, { status: 400 })
-    if (new Date(codeRow.expires_at) < new Date()) return NextResponse.json({ error: 'Code expired' }, { status: 400 })
-    if (!codeRow.assigned_email || codeRow.assigned_email.toLowerCase() !== user.email.toLowerCase()) {
-      return NextResponse.json({ error: 'Code not assigned to your email' }, { status: 400 })
+    // Atomic update: set used=true only if currently used=false, not expired, correct type, and correct email
+    const { data: claimedRows, error: claimError } = await supa
+      .from('ambassador_codes')
+      .update({ used: true })
+      .eq('code', code)
+      .eq('used', false)
+      .eq('type', 'pro_access')
+      .eq('assigned_email', user.email.toLowerCase())
+      .gt('expires_at', now)
+      .select('*')
+
+    if (claimError) {
+      console.error('[claim-pro] atomic update error:', claimError.message)
+      return NextResponse.json({ error: 'Internal error' }, { status: 500 })
     }
+
+    if (!claimedRows || claimedRows.length === 0) {
+      return NextResponse.json({ error: 'Invalid or expired code' }, { status: 400 })
+    }
+
+    const codeRow = claimedRows[0]
 
     const { error } = await supa
       .from('users')
       .update({ plan: 'pro' })
       .eq('id', user.id)
-    if (error) return NextResponse.json({ error: 'Failed to grant pro' }, { status: 500 })
-
-    await supa.from('ambassador_codes').update({ used: true }).eq('id', codeRow.id)
+    if (error) {
+      return NextResponse.json({ error: 'Failed to grant pro' }, { status: 500 })
+    }
 
     return NextResponse.json({ success: true })
   } catch (err: any) {

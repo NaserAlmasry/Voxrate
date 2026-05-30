@@ -571,6 +571,8 @@ export async function POST(request: NextRequest) {
     let user: any = null
     let supabase: any
     if (isCronRequest) {
+      // NOTE: _cronUserId is only trusted because verifyCronRequest() above enforces
+      // IP allowlist + CRON_SECRET. Ensure CRON_ALLOWED_IPS is set in production.
       const cronUserId = typeof body?._cronUserId === 'string' ? body._cronUserId : null
       if (!cronUserId) return NextResponse.json({ error: 'Missing _cronUserId' }, { status: 400 })
       const adminClient = createAdminClient(
@@ -662,7 +664,7 @@ export async function POST(request: NextRequest) {
           .select('last_analyzed_at')
           .eq('user_id', user.id)
           .ilike('product_url', `%/dp/${cooldownAsin}%`)
-          .eq('status', 'completed')
+          .in('status', ['completed', 'pending', 'partial', 'failed', 'amazon_not_logged_in'])
           .order('created_at', { ascending: false })
           .limit(1)
           .single()
@@ -671,15 +673,17 @@ export async function POST(request: NextRequest) {
           const daysSince = (Date.now() - new Date(lastReport.last_analyzed_at).getTime()) / 86_400_000
           if (daysSince < cooldownDays) {
             if (emergencyReanalyze && reanalyzeOverrides > 0) {
-              const { error: decErr } = await supabase
+              const { data: decremented, error: decErr } = await supabase
                 .from('users')
                 .update({ reanalyze_overrides: reanalyzeOverrides - 1 })
                 .eq('id', user.id)
-              if (decErr) {
-                console.error('[Analyze] override decrement failed:', decErr.message)
+                .eq('reanalyze_overrides', reanalyzeOverrides)
+                .select('reanalyze_overrides')
+                .single()
+              if (decErr || !decremented) {
                 return NextResponse.json(
-                  { error: 'Could not consume re-analyze override. Please try again.' },
-                  { status: 503 },
+                  { error: 'Override already used. Please try again.' },
+                  { status: 409 },
                 )
               }
             } else {

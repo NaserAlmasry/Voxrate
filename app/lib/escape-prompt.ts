@@ -2,8 +2,8 @@
 // Also normalizes common Unicode homoglyphs used to bypass keyword filters.
 export function escapePromptInput(s: string): string {
   return s
-    .replace(/</g, '‹')   // replace with single left angle quotation mark (visually similar, not a tag)
-    .replace(/>/g, '›')   // replace with single right angle quotation mark
+    .replace(/[<＜﹤]/g, '‹')   // replace with single left angle quotation mark (visually similar, not a tag)
+    .replace(/[>＞﹥]/g, '›')   // replace with single right angle quotation mark
     .replace(/і/g, 'i')   // Cyrillic і → Latin i
     .replace(/с/g, 'c')   // Cyrillic с → Latin c
     .replace(/а/g, 'a')   // Cyrillic а → Latin a
