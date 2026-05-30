@@ -27,6 +27,7 @@ const mockEnforceRateLimit = vi.fn().mockResolvedValue({ allowed: true, resetAt:
 vi.mock('@/app/lib/rate-limit', () => ({
   MAX_REQUESTS: 30,
   enforceRateLimit: (...args: any[]) => mockEnforceRateLimit(...args),
+  checkRateLimit: vi.fn().mockResolvedValue({ allowed: true, resetAt: Date.now() + 60000 }),
 }))
 
 // ── Cron-auth mock ───────────────────────────────────────────────
@@ -54,7 +55,7 @@ const FAKE_SCRAPE_RESULT = {
     bsr:           1000,
     bsrCategory:   'Electronics',
     recentSales:   null,
-    totalReviews:  120,
+    totalReviews:  40,
     ratingBreakdown: { 1: 5, 2: 5, 3: 10, 4: 30, 5: 70 },
   },
   reviews: Array.from({ length: 40 }, (_, i) => ({
@@ -88,7 +89,7 @@ vi.mock('@/app/lib/mistral-fallback', () => ({
 vi.mock('@/app/lib/health-score', () => ({
   calculateHealthScore: vi.fn().mockReturnValue({
     healthScore: 72, rawHealthScore: 72, verifiedHealthScore: 75,
-    fakeReviewFlag: false, penaltyCount: 1, totalReviewCount: 120,
+    fakeReviewFlag: false, penaltyCount: 1, totalReviewCount: 40,
     starCounts: { 1: 5, 2: 5, 3: 10, 4: 30, 5: 70 },
     imageCount: 5, videoCount: 1, hasAplus: true,
     bsr: 1000, bsrCategory: 'Electronics', unansweredQACount: 0,
@@ -136,11 +137,13 @@ vi.mock('@/app/lib/complaint-guidance', () => ({
 }))
 
 vi.mock('@/app/lib/analysis-prompts', () => ({
-  COMPLAINTS_SYSTEM_PROMPT:   'You are a review analyst.',
-  FREE_PREVIEW_SYSTEM_PROMPT: 'You are a preview analyst.',
-  buildComplaintsPrompt:      vi.fn().mockReturnValue('complaints prompt'),
-  buildComplaintsRetryPrompt: vi.fn().mockReturnValue('retry prompt'),
-  buildFreePreviewPrompt:     vi.fn().mockReturnValue('free preview prompt'),
+  COMPLAINTS_SYSTEM_PROMPT:        'You are a review analyst.',
+  FREE_PREVIEW_SYSTEM_PROMPT:      'You are a preview analyst.',
+  EXECUTIVE_SUMMARY_SYSTEM_PROMPT: 'You are a summary analyst.',
+  buildComplaintsPrompt:           vi.fn().mockReturnValue('complaints prompt'),
+  buildComplaintsRetryPrompt:      vi.fn().mockReturnValue('retry prompt'),
+  buildFreePreviewPrompt:          vi.fn().mockReturnValue('free preview prompt'),
+  buildExecutiveSummaryPrompt:     vi.fn().mockReturnValue('executive summary prompt'),
 }))
 
 // ── Import route AFTER all mocks ─────────────────────────────────

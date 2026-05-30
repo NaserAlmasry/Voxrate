@@ -197,7 +197,7 @@ describe('Stripe webhook — POST /api/stripe/webhook', () => {
 
     const updateEq = vi.fn().mockResolvedValue({ error: null })
     const updateFn = vi.fn().mockReturnValue({ eq: updateEq })
-    mockFrom.mockReturnValue({ update: updateFn, upsert: vi.fn().mockResolvedValue({ error: null }), select: vi.fn().mockReturnValue(chainSelect(null)) })
+    mockFrom.mockReturnValue({ update: updateFn, upsert: vi.fn().mockResolvedValue({ error: null }), insert: vi.fn().mockResolvedValue({ error: null }), select: vi.fn().mockReturnValue(chainSelect(null)) })
     mockRpc.mockResolvedValue({ error: null })
 
     const res = await POST(makeRequest())
@@ -241,7 +241,7 @@ describe('Stripe webhook — POST /api/stripe/webhook', () => {
 
     const updateEq = vi.fn().mockResolvedValue({ error: null })
     const updateFn = vi.fn().mockReturnValue({ eq: updateEq })
-    mockFrom.mockReturnValue({ update: updateFn, upsert: vi.fn().mockResolvedValue({ error: null }), select: vi.fn().mockReturnValue(chainSelect(null)) })
+    mockFrom.mockReturnValue({ update: updateFn, upsert: vi.fn().mockResolvedValue({ error: null }), insert: vi.fn().mockResolvedValue({ error: null }), select: vi.fn().mockReturnValue(chainSelect(null)) })
 
     const res = await POST(makeRequest())
     expect(res.status).toBe(200)
@@ -264,7 +264,7 @@ describe('Stripe webhook — POST /api/stripe/webhook', () => {
     })
 
     const updateFn = vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
-    mockFrom.mockReturnValue({ update: updateFn, upsert: vi.fn().mockResolvedValue({ error: null }), select: vi.fn().mockReturnValue(chainSelect(null)) })
+    mockFrom.mockReturnValue({ update: updateFn, upsert: vi.fn().mockResolvedValue({ error: null }), insert: vi.fn().mockResolvedValue({ error: null }), select: vi.fn().mockReturnValue(chainSelect(null)) })
 
     const res = await POST(makeRequest())
     expect(res.status).toBe(200)
