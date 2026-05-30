@@ -29,7 +29,7 @@ export default function FeaturesSection() {
                 {f.icon}
               </div>
               <h3 className="font-semibold text-base mb-1.5">{f.title}</h3>
-              <p className="text-sm text-neutral-500 leading-relaxed mb-3">{f.desc}</p>
+              <p className="text-sm text-neutral-600 leading-relaxed mb-3">{f.desc}</p>
               <span className="text-[10px] font-semibold text-orange-600 bg-orange-50 border border-orange-100 px-2 py-0.5 rounded-full">{f.badge}</span>
             </div>
           ))}
@@ -46,7 +46,7 @@ export default function FeaturesSection() {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-neutral-800">{f.title}</p>
-                  <p className="text-xs text-neutral-400 leading-snug">{f.desc}</p>
+                  <p className="text-xs text-neutral-600 leading-snug">{f.desc}</p>
                 </div>
               </div>
             ))}
@@ -66,7 +66,7 @@ export default function FeaturesSection() {
               </div>
               <p className="text-sm text-neutral-400 leading-relaxed">Install once and Voxrate lives inside every Amazon page you visit. Your competitors' weak spots appear as a sidebar without switching tabs. New 1★ reviews alert you the moment they land. Your Seller Central health is scanned automatically every visit. It runs silently — you just sell. Included free with all paid plans.</p>
             </div>
-            <a href="/dashboard/settings/extension" className="flex-shrink-0 px-5 py-2.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold rounded-xl transition-colors whitespace-nowrap">
+            <a href="https://chromewebstore.google.com/detail/phngikckgandobfcfkifbkejmlgobhgd" target="_blank" rel="noopener noreferrer" className="flex-shrink-0 px-5 py-2.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold rounded-xl transition-colors whitespace-nowrap">
               Get the extension →
             </a>
           </div>

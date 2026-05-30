@@ -44,7 +44,7 @@ export default function CareersPage() {
   return (
     <main className="min-h-screen bg-white text-gray-900" style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>
       <header className="border-b border-gray-100 px-6 py-4 flex items-center justify-between">
-        <Link href="/" className="text-xl font-bold tracking-tight">Voxrate</Link>
+        <Link href="/"><img src="/logo.png" alt="Voxrate" height={28} style={{ objectFit: 'contain', maxWidth: 130 }} /></Link>
         <Link href="/" className="text-sm text-gray-500 hover:text-gray-900">Back to site</Link>
       </header>
 
@@ -80,9 +80,9 @@ export default function CareersPage() {
           <h2 className="text-3xl font-bold text-center mb-12">How it works</h2>
           <div className="grid md:grid-cols-3 gap-6">
             {[
-              { n: '1', t: 'Apply', b: 'Tell us who you are and where you reach Amazon sellers.' },
+              { n: '1', t: 'Apply', b: 'Tell us who you are and how you plan to reach Amazon sellers.' },
               { n: '2', t: 'Get accepted', b: 'Receive your invite code and personal referral link.' },
-              { n: '3', t: 'Start earning', b: 'Share your link. Get 30% of every paying customer, recurring.' },
+              { n: '3', t: 'Start earning', b: 'Share your link. Get up to 40% for each paying customer, recurring.' },
             ].map(s => (
               <div key={s.n} className="card-lift p-6 rounded-2xl bg-white border border-gray-100">
                 <div className="w-10 h-10 rounded-full bg-[#f05a1e] text-white font-bold flex items-center justify-center mb-4">{s.n}</div>
@@ -168,9 +168,6 @@ export default function CareersPage() {
                 {submitting ? 'Activating...' : <>Activate ambassador account <ArrowRight className="w-4 h-4" /></>}
               </button>
             </form>
-            <p className="text-xs text-gray-400 text-center mt-4 flex items-center justify-center gap-1">
-              <CheckCircle2 className="w-3 h-3" /> Codes expire 24 hours after issue.
-            </p>
           </div>
         </div>
       </section>

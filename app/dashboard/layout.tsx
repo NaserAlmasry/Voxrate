@@ -114,6 +114,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [ownRemaining, setOwnRemaining] = useState<number | null>(null)
   const [trialEndsAt, setTrialEndsAt] = useState<string | null>(null)
   const [showUpgradeBanner, setShowUpgradeBanner] = useState(false)
+  const [showExtBanner, setShowExtBanner] = useState(false)
+  const [extChecked, setExtChecked] = useState(false)
   const [authChecked, setAuthChecked] = useState(false)
 
   const pathname    = usePathname()
@@ -130,6 +132,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (data?.own_analyses_remaining != null) setOwnRemaining(data.own_analyses_remaining)
     if (data?.trial_ends_at) setTrialEndsAt(data.trial_ends_at)
   }
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const dismissed = localStorage.getItem('voxrate_ext_banner_dismissed')
+      if (!dismissed) setShowExtBanner(true)
+    }
+  }, [])
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -419,12 +428,66 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             {NAV_ITEMS.find(i => pathname === i.href || (i.href !== '/dashboard' && pathname.startsWith(i.href)))?.label ?? 'Dashboard'}
           </p>
         </div>
+        {/* Extension banner */}
+        {showExtBanner && (
+          <div
+            className="mx-4 md:mx-6 mt-4 flex items-center justify-between gap-4 px-5 py-3.5 bg-neutral-900 rounded-2xl text-white transition-all duration-500"
+            style={{ opacity: extChecked ? 0 : 1, pointerEvents: extChecked ? 'none' : 'auto' }}
+          >
+            <div className="flex items-center gap-3">
+              <Puzzle size={18} className="text-orange-400 shrink-0" />
+              <span className="text-sm font-medium">Do you have the Voxrate extension installed?</span>
+              <a
+                href="https://chromewebstore.google.com/detail/phngikckgandobfcfkifbkejmlgobhgd"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-orange-400 hover:text-orange-300 underline underline-offset-2 whitespace-nowrap"
+              >
+                Get the extension →
+              </a>
+            </div>
+            <button
+              onClick={() => {
+                setExtChecked(true)
+                setTimeout(() => {
+                  setShowExtBanner(false)
+                  localStorage.setItem('voxrate_ext_banner_dismissed', '1')
+                }, 600)
+              }}
+              className={`shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all duration-300 ${extChecked ? 'bg-green-500 border-green-500' : 'border-neutral-500 hover:border-green-400'}`}
+              aria-label="Mark extension as installed"
+            >
+              {extChecked && (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+              )}
+            </button>
+          </div>
+        )}
+
         <div className="p-4 md:p-6">
           <ErrorBoundary>
             {children}
           </ErrorBoundary>
         </div>
-        <div className="px-6 pb-6">
+
+        {/* Dashboard footer */}
+        <div className="px-6 pb-6 border-t border-neutral-200 mt-4 pt-6">
+          <div className="mb-4">
+            <p className="text-xs font-semibold text-neutral-700 uppercase tracking-wider mb-2">Chrome Extension</p>
+            <p className="text-xs text-neutral-500 leading-relaxed max-w-2xl mb-1">
+              The Voxrate Chrome extension works silently in the background while you browse Amazon. It reads the reviews on any product page — yours or a competitor's — and sends them to Voxrate for analysis. No copy-pasting, no switching tabs. Install it once and every analysis you run from the dashboard is powered automatically.
+            </p>
+            <a
+              href="https://chromewebstore.google.com/detail/phngikckgandobfcfkifbkejmlgobhgd"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-orange-500 hover:underline font-medium"
+            >
+              Install from Chrome Web Store →
+            </a>
+          </div>
           <p className="text-[10px] text-neutral-300 leading-relaxed">
             Amazon is a trademark of Amazon.com, Inc. This application is not affiliated with, endorsed by, or certified by Amazon.
           </p>
