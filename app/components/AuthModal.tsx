@@ -82,6 +82,7 @@ export default function AuthModal({ onClose, initialStep = 'plan', initialAuthMo
   const [loading, setLoading]     = useState(false)
   const [error, setError]         = useState('')
   const [emailSent, setEmailSent] = useState(false)
+  const [termsAccepted, setTermsAccepted] = useState(false)
   const [showProCode, setShowProCode] = useState(false)
   const [proCode, setProCode] = useState('')
   const [proEmail, setProEmail] = useState('')
@@ -243,7 +244,8 @@ export default function AuthModal({ onClose, initialStep = 'plan', initialAuthMo
             <>
               {/* Google */}
               <button onClick={handleGoogle}
-                className="w-full flex items-center justify-center gap-3 py-3 border-2 border-neutral-200 rounded-xl text-sm font-medium hover:border-black transition-all mb-2">
+                disabled={authMode === 'signup' && !termsAccepted}
+                className="w-full flex items-center justify-center gap-3 py-3 border-2 border-neutral-200 rounded-xl text-sm font-medium hover:border-black transition-all mb-2 disabled:opacity-40 disabled:cursor-not-allowed">
                 <GoogleIcon />
                 Continue with Google
               </button>
@@ -305,9 +307,25 @@ export default function AuthModal({ onClose, initialStep = 'plan', initialAuthMo
                   className="w-full px-4 py-3 border-2 border-neutral-200 rounded-xl text-sm focus:outline-none focus:border-black transition-colors"
                 />
                 {error && <p className="text-xs text-red-500">{error}</p>}
+                {authMode === 'signup' && (
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={termsAccepted}
+                      onChange={e => setTermsAccepted(e.target.checked)}
+                      className="mt-0.5 accent-black shrink-0"
+                    />
+                    <span className="text-xs text-neutral-500">
+                      I agree to the{' '}
+                      <a href="/terms" target="_blank" rel="noopener noreferrer" className="underline text-black hover:text-neutral-600">Terms of Service</a>
+                      {' '}and{' '}
+                      <a href="/privacy" target="_blank" rel="noopener noreferrer" className="underline text-black hover:text-neutral-600">Privacy Policy</a>
+                    </span>
+                  </label>
+                )}
                 <button
                   onClick={handleEmailAuth}
-                  disabled={loading || !email.trim() || !password}
+                  disabled={loading || !email.trim() || !password || (authMode === 'signup' && !termsAccepted)}
                   className="w-full py-3 bg-black text-white text-sm font-medium rounded-xl hover:bg-neutral-800 transition-colors disabled:opacity-40"
                 >
                   {loading ? 'Please wait…' : authMode === 'signup' ? 'Create account →' : 'Sign in →'}

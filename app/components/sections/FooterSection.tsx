@@ -12,7 +12,7 @@ export default function FooterSection({ footerNlEmail, setFooterNlEmail, footerN
   return (
     <footer className="py-12 px-6 border-t border-neutral-200 bg-white">
       <div className="max-w-6xl mx-auto">
-        <div className="grid md:grid-cols-3 gap-8 mb-8">
+        <div className="grid md:grid-cols-4 gap-8 mb-8">
           <div>
             <img src="/logo.png" alt="Voxrate" height={28} style={{ objectFit: 'contain', maxWidth: 130 }} className="mb-3" />
             <p className="text-xs text-neutral-400 leading-relaxed">The Amazon review analyzer that turns customer feedback into specific fixes. Free to try.</p>
@@ -25,6 +25,34 @@ export default function FooterSection({ footerNlEmail, setFooterNlEmail, footerN
                   className="block text-xs text-neutral-400 hover:text-black transition-colors">{l}</a>
               ))}
             </div>
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-neutral-700 uppercase tracking-wider mb-3">Chrome Extension</p>
+            <p className="text-xs text-neutral-500 leading-relaxed mb-2">
+              The Voxrate extension works silently on Amazon while you sell. Here's what it does for you as an Amazon seller:
+            </p>
+            <ul className="space-y-1.5 mb-3">
+              {[
+                'Reads every review on any product page — yours or a competitor\'s — automatically',
+                'Shows you your competitor\'s top complaints as a sidebar while you browse their listing',
+                'Alerts you the moment a new 1★ or 2★ review hits your product',
+                'Scans your Seller Central health every time you open it — stranded inventory, return rate, account status',
+                'Tracks sudden spikes or drops in review velocity before they affect your ranking',
+              ].map(t => (
+                <li key={t} className="flex items-start gap-1.5 text-xs text-neutral-500">
+                  <span className="text-orange-500 mt-0.5 shrink-0">✓</span>
+                  <span>{t}</span>
+                </li>
+              ))}
+            </ul>
+            <a
+              href="https://chromewebstore.google.com/detail/phngikckgandobfcfkifbkejmlgobhgd"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-orange-500 hover:underline font-medium"
+            >
+              Install free on Chrome →
+            </a>
           </div>
           <div>
             <p className="text-xs font-semibold text-neutral-700 uppercase tracking-wider mb-3">Stay in the loop</p>
