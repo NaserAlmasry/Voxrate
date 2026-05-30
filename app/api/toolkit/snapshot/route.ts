@@ -35,6 +35,8 @@ async function getUserFromToken(token: string) {
     .from('extension_sessions')
     .select('user_id')
     .eq('token', token)
+    .is('revoked_at', null)
+    .gt('expires_at', new Date().toISOString())
     .single()
   return data
 }
@@ -65,6 +67,7 @@ export async function POST(req: NextRequest) {
 
   const { asin, marketplace = 'amazon.com' } = body
   if (!asin) return NextResponse.json({ error: 'Missing asin' }, { status: 400 })
+  if (!/^[A-Z0-9]{10}$/.test(asin)) return NextResponse.json({ error: 'Invalid asin' }, { status: 400 })
 
   const supabase = adminClient()
   const userId = session.user_id
@@ -89,43 +92,51 @@ export async function POST(req: NextRequest) {
     .limit(1)
     .single()
 
+  // Sanitize and cap payload fields before storage
+  const safeTitle = typeof body.title === 'string' ? body.title.slice(0, 500) : null
+  const safeBullets = Array.isArray(body.bullets)
+    ? body.bullets.slice(0, 30).map((b: unknown) => typeof b === 'string' ? b.slice(0, 1000) : '').filter(Boolean)
+    : null
+  const safeImage = typeof body.main_image === 'string' ? body.main_image.slice(0, 1000) : null
+  const safePrice = typeof body.price === 'number' && isFinite(body.price) && body.price >= 0 && body.price < 100000 ? body.price : null
+  const safeReviewCount = typeof body.review_count === 'number' && isFinite(body.review_count) && body.review_count >= 0 ? Math.round(body.review_count) : null
+  const safeRating = typeof body.average_rating === 'number' && isFinite(body.average_rating) && body.average_rating >= 0 && body.average_rating <= 5 ? body.average_rating : null
+  const safeBuyBox = typeof body.buy_box_seller === 'string' ? body.buy_box_seller.slice(0, 200) : null
+
   // Save new snapshot
   await supabase.from('listing_snapshots').insert({
     user_id: userId,
     asin,
     marketplace,
-    title: body.title || null,
-    bullets: body.bullets ? body.bullets : null,
-    main_image: body.main_image || null,
-    price: body.price ?? null,
-    review_count: body.review_count ?? null,
-    average_rating: body.average_rating ?? null,
-    buy_box_seller: body.buy_box_seller || null,
-    is_suppressed: body.is_suppressed ?? false,
+    title: safeTitle,
+    bullets: safeBullets,
+    main_image: safeImage,
+    price: safePrice,
+    review_count: safeReviewCount,
+    average_rating: safeRating,
+    buy_box_seller: safeBuyBox,
+    is_suppressed: body.is_suppressed === true,
   })
 
   if (!prev) return NextResponse.json({ ok: true, changed: false })
 
-  // Diff
+  // Diff — compare against sanitized safe* values (same as what was stored)
   const changes: string[] = []
   const prevTitle = prev.title ?? null
-  const currTitle = body.title ?? null
-  if (prevTitle !== null && prevTitle !== currTitle) changes.push(`Title changed`)
+  if (prevTitle !== null && prevTitle !== safeTitle) changes.push(`Title changed`)
 
   const prevImage = prev.main_image ?? null
-  const currImage = body.main_image ?? null
-  if (prevImage !== null && prevImage !== currImage) changes.push(`Main image changed`)
+  if (prevImage !== null && prevImage !== safeImage) changes.push(`Main image changed`)
 
-  if (prev.price != null && body.price != null && Math.abs(prev.price - body.price) > 0.01) {
-    changes.push(`Price changed from $${prev.price} to $${body.price}`)
+  if (prev.price != null && safePrice != null && Math.abs(prev.price - safePrice) > 0.01) {
+    changes.push(`Price changed from $${prev.price} to $${safePrice}`)
   }
 
   const prevBB = prev.buy_box_seller ?? null
-  const currBB = body.buy_box_seller ?? null
-  if (prevBB !== null && prevBB !== currBB) {
-    changes.push(`Buy Box seller changed from "${prevBB}" to "${currBB ?? 'unknown'}"`)
+  if (prevBB !== null && prevBB !== safeBuyBox) {
+    changes.push(`Buy Box seller changed from "${prevBB}" to "${safeBuyBox ?? 'unknown'}"`)
   }
-  if (!prev.is_suppressed && body.is_suppressed) changes.push(`Listing may be suppressed`)
+  if (!prev.is_suppressed && body.is_suppressed === true) changes.push(`Listing may be suppressed`)
 
   if (changes.length > 0) {
     await supabase.from('alerts').insert({
@@ -135,7 +146,7 @@ export async function POST(req: NextRequest) {
       title: `Listing change detected on ${asin}`,
       body: changes.join('; '),
       asin,
-      data: { changes, prev: { title: prev.title, price: prev.price, buy_box_seller: prev.buy_box_seller }, current: body },
+      data: { changes, prev: { title: prev.title, price: prev.price, buy_box_seller: prev.buy_box_seller }, current: { title: safeTitle, price: safePrice, buy_box_seller: safeBuyBox } },
     })
   }
 

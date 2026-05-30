@@ -17,7 +17,11 @@ function adminClient() {
 
 export async function GET(_req: NextRequest) {
   const origin = _req.headers.get('origin')
-  const allowedOrigins = ['https://voxrate.app', 'chrome-extension://']
+  const extensionId = process.env.CHROME_EXTENSION_ID
+  const allowedOrigins = [
+    'https://voxrate.app',
+    ...(extensionId ? [`chrome-extension://${extensionId}`] : ['chrome-extension://']),
+  ]
   if (origin && !allowedOrigins.some(o => origin.startsWith(o))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
@@ -46,9 +50,11 @@ export async function GET(_req: NextRequest) {
   // Generate a new token
   const token = 'vox_' + crypto.randomBytes(24).toString('hex')
 
+  const expiresAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() // 1 year
   await admin.from('extension_sessions').insert({
     user_id: user.id,
     token,
+    expires_at: expiresAt,
     created_at: new Date().toISOString(),
     last_seen_at: new Date().toISOString(),
     user_agent: _req.headers.get('user-agent')?.slice(0, 255) ?? null,
@@ -71,10 +77,11 @@ export async function POST(req: NextRequest) {
   const admin = adminClient()
   const token = 'vox_' + crypto.randomBytes(24).toString('hex')
 
+  const newExpiresAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
   await admin
     .from('extension_sessions')
     .upsert(
-      { user_id: user.id, token, created_at: new Date().toISOString(), last_seen_at: new Date().toISOString(), user_agent: req.headers.get('user-agent')?.slice(0, 255) ?? null },
+      { user_id: user.id, token, expires_at: newExpiresAt, created_at: new Date().toISOString(), last_seen_at: new Date().toISOString(), user_agent: req.headers.get('user-agent')?.slice(0, 255) ?? null },
       { onConflict: 'user_id' },
     )
 

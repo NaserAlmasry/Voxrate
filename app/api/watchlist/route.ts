@@ -41,9 +41,33 @@ export async function GET() {
     }
   } catch {}
 
+  // Fetch complaint theme history per watchlist item (last 90 days)
+  const themeHistoryMap: Record<string, { theme: string; data: { date: string; pct: number }[] }[]> = {}
+  try {
+    const ninetyDaysAgo = new Date(Date.now() - 90 * 86400000).toISOString()
+    const { data: themeHistory } = await supabase
+      .from('complaint_theme_history')
+      .select('watchlist_id, theme_name, percentage, checked_at')
+      .in('watchlist_id', items.map((i: any) => i.id))
+      .gte('checked_at', ninetyDaysAgo)
+      .order('checked_at', { ascending: true })
+    if (themeHistory) {
+      for (const row of themeHistory) {
+        if (!themeHistoryMap[row.watchlist_id]) themeHistoryMap[row.watchlist_id] = []
+        const existing = themeHistoryMap[row.watchlist_id].find((t: any) => t.theme === row.theme_name)
+        if (existing) {
+          existing.data.push({ date: row.checked_at, pct: Number(row.percentage) })
+        } else {
+          themeHistoryMap[row.watchlist_id].push({ theme: row.theme_name, data: [{ date: row.checked_at, pct: Number(row.percentage) }] })
+        }
+      }
+    }
+  } catch {}
+
   const itemsWithHistory = items.map((item: any) => ({
     ...item,
-    history: historyMap[item.id] || [],
+    history:      historyMap[item.id]      || [],
+    themeHistory: themeHistoryMap[item.id] || [],
     monitoring_active: planSupportsWatchlist,
   }))
 
@@ -145,10 +169,23 @@ export async function POST(request: NextRequest) {
 
   if (error) return NextResponse.json({ error: 'Failed to add to watchlist' }, { status: 500 })
 
-  // Seed initial history point
+  // Seed initial history point + complaint themes
   try {
     if (inserted?.id) {
       await supabase.from('watchlist_history').insert({ watchlist_id: inserted.id, score: report.health_score })
+      const complaints = report.full_report?.complaints || []
+      if (complaints.length > 0) {
+        await supabase.from('complaint_theme_history').insert(
+          complaints.slice(0, 10).map((c: any) => ({
+            watchlist_id: inserted.id,
+            report_id:    reportId,
+            theme_name:   (c.title || 'Unknown').slice(0, 200),
+            percentage:   typeof c.percentage === 'number' ? c.percentage : parseFloat(c.percentage) || 0,
+            severity:     c.severity || null,
+            checked_at:   now,
+          }))
+        )
+      }
     }
   } catch {}
 
@@ -188,7 +225,7 @@ export async function PATCH(request: NextRequest) {
   const reportId = typeof body?.reportId === 'string' ? body.reportId : undefined
   const newScore = typeof body?.newScore === 'number' ? body.newScore : undefined
 
-  if (newScore !== undefined && (typeof newScore !== 'number' || newScore < 0 || newScore > 100 || !Number.isInteger(newScore))) {
+  if (newScore !== undefined && (typeof newScore !== 'number' || newScore < 0 || newScore > 100)) {
     return NextResponse.json({ error: 'Invalid score' }, { status: 400 })
   }
 

@@ -29,11 +29,26 @@ export async function POST(request: NextRequest) {
     if (!amb || amb.status !== 'active') return NextResponse.json({ ok: true })
 
     const ua = request.headers.get('user-agent') || ''
-    await supa.from('ambassador_clicks').insert({
-      ambassador_id: amb.id,
-      ip_hash: hash(ip),
-      user_agent_hash: hash(ua),
-    })
+    const ipHash = hash(ip)
+    const today = new Date().toISOString().split('T')[0]
+
+    // One click per IP per ambassador per day
+    const { data: existingClick } = await supa
+      .from('ambassador_clicks')
+      .select('id')
+      .eq('ambassador_id', amb.id)
+      .eq('ip_hash', ipHash)
+      .gte('created_at', `${today}T00:00:00Z`)
+      .limit(1)
+      .maybeSingle()
+
+    if (!existingClick) {
+      await supa.from('ambassador_clicks').insert({
+        ambassador_id: amb.id,
+        ip_hash: ipHash,
+        user_agent_hash: hash(ua),
+      })
+    }
 
     return NextResponse.json({ ok: true })
   } catch {

@@ -6,6 +6,24 @@ function h(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
+const MARKETPLACE_IDS: Record<string, string> = {
+  'amazon.com':     'ATVPDKIKX0DER',
+  'amazon.co.uk':   'A1F83G8C2ARO7P',
+  'amazon.de':      'A1PA6795UKMFR9',
+  'amazon.fr':      'A13V1IB3VIYZZH',
+  'amazon.it':      'APJ6JRA9NG5V4',
+  'amazon.es':      'A1RKKUPIHCS9HS',
+  'amazon.co.jp':   'A1VC38T7YXB528',
+  'amazon.ca':      'A2EUQ1WTGCTBG2',
+  'amazon.com.au':  'A39IBJ37TRP1C6',
+  'amazon.in':      'A21TJRUUN4KGV',
+  'amazon.com.mx':  'A1AM78C64UM0Y8',
+}
+
+function getMarketplaceId(marketplace: string): string {
+  return MARKETPLACE_IDS[marketplace] || MARKETPLACE_IDS['amazon.com']
+}
+
 export async function sendWeeklyDigest({
   to,
   listings,
@@ -20,7 +38,7 @@ export async function sendWeeklyDigest({
   }[]
 }) {
   if (!resend) {
-    console.warn('[Email] RESEND_API_KEY not set â€” skipping weekly digest')
+    console.warn('[Email] RESEND_API_KEY not set - skipping weekly digest')
     return
   }
 
@@ -31,10 +49,10 @@ export async function sendWeeklyDigest({
   const listingsHtml = listings.map(l => {
     const trend = l.previousScore !== null
       ? l.currentScore > l.previousScore
-        ? `<span style="color:#22c55e;font-size:11px;">â–² +${l.currentScore - l.previousScore}</span>`
+        ? `<span style="color:#22c55e;font-size:11px;">&#9650; +${l.currentScore - l.previousScore}</span>`
         : l.currentScore < l.previousScore
-          ? `<span style="color:#ef4444;font-size:11px;">â–¼ ${l.currentScore - l.previousScore}</span>`
-          : `<span style="color:#9ca3af;font-size:11px;">â€” no change</span>`
+          ? `<span style="color:#ef4444;font-size:11px;">&#9660; ${l.currentScore - l.previousScore}</span>`
+          : `<span style="color:#9ca3af;font-size:11px;">no change</span>`
       : ''
 
     return `
@@ -51,7 +69,7 @@ export async function sendWeeklyDigest({
       </div>
       <a href="${SITE_URL}/dashboard/report/${l.reportId}"
          style="display:inline-block;margin-top:10px;font-size:11px;color:#f05a1e;text-decoration:none;font-weight:600;">
-        View report â†’
+        View report &rarr;
       </a>
     </div>`
   }).join('')
@@ -67,7 +85,7 @@ export async function sendWeeklyDigest({
   await resend.emails.send({
     from:    'Voxrate <noreply@voxrate.app>',
     to,
-    subject: `Your weekly Voxrate digest â€” ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
+    subject: `Your weekly Voxrate digest - ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
     html: `
 <!DOCTYPE html>
 <html>
@@ -88,7 +106,7 @@ export async function sendWeeklyDigest({
 
       <a href="${SITE_URL}/dashboard/monitor"
          style="display:block;text-align:center;padding:14px;background:#111;color:#fff;text-decoration:none;border-radius:10px;font-size:13px;font-weight:700;margin-top:16px;">
-        Manage monitoring â†’
+        Manage monitoring &rarr;
       </a>
     </div>
 
@@ -125,7 +143,7 @@ export async function sendReportComplete({
   await resend.emails.send({
     from:    'Voxrate <noreply@voxrate.app>',
     to,
-    subject: `Your report is ready â€” ${productName}`,
+    subject: `Your report is ready - ${productName}`,
     html: `
 <!DOCTYPE html>
 <html>
@@ -145,12 +163,12 @@ export async function sendReportComplete({
         <p style="font-size:11px;color:${scoreColor};margin:4px 0 0;font-weight:600;">${scoreLabel}</p>
       </div>
       <a href="${reportUrl}" style="display:block;text-align:center;padding:14px;background:#f05a1e;color:#fff;text-decoration:none;border-radius:10px;font-size:13px;font-weight:700;">
-        View full report â†’
+        View full report &rarr;
       </a>
     </div>
-    <div style="padding:16px 24px;border-top:1px solid #f3f4f6;text-align:center;">
-      <p style="font-size:11px;color:#9ca3af;margin:0;">
-        <a href="${SITE_URL}" style="color:#f05a1e;text-decoration:none;">Voxrate</a> â€” Amazon review intelligence
+    <div style=”padding:16px 24px;border-top:1px solid #f3f4f6;text-align:center;”>
+      <p style=”font-size:11px;color:#9ca3af;margin:0;”>
+        <a href=”${SITE_URL}” style=”color:#f05a1e;text-decoration:none;”>Voxrate</a> &mdash; Amazon review intelligence
       </p>
     </div>
   </div>
@@ -173,7 +191,7 @@ export async function sendReportFailed({
   await resend.emails.send({
     from:    'Voxrate <noreply@voxrate.app>',
     to,
-    subject: `Analysis failed â€” ${productName}`,
+    subject: `Analysis failed - ${productName}`,
     html: `
 <!DOCTYPE html>
 <html>
@@ -192,12 +210,12 @@ export async function sendReportFailed({
         You can try again from your dashboard. If the problem persists, reply to this email and we'll look into it.
       </p>
       <a href="${SITE_URL}/dashboard" style="display:block;text-align:center;padding:14px;background:#f05a1e;color:#fff;text-decoration:none;border-radius:10px;font-size:13px;font-weight:700;">
-        Go to dashboard â†’
+        Go to dashboard &rarr;
       </a>
     </div>
-    <div style="padding:16px 24px;border-top:1px solid #f3f4f6;text-align:center;">
-      <p style="font-size:11px;color:#9ca3af;margin:0;">
-        <a href="${SITE_URL}" style="color:#f05a1e;text-decoration:none;">Voxrate</a> â€” Amazon review intelligence
+    <div style=”padding:16px 24px;border-top:1px solid #f3f4f6;text-align:center;”>
+      <p style=”font-size:11px;color:#9ca3af;margin:0;”>
+        <a href=”${SITE_URL}” style=”color:#f05a1e;text-decoration:none;”>Voxrate</a> &mdash; Amazon review intelligence
       </p>
     </div>
   </div>
@@ -224,7 +242,7 @@ export async function sendSentimentAlert({
   creditsCharged: number
 }) {
   if (!resend) {
-    console.warn('[Email] RESEND_API_KEY not set â€” skipping sentiment alert')
+    console.warn('[Email] RESEND_API_KEY not set - skipping sentiment alert')
     return
   }
 
@@ -233,22 +251,27 @@ export async function sendSentimentAlert({
   const count     = reviews.length
   const productHref = `https://www.${marketplace.replace(/^amazon\./, 'amazon.')}/dp/${asin}`
 
+  const marketplaceId = getMarketplaceId(marketplace)
   const reviewsHtml = reviews.slice(0, 20).map(r => {
-    const stars  = 'â˜…'.repeat(r.rating) + 'â˜†'.repeat(5 - r.rating)
+    const stars  = '&#9733;'.repeat(r.rating) + '&#9734;'.repeat(5 - r.rating)
     const color  = r.rating === 1 ? '#dc2626' : '#f05a1e'
-    const snippet = (r.body || '').slice(0, 280)
+    const snippet = (r.body || '').slice(0, 800)
     return `
       <div style="border:1px solid #fecaca;background:#fff5f5;border-radius:10px;padding:12px 14px;margin-bottom:8px;">
         <p style="margin:0 0 4px;font-size:12px;font-weight:700;color:${color};letter-spacing:1px;">${stars} <span style="color:#6b7280;font-weight:500;letter-spacing:0;margin-left:6px;">${r.rating}-star</span></p>
         ${r.title ? `<p style="margin:0 0 4px;font-size:12px;font-weight:700;color:#111;">${h(r.title)}</p>` : ''}
-        <p style="margin:0;font-size:12px;color:#374151;line-height:1.5;">${h(snippet)}${snippet.length >= 280 ? 'â€¦' : ''}</p>
+        <p style="margin:0 0 8px;font-size:12px;color:#374151;line-height:1.5;">${h(snippet)}${snippet.length >= 800 ? '&hellip;' : ''}</p>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+          <a href="https://sellercentral.amazon.com/messaging/contact?asin=${h(asin)}&marketplaceId=${marketplaceId}" style="font-size:11px;color:#1a56db;font-weight:600;text-decoration:none;">Reply on Amazon &rarr;</a>
+          <a href="${SITE_URL}/dashboard/reply?prefill=${encodeURIComponent((r.body || '').slice(0, 500))}&asin=${h(asin)}" style="font-size:11px;color:#f05a1e;font-weight:600;text-decoration:none;">Generate reply in Voxrate &rarr;</a>
+        </div>
       </div>`
   }).join('')
 
   await resend.emails.send({
     from:    'Voxrate <noreply@voxrate.app>',
     to,
-    subject: `New negative reviews for ${safeName} â€” ${count} review${count === 1 ? '' : 's'}`,
+    subject: `New negative reviews for ${safeName} - ${count} review${count === 1 ? '' : 's'}`,
     html: `
 <!DOCTYPE html>
 <html>
@@ -257,24 +280,24 @@ export async function sendSentimentAlert({
   <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:16px;border:1px solid #e5e7eb;overflow:hidden;">
     <div style="background:#111;padding:20px 24px;">
       <span style="font-size:18px;font-weight:900;color:#fff;">Voxrate</span>
-      <span style="display:block;font-size:11px;color:#6b7280;margin-top:2px;">Sentiment alert Â· ${frequency}</span>
+      <span style="display:block;font-size:11px;color:#6b7280;margin-top:2px;">Sentiment alert &middot; ${frequency}</span>
     </div>
     <div style="padding:24px;">
       <h1 style="font-size:16px;font-weight:700;color:#111;margin:0 0 4px;">${h(productName)}</h1>
       <p style="font-size:12px;color:#6b7280;margin:0 0 18px;">
-        ${count} new 1â˜…/2â˜… review${count === 1 ? '' : 's'} detected Â· ASIN <a href="${productHref}" style="color:#6b7280;text-decoration:underline;">${h(asin)}</a>
+        ${count} new 1&#9733;/2&#9733; review${count === 1 ? '' : 's'} detected &middot; ASIN <a href="${productHref}" style="color:#6b7280;text-decoration:underline;">${h(asin)}</a>
       </p>
       ${count === 0
         ? `<div style="padding:18px;text-align:center;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;"><p style="margin:0;font-size:13px;color:#15803d;font-weight:600;">No new negative reviews this period.</p></div>`
         : reviewsHtml}
       <a href="${SITE_URL}/dashboard/sentiment-alerts" style="display:block;text-align:center;padding:14px;background:#f05a1e;color:#fff;text-decoration:none;border-radius:10px;font-size:13px;font-weight:700;margin-top:16px;">
-        Manage alerts â†’
+        Manage alerts &rarr;
       </a>
       <p style="font-size:11px;color:#9ca3af;margin:14px 0 0;text-align:center;">${creditsCharged > 0 ? '1 analysis used for this scan.' : ''}</p>
     </div>
     <div style="padding:16px 24px;border-top:1px solid #f3f4f6;text-align:center;">
       <p style="font-size:11px;color:#9ca3af;margin:0;">
-        <a href="${SITE_URL}" style="color:#f05a1e;text-decoration:none;">Voxrate</a> â€” Amazon review intelligence
+        <a href=”${SITE_URL}” style=”color:#f05a1e;text-decoration:none;”>Voxrate</a> &mdash; Amazon review intelligence
       </p>
     </div>
   </div>
@@ -299,7 +322,7 @@ export async function sendMonitorAlert({
   newComplaints: string[]
 }) {
   if (!resend) {
-    console.warn('[Email] RESEND_API_KEY not set â€” skipping email')
+    console.warn('[Email] RESEND_API_KEY not set - skipping email')
     return
   }
 
@@ -349,7 +372,7 @@ export async function sendMonitorAlert({
           <p style="font-size:10px;color:#9ca3af;margin:0 0 4px;text-transform:uppercase;">Before</p>
           <p style="font-size:28px;font-weight:900;color:#6b7280;margin:0;">${oldScore}</p>
         </div>
-        <div style="display:flex;align-items:center;color:#9ca3af;font-size:20px;">â†’</div>
+        <div style="display:flex;align-items:center;color:#9ca3af;font-size:20px;">&rarr;</div>
         <div style="flex:1;text-align:center;padding:16px;background:#f9fafb;border-radius:12px;border:2px solid ${scoreColor};">
           <p style="font-size:10px;color:#9ca3af;margin:0 0 4px;text-transform:uppercase;">Now</p>
           <p style="font-size:28px;font-weight:900;color:${scoreColor};margin:0;">${newScore}</p>
@@ -359,15 +382,162 @@ export async function sendMonitorAlert({
       ${complaintsHtml}
 
       <a href="${reportUrl}" style="display:block;text-align:center;padding:14px;background:#f05a1e;color:#fff;text-decoration:none;border-radius:10px;font-size:13px;font-weight:700;margin-top:8px;">
-        View full report â†’
+        View full report &rarr;
       </a>
     </div>
 
     <div style="padding:16px 24px;border-top:1px solid #f3f4f6;text-align:center;">
       <p style="font-size:11px;color:#9ca3af;margin:0;">
-        You're receiving this because you're monitoring this listing on
+        You’re receiving this because you’re monitoring this listing on
         <a href="${SITE_URL}" style="color:#f05a1e;text-decoration:none;">Voxrate</a>.
         <a href="${SITE_URL}/dashboard/monitor" style="color:#9ca3af;">Manage alerts</a>
+      </p>
+    </div>
+  </div>
+</body>
+</html>`,
+  })
+}
+
+export async function sendImmediateStarAlert({
+  to,
+  productName,
+  asin,
+  marketplace,
+  reviews,
+  reportId,
+}: {
+  to: string
+  productName: string
+  asin: string
+  marketplace: string
+  reviews: { rating: number; title?: string; body?: string }[]
+  reportId: string
+}) {
+  if (!resend) {
+    console.warn('[Email] RESEND_API_KEY not set - skipping immediate star alert')
+    return
+  }
+
+  const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://voxrate.app'
+  const marketplaceId = getMarketplaceId(marketplace)
+  const count = reviews.length
+  const safeName = productName.replace(/[^\w\s\-.,!?']/g, '') || asin
+
+  const reviewsHtml = reviews.slice(0, 5).map(r => {
+    const stars = '&#9733;'.repeat(r.rating) + '&#9734;'.repeat(5 - r.rating)
+    const color = r.rating === 1 ? '#dc2626' : '#f05a1e'
+    const body = (r.body || '').slice(0, 800)
+    return `
+      <div style="border:1px solid #fecaca;background:#fff5f5;border-radius:10px;padding:14px 16px;margin-bottom:10px;">
+        <p style="margin:0 0 6px;font-size:13px;font-weight:700;color:${color};">${stars} ${r.rating}-star</p>
+        ${r.title ? `<p style="margin:0 0 6px;font-size:13px;font-weight:700;color:#111;">${h(r.title)}</p>` : ''}
+        <p style="margin:0 0 10px;font-size:13px;color:#374151;line-height:1.6;">${h(body)}${body.length >= 800 ? '&hellip;' : ''}</p>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+          <a href="https://sellercentral.amazon.com/messaging/contact?asin=${h(asin)}&marketplaceId=${marketplaceId}"
+             style="font-size:12px;color:#1a56db;font-weight:600;text-decoration:none;">Reply on Amazon &rarr;</a>
+          <a href="${SITE_URL}/dashboard/reply?prefill=${encodeURIComponent((r.body || '').slice(0, 500))}&asin=${h(asin)}"
+             style="font-size:12px;color:#f05a1e;font-weight:600;text-decoration:none;">Generate reply in Voxrate &rarr;</a>
+        </div>
+      </div>`
+  }).join('')
+
+  await resend.emails.send({
+    from: 'Voxrate <noreply@voxrate.app>',
+    to,
+    subject: `🚨 New ${count} 1★/2★ review${count > 1 ? 's' : ''} on "${safeName}"`,
+    html: `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f9fafb;margin:0;padding:24px;">
+  <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:16px;border:1px solid #e5e7eb;overflow:hidden;">
+    <div style="background:#dc2626;padding:20px 24px;">
+      <span style="font-size:18px;font-weight:900;color:#fff;">Voxrate</span>
+      <span style="display:block;font-size:11px;color:#fca5a5;margin-top:2px;">Immediate 1&#9733;/2&#9733; alert</span>
+    </div>
+    <div style="padding:24px;">
+      <h1 style="font-size:16px;font-weight:700;color:#111;margin:0 0 4px;">${h(productName)}</h1>
+      <p style="font-size:13px;color:#6b7280;margin:0 0 18px;">
+        ${count} new low-rated review${count > 1 ? 's' : ''} just appeared on your listing.
+        Act fast &mdash; negative reviews can impact conversion within 24 hours.
+      </p>
+      ${reviewsHtml}
+      <a href="${SITE_URL}/dashboard/report/${reportId}"
+         style="display:block;text-align:center;padding:14px;background:#111;color:#fff;text-decoration:none;border-radius:10px;font-size:13px;font-weight:700;margin-top:8px;">
+        View full report &rarr;
+      </a>
+    </div>
+    <div style="padding:16px 24px;border-top:1px solid #f3f4f6;text-align:center;">
+      <p style="font-size:11px;color:#9ca3af;margin:0;">
+        <a href="${SITE_URL}" style="color:#f05a1e;text-decoration:none;">Voxrate</a> &mdash; Amazon review intelligence.
+        <a href="${SITE_URL}/dashboard/monitor" style="color:#9ca3af;">Manage alerts</a>
+      </p>
+    </div>
+  </div>
+</body>
+</html>`,
+  })
+}
+
+export async function sendCompetitorAlert({
+  to,
+  productName,
+  oldScore,
+  newScore,
+  reportId,
+  newComplaints,
+}: {
+  to: string
+  productName: string
+  oldScore: number
+  newScore: number
+  reportId: string
+  newComplaints: string[]
+}): Promise<void> {
+  if (!resend) return
+  const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://voxrate.app'
+  const delta = newScore - oldScore
+  const arrow = delta >= 0 ? '&#9650;' : '&#9660;'
+  const deltaColor = delta >= 0 ? '#16a34a' : '#dc2626'
+  const complaintsHtml = newComplaints.slice(0, 5).map(c =>
+    `<li style="margin-bottom:4px;">${h(c)}</li>`
+  ).join('')
+  await resend.emails.send({
+    from: 'Voxrate <alerts@voxrate.app>',
+    to,
+    subject: `Competitor update: ${productName} score changed to ${newScore}`,
+    html: `<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#f9fafb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <div style="max-width:560px;margin:32px auto;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e5e7eb;">
+    <div style="padding:24px;background:#1e293b;">
+      <p style="margin:0;font-size:18px;font-weight:700;color:#ffffff;">Competitor Score Change</p>
+      <p style="margin:6px 0 0;font-size:13px;color:#94a3b8;">${h(productName)}</p>
+    </div>
+    <div style="padding:24px;">
+      <div style="display:flex;gap:16px;margin-bottom:20px;">
+        <div style="flex:1;padding:16px;background:#f8fafc;border-radius:12px;text-align:center;">
+          <p style="margin:0;font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;">Previous</p>
+          <p style="margin:4px 0 0;font-size:28px;font-weight:700;color:#374151;">${oldScore}</p>
+        </div>
+        <div style="flex:1;padding:16px;background:#f8fafc;border-radius:12px;text-align:center;">
+          <p style="margin:0;font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;">Now</p>
+          <p style="margin:4px 0 0;font-size:28px;font-weight:700;color:#374151;">${newScore}</p>
+          <p style="margin:2px 0 0;font-size:13px;font-weight:600;color:${deltaColor};">${arrow} ${Math.abs(delta)} pts</p>
+        </div>
+      </div>
+      ${newComplaints.length > 0 ? `
+      <div style="margin-bottom:20px;">
+        <p style="margin:0 0 8px;font-size:13px;font-weight:600;color:#374151;">New complaints detected</p>
+        <ul style="margin:0;padding-left:20px;font-size:13px;color:#6b7280;">${complaintsHtml}</ul>
+      </div>` : ''}
+      <a href="${SITE_URL}/dashboard/report/${reportId}" style="display:inline-block;padding:10px 20px;background:#000;color:#fff;font-size:13px;font-weight:600;border-radius:10px;text-decoration:none;">View full report</a>
+    </div>
+    <div style="padding:16px 24px;border-top:1px solid #f3f4f6;text-align:center;">
+      <p style="font-size:11px;color:#9ca3af;margin:0;">
+        <a href="${SITE_URL}" style="color:#f05a1e;text-decoration:none;">Voxrate</a> &mdash; Amazon review intelligence.
+        <a href="${SITE_URL}/dashboard/watchlist" style="color:#9ca3af;">Manage watchlist</a>
       </p>
     </div>
   </div>

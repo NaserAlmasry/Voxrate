@@ -87,6 +87,36 @@ export function trialEndingSoonEmail(firstName: string, daysLeft: number) {
   }
 }
 
+// Final 24-hour warning — more urgent tone, shows what they will lose
+export function trialExpiringTodayEmail(firstName: string) {
+  const name = firstName || 'there'
+  return {
+    subject: '⏰ Your Voxrate trial expires in 24 hours',
+    html: baseTemplate(`
+      <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:14px 16px;margin-bottom:20px;">
+        <p style="color:#dc2626;font-weight:700;font-size:14px;margin:0;">Your trial expires in less than 24 hours.</p>
+      </div>
+      <p style="font-size:15px;font-weight:700;color:#111827;margin:0 0 10px;">Don't lose your data, ${name}.</p>
+      <p style="color:#374151;">Everything you've analysed — your reports, watchlist, alerts — stays in your account if you upgrade before midnight. If not, access is locked to 1 analysis per month.</p>
+      <p style="margin:16px 0;font-weight:600;color:#111827;">What you keep on a paid plan:</p>
+      <ul style="padding-left:20px;margin:0 0 16px;color:#374151;">
+        <li style="margin-bottom:8px;">All past analyses and reports</li>
+        <li style="margin-bottom:8px;">Watchlist with staleness alerts</li>
+        <li style="margin-bottom:8px;">1★ and 2★ instant review alerts</li>
+        <li style="margin-bottom:8px;">Competitor analysis and velocity tracking</li>
+        <li style="margin-bottom:8px;">Chrome extension — unlimited background scraping</li>
+      </ul>
+      <div style="background:#f9fafb;border-radius:10px;padding:14px 16px;margin:16px 0;">
+        <p style="font-size:13px;color:#374151;margin:0 0 4px;"><strong>Starter</strong> — $14.99/mo &nbsp;·&nbsp; 25 analyses/mo</p>
+        <p style="font-size:13px;color:#374151;margin:0 0 4px;"><strong>Growth</strong> — $39.99/mo &nbsp;·&nbsp; 60 analyses/mo + real-time alerts</p>
+        <p style="font-size:13px;color:#374151;margin:0;"><strong>Pro</strong> — $59.99/mo &nbsp;·&nbsp; 150 analyses + all features</p>
+      </div>
+      <p style="font-size:12px;color:#9ca3af;">Cancel anytime. No contracts. Annual billing saves up to 17%.</p>
+      ${ctaButton('Upgrade before it expires', `${SITE_URL}/pricing`)}
+    `),
+  }
+}
+
 export async function sendOnboardingEmail(
   resendApiKey: string,
   to: string,

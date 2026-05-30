@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     { data: payoutHistory },
   ] = await Promise.all([
     supa.from('ambassador_clicks').select('id', { count: 'exact', head: true }).eq('ambassador_id', amb.id),
-    supa.from('ambassador_conversions').select('*').eq('ambassador_id', amb.id),
+    supa.from('ambassador_conversions').select('id, ambassador_id, status, paid_at, commission_amount, friend_bonus_amount, plan, plan_price, payable_at').eq('ambassador_id', amb.id),
     supa.from('ambassador_payout_history').select('id, amount, paid_at, admin_note').eq('ambassador_id', amb.id).order('paid_at', { ascending: false }),
   ])
 

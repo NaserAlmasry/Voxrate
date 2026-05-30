@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "name": "Voxrate for Amazon Sellers",
-  "version": "1.0.0",
-  "description": "AI-powered Amazon review analysis — competitor insights, listing alerts, review velocity, and Seller Central monitoring.",
-  "permissions": ["storage", "tabs", "alarms", "scripting"],
+  "version": "1.1.0",
+  "description": "AI-powered Amazon review analysis — competitor insights, listing alerts, review velocity, and Account Health monitoring.",
+  "permissions": ["storage", "tabs", "alarms", "scripting", "sidePanel"],
   "host_permissions": [
     "https://voxrate.app/*",
     "https://*.amazon.com/*",
@@ -72,6 +72,36 @@
       ],
       "js": ["content.js"],
       "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.amazon.com/dp/*",
+        "https://www.amazon.com/gp/product/*",
+        "https://www.amazon.co.uk/dp/*",
+        "https://www.amazon.co.uk/gp/product/*",
+        "https://www.amazon.de/dp/*",
+        "https://www.amazon.de/gp/product/*",
+        "https://www.amazon.fr/dp/*",
+        "https://www.amazon.fr/gp/product/*",
+        "https://www.amazon.it/dp/*",
+        "https://www.amazon.it/gp/product/*",
+        "https://www.amazon.es/dp/*",
+        "https://www.amazon.es/gp/product/*",
+        "https://www.amazon.ca/dp/*",
+        "https://www.amazon.ca/gp/product/*",
+        "https://www.amazon.com.au/dp/*",
+        "https://www.amazon.com.au/gp/product/*",
+        "https://www.amazon.co.jp/dp/*",
+        "https://www.amazon.co.jp/gp/product/*",
+        "https://www.amazon.in/dp/*",
+        "https://www.amazon.in/gp/product/*",
+        "https://www.amazon.com.mx/dp/*",
+        "https://www.amazon.com.mx/gp/product/*",
+        "https://www.amazon.com.br/dp/*",
+        "https://www.amazon.com.br/gp/product/*"
+      ],
+      "js": ["amazon-monitor.js", "competitor-overlay.js"],
+      "run_at": "document_idle"
     }
   ],
   "web_accessible_resources": [
@@ -93,6 +123,9 @@
       ]
     }
   ],
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
   "action": {
     "default_popup": "popup.html",
     "default_icon": {

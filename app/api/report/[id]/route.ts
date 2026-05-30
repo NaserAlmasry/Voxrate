@@ -94,10 +94,31 @@ export async function GET(
     const plan = isOwnerOrAdmin ? (userData?.plan || 'free') : 'free'
     const filteredReport = applyPlanLimits(report.full_report, plan, isAdmin && isOwnerOrAdmin)
 
+    // Fetch previous report for diff
+    let previousReport = null
+    if (report.asin) {
+      const { data: prev } = await supabase
+        .from('reports')
+        .select('id, health_score, full_report, created_at')
+        .eq('user_id', report.user_id)
+        .eq('asin', report.asin)
+        .lt('created_at', report.created_at)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (prev?.full_report) {
+        const { _cache, ...cleanFullReport } = prev.full_report
+        previousReport = { ...prev, full_report: cleanFullReport }
+      } else {
+        previousReport = prev
+      }
+    }
+
     const { user_id: _uid, ...safeReport } = report
     return NextResponse.json({
       ...safeReport,
       full_report: filteredReport,
+      previousReport,
       _isSharedView: !isOwnerOrAdmin,
     })
 

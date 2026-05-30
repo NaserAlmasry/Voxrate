@@ -41,7 +41,10 @@ async function applyAmbassadorCommission(invoice: Stripe.Invoice, stripe: Stripe
     .single()
 
   if (!ambassador || ambassador.status !== 'active') return
-  if (new Date(ambassador.internship_end) < new Date()) return
+  if (new Date(ambassador.internship_end) < new Date()) {
+    console.log(`[applyAmbassadorCommission] Skipping — ambassador ${ambassador.id} internship ended`)
+    return
+  }
   if (ambassador.email?.toLowerCase() === email) return
 
   const planPrice = invoice.amount_paid / 100
@@ -156,14 +159,20 @@ export async function POST(request: NextRequest) {
     }
 
     if (useProcessedFlag) {
-      const { error: upsertError } = await supabase
+      const { error: insertError } = await supabase
         .from('processed_webhook_events')
-        .upsert({ stripe_event_id: event.id, processed: false }, { onConflict: 'stripe_event_id' })
-      if (upsertError && /column .* does not exist/i.test(upsertError.message || '')) {
-        useProcessedFlag = false
-      } else if (upsertError) {
-        console.error('[Webhook] Idempotency upsert failed:', upsertError.message)
-        return NextResponse.json({ error: 'Internal error' }, { status: 500 })
+        .insert({ stripe_event_id: event.id, processed: false })
+      if (insertError) {
+        if (insertError.code === '23505') {
+          console.log(`[Webhook] Duplicate event ${event.id} — skipping`)
+          return NextResponse.json({ received: true })
+        }
+        if (/column .* does not exist/i.test(insertError.message || '')) {
+          useProcessedFlag = false
+        } else {
+          console.error('[Webhook] Idempotency insert failed:', insertError.message)
+          return NextResponse.json({ error: 'Internal error' }, { status: 500 })
+        }
       }
     }
 
@@ -205,6 +214,7 @@ export async function POST(request: NextRequest) {
           console.error('[Webhook] Unknown type in metadata:', type)
           break
         }
+
 
         const KNOWN_PLANS = ['free', 'starter', 'growth', 'pro', 'enterprise']
         const planMeta = session.metadata?.plan

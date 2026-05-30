@@ -40,7 +40,7 @@ import { sanitizeReview } from '@/app/lib/sanitize-review'
 import { escapePromptInput } from '@/app/lib/escape-prompt'
 import { getComplaintCountGuidance } from '@/app/lib/complaint-guidance'
 import { CREDIT_COSTS, PLAN_ANALYSES, REANALYZE_COOLDOWN_DAYS } from '@/app/lib/credit-costs'
-import { sanitizeAmazonInput } from '@/app/lib/amazon-url'
+import { sanitizeAmazonInput, extractAsin } from '@/app/lib/amazon-url'
 import { verifyCronRequest } from '@/app/lib/cron-auth'
 import {
   COMPLAINTS_SYSTEM_PROMPT,
@@ -116,8 +116,10 @@ async function analyzeProduct(
     verified: r.verified,
     vine:     r.vine,
   }))
-  const patterns       = extractPatterns(reviewsForPatterns)
-  const sampledReviews = buildSmartSample(reviewsForPatterns, patterns, 200)
+  const patterns            = extractPatterns(reviewsForPatterns)
+  const sampledReviews      = buildSmartSample(reviewsForPatterns, patterns, 200)
+  const totalReviewsFetched = reviews.length
+  const reviewsSentToLLM    = sampledReviews.length
 
   const reviewText = sampledReviews
     .map(r =>
@@ -590,11 +592,16 @@ export async function POST(request: NextRequest) {
       user = sessionUser
     }
 
-    const { data: userData } = await supabase
+    const { data: userData, error: userDataError } = await supabase
       .from('users')
       .select('plan, is_admin, own_analyses_remaining, competitor_analyses_remaining, reanalyze_overrides, stripe_current_period_end')
       .eq('id', user.id)
       .single()
+
+    if (userDataError || !userData) {
+      console.error('[analyze] Failed to load user data:', userDataError?.message)
+      return NextResponse.json({ error: 'Failed to load user data' }, { status: 500 })
+    }
 
     const isAdminUser                  = userData?.is_admin === true
     const planExpired = userData?.stripe_current_period_end &&
@@ -604,6 +611,30 @@ export async function POST(request: NextRequest) {
     const ownRemaining                 = userData?.own_analyses_remaining ?? 0
     const competitorRemaining          = userData?.competitor_analyses_remaining ?? 0
     const reanalyzeOverrides           = userData?.reanalyze_overrides ?? 0
+
+    // Session rate limit — max 3 analyses per 30 minutes to prevent bot-like bursts
+    if (!isCronRequest && !isAdminUser) {
+      const windowKey = `analyze_session:${user.id}:${Math.floor(Date.now() / 1800000)}`
+      const { data: rateData } = await supabase
+        .from('users')
+        .select('id')
+        .eq('id', user.id)
+        .single()
+      if (rateData) {
+        // Use a simple Redis-style count via Supabase if Upstash isn't available
+        // The checkRateLimit function handles this with a 30-req/10-min window already
+        // This is an additional per-analysis guard using a dedicated key pattern
+        const { checkRateLimit: rl } = await import('@/app/lib/rate-limit')
+        const sessionLimit = await rl(windowKey, 'user', 3)
+        if (!sessionLimit.allowed) {
+          return NextResponse.json({
+            error: 'You\'re analyzing too fast. To keep your Amazon account safe, we limit analyses to 3 per 30 minutes. Please wait a few minutes.',
+            rateLimited: true,
+            resetAt: sessionLimit.resetAt,
+          }, { status: 429 })
+        }
+      }
+    }
 
     // Dedup: prevent same user+product within 60 seconds (double-click protection)
     // Normalize to ASIN so that full URL and bare ASIN for the same product match
@@ -736,7 +767,7 @@ export async function POST(request: NextRequest) {
 
     const { data: reportRow, error: reportError } = await supabase
       .from('reports')
-      .insert({ user_id: user.id, product_url: productUrl, status: 'pending', report_type: reportType })
+      .insert({ user_id: user.id, product_url: productUrl, asin: extractAsin(productUrl), status: 'pending', report_type: reportType })
       .select()
       .single()
 
@@ -793,6 +824,17 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: msg }, { status: 400 })
       }
 
+      // Review count validation — if we got fewer than 40% of listed reviews, data is likely incomplete
+      const listedReviewCount = amazonProduct.totalReviews || 0
+      if (listedReviewCount > 20 && rawReviews.length < listedReviewCount * 0.4) {
+        await supabase.from('reports').update({ status: 'failed', product_name: amazonProduct.title || null }).eq('id', reportId)
+        await refundAnalysis()
+        return NextResponse.json({
+          error: `Amazon returned incomplete data (${rawReviews.length} of ~${listedReviewCount} reviews). This can happen during peak traffic. Your analysis has been refunded — please try again in a few minutes.`,
+          incompleteData: true,
+        }, { status: 400 })
+      }
+
       const ctx = calculateHealthScore(
         rawReviews,
         totalReviewCount,
@@ -816,6 +858,48 @@ export async function POST(request: NextRequest) {
         ? await analyzeFreePreview(product, rawReviews, ctx, productDescription)
         : await analyzeProduct(product, rawReviews, ctx, productDescription)
 
+      // Compute review-level signals using rawReviews (available in route scope)
+      const totalReviewsFetched = rawReviews.length
+      const reviewsSentToLLM    = Math.min(rawReviews.length, 200)
+
+      const fakeReviewSignals = (() => {
+        const allTexts = rawReviews.map((r: any) => (r.body || '').toLowerCase().trim()).filter(Boolean)
+        const byDate: Record<string, number> = {}
+        for (const r of rawReviews as any[]) {
+          if (!r.date) continue
+          const day = r.date.slice(0, 10)
+          byDate[day] = (byDate[day] || 0) + 1
+        }
+        const burstCount  = Math.max(0, ...Object.values(byDate))
+        const hasBurst    = burstCount >= 5
+        const phraseCount: Record<string, number> = {}
+        for (const text of allTexts) {
+          const phrases = text.match(/\b\w[\w ]{10,40}\b/g) || []
+          for (const p of phrases) phraseCount[p] = (phraseCount[p] || 0) + 1
+        }
+        const duplicatedPhrases = Object.entries(phraseCount).filter(([, c]) => c >= 5).map(([p]) => p).slice(0, 5)
+        const fiveStarTotal      = rawReviews.filter((r: any) => r.rating === 5).length
+        const fiveStarUnverified = rawReviews.filter((r: any) => r.rating === 5 && r.verified === false).length
+        const unverifiedRatio    = fiveStarTotal > 0 ? fiveStarUnverified / fiveStarTotal : 0
+        const highUnverified     = unverifiedRatio > 0.3
+        return {
+          hasBurst, burstCount, duplicatedPhrases, highUnverified,
+          unverifiedRatio: Math.round(unverifiedRatio * 100),
+          suspicionScore: (hasBurst ? 1 : 0) + (duplicatedPhrases.length >= 3 ? 1 : 0) + (highUnverified ? 1 : 0),
+        }
+      })()
+
+      const multilingualStats = (() => {
+        const total = rawReviews.length
+        if (total === 0) return null
+        const nonEnglish = rawReviews.filter((r: any) => {
+          const text = r.body || ''
+          if (text.length === 0) return false
+          return (text.match(/[^\x00-\x7F]/g) || []).length / text.length > 0.3
+        }).length
+        return { total, nonEnglish, pct: Math.round((nonEnglish / total) * 100) }
+      })()
+
       const { error: reportUpdateError } = await supabase
         .from('reports')
         .update({
@@ -825,6 +909,7 @@ export async function POST(request: NextRequest) {
           top_complaint:          analysis.complaints?.[0]?.title || null,
           top_strength:           analysis.strengths?.[0]?.title  || null,
           top_improvement:        analysis.improvements?.[0]?.title || null,
+          asin:                   amazonProduct.asin || null,
           competitors:            [],
           full_report:            (() => {
             return {
@@ -842,6 +927,12 @@ export async function POST(request: NextRequest) {
             rawHealthScore:       ctx.rawHealthScore,
             fakeReviewFlag:       ctx.fakeReviewFlag,
             categoryBenchmark:    getCategoryBenchmark(amazonProduct.category || ''),
+            reviewSample: {
+              totalFetched: totalReviewsFetched,
+              sentToLLM:    reviewsSentToLLM,
+            },
+            fakeReviewSignals,
+            multilingualStats,
             unansweredQAGaps:    qa.filter(q => q.answer === null).map(q => q.question).slice(0, 5),
             recentSales:         amazonProduct.recentSales,
             // Feature 6: Vine/unverified breakdown

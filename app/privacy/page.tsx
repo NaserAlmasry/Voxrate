@@ -12,7 +12,7 @@ export default function PrivacyPage() {
       <div className="max-w-3xl mx-auto px-6 py-16">
         <Link href="/" className="text-sm text-neutral-400 hover:text-black transition-colors mb-10 inline-block">← Back to Voxrate</Link>
         <h1 className="text-3xl font-bold text-neutral-900 mb-2">Privacy Policy</h1>
-        <p className="text-sm text-neutral-400 mb-12">Last updated: May 28, 2026</p>
+        <p className="text-sm text-neutral-400 mb-12">Last updated: May 30, 2026</p>
         <div className="space-y-10 text-sm text-neutral-700 leading-relaxed">
 
           <section>
@@ -117,7 +117,14 @@ export default function PrivacyPage() {
 
           <section>
             <h2 className="text-base font-semibold text-neutral-900 mb-3">9. Data Retention</h2>
-            <p>We retain your data for as long as your account is active. If you delete your account, your personal data is removed within 30 days. Analysis reports may be retained in anonymized form for product improvement.</p>
+            <ul className="list-disc pl-5 space-y-2">
+              <li><span className="font-medium text-neutral-800">Review cache:</span> Amazon review text is cached in Upstash Redis for 7 days, then automatically deleted.</li>
+              <li><span className="font-medium text-neutral-800">Analysis reports:</span> Stored indefinitely until you delete your account or request deletion.</li>
+              <li><span className="font-medium text-neutral-800">Account data:</span> Removed within 30 days of account deletion.</li>
+              <li><span className="font-medium text-neutral-800">Seller Central scan data (Pro):</span> Purged when you downgrade from Pro or delete your account.</li>
+              <li><span className="font-medium text-neutral-800">Email logs:</span> Retained 30 days by Resend (our email delivery provider).</li>
+              <li><span className="font-medium text-neutral-800">Payment records:</span> Retained by Stripe per their data retention policy.</li>
+            </ul>
           </section>
 
           <section>

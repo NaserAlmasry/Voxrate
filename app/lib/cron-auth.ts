@@ -67,6 +67,9 @@ export function verifyCronBearer(request: NextRequest): NextResponse | null {
   }
 
   const allowedIps = (process.env.CRON_ALLOWED_IPS ?? '').split(',').map(s => s.trim()).filter(Boolean)
+  if (allowedIps.length === 0 && process.env.NODE_ENV === 'production') {
+    console.warn('[CronAuth] CRON_ALLOWED_IPS not set in production — IP check skipped')
+  }
   if (allowedIps.length > 0) {
     const callerIp =
       request.headers.get('x-real-ip') ||

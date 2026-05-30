@@ -162,8 +162,8 @@ async function fetchFromExtension(
 ): Promise<AmazonReview[] | null> {
   const supabase = getAdminClient()
 
-  // Check if user has an active extension session (heartbeat within 90s — alarm fires every 30s)
-  const recentThreshold = new Date(Date.now() - 90_000).toISOString()
+  // Alarm fires every 60s; allow 180s to absorb SW restart and processing jitter
+  const recentThreshold = new Date(Date.now() - 180_000).toISOString()
   const { data: session } = await supabase
     .from('extension_sessions')
     .select('user_id')

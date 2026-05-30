@@ -43,9 +43,10 @@ export async function POST(request: NextRequest) {
 
     const codeRow = claimedRows[0]
 
+    const proExpiry = Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60
     const { error } = await supa
       .from('users')
-      .update({ plan: 'pro' })
+      .update({ plan: 'pro', stripe_current_period_end: proExpiry })
       .eq('id', user.id)
     if (error) {
       return NextResponse.json({ error: 'Failed to grant pro' }, { status: 500 })

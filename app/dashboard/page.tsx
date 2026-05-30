@@ -24,7 +24,8 @@ function DashboardHomeInner() {
   const [loading, setLoading] = useState(false)
   const [elapsed, setElapsed] = useState(0)
   const [error, setError] = useState('')
-  const [cachedReport, setCachedReport] = useState<{ id: string; productName: string } | null>(null)
+  const [cachedReport, setCachedReport] = useState<{ id: string; productName: string; reviewCount?: number } | null>(null)
+  const [lowReviewWarning, setLowReviewWarning] = useState(false)
   const [analysesCount, setAnalysesCount] = useState(0)
   const [credits, setCredits] = useState<number | null>(null)
   const [planRenewalDate, setPlanRenewalDate] = useState<string | null>(null)
@@ -106,15 +107,19 @@ function DashboardHomeInner() {
     if (!user) return
     const { data } = await supabase
       .from('reports')
-      .select('id, product_name')
+      .select('id, product_name, total_reviews_analyzed')
       .eq('user_id', user.id)
       .eq('status', 'completed')
       .ilike('product_url', `%${asin}%`)
       .order('created_at', { ascending: false })
       .limit(1)
-    setCachedReport(data && data.length > 0
-      ? { id: data[0].id, productName: data[0].product_name || 'this product' }
-      : null)
+    if (data && data.length > 0) {
+      setCachedReport({ id: data[0].id, productName: data[0].product_name || 'this product', reviewCount: data[0].total_reviews_analyzed })
+      setLowReviewWarning((data[0].total_reviews_analyzed ?? 0) < 50 && (data[0].total_reviews_analyzed ?? 0) > 0)
+    } else {
+      setCachedReport(null)
+      setLowReviewWarning(false)
+    }
   }
 
   // ── Effects ──────────────────────────────────────────────
@@ -627,6 +632,12 @@ function DashboardHomeInner() {
             </div>
           ) : null)}
 
+          {!bulkMode && lowReviewWarning && !loading && (
+            <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-xl text-xs text-yellow-800">
+              <span className="font-semibold">Heads up:</span> This product only had {cachedReport?.reviewCount} reviews last time. Analysis accuracy improves significantly with 50+ reviews — results may be limited.
+            </div>
+          )}
+
           {!bulkMode && cachedReport && !loading && (
             <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">
               You already analyzed <strong>{cachedReport.productName}</strong>.{' '}
@@ -738,7 +749,7 @@ function DashboardHomeInner() {
                   ref={inputRef}
                   type="url"
                   value={url}
-                  onChange={e => { setUrl(e.target.value); setError('') }}
+                  onChange={e => { setUrl(e.target.value); setError(''); setLowReviewWarning(false) }}
                   onKeyDown={e => e.key === 'Enter' && handleAnalyze()}
                   placeholder="Paste Amazon URL or ASIN (e.g. B073JYC4XM)"
                   disabled={loading}
@@ -849,7 +860,7 @@ function DashboardHomeInner() {
       </div>
 
       {/* ── Insights + Health Score ── */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 overflow-hidden">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <div className="md:col-span-3 bg-white rounded-2xl border border-neutral-200 shadow-sm p-5">
           <div className="flex items-center justify-between mb-4">
             <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest truncate max-w-[180px] sm:max-w-xs">
@@ -926,7 +937,7 @@ function DashboardHomeInner() {
       </div>
 
       {/* ── Velocity + SC Scan cards ── */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {/* Velocity card */}
         <div className="bg-white rounded-2xl border border-neutral-200 overflow-hidden">
           <button
@@ -1071,7 +1082,7 @@ function DashboardHomeInner() {
       )}
 
       {/* ── Footer links ── */}
-      <div className="pt-4 border-t border-neutral-100 flex flex-wrap items-center justify-between gap-4 text-xs text-neutral-400">
+      <div className="pt-4 border-t border-neutral-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4 text-xs text-neutral-400">
         <p>© 2026 Voxrate</p>
         <div className="flex items-center gap-5">
           <a href="/terms" target="_blank" rel="noopener noreferrer" className="hover:text-black transition-colors">Terms</a>

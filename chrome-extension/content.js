@@ -38,7 +38,7 @@ const VERIFIED_FILTERS = ['one_star', 'five_star'] // most valuable for analysis
   } catch { return }
   if (!job) return
 
-  const { id: jobId, asin, marketplace, maxReviews } = job
+  const { id: jobId, asin, marketplace, max_reviews: maxReviews } = job
   const tld = marketplace.replace('amazon.', '')
 
   if (isCaptchaOrLoginWall(document)) {
@@ -93,8 +93,7 @@ async function runResumePath(saved) {
     return
   }
 
-  // Ask background to keep this tab in the foreground
-  chrome.runtime.sendMessage({ type: 'ENSURE_TAB_ACTIVE' })
+  // Wait for visibility without force-focusing — hijacking user focus is a bot signal
   await ensureVisible()
 
   // Note: Amazon's "limited selection" banner is informational — reviews are
@@ -281,7 +280,9 @@ function weibull(scaleMs, k = 1.8) {
 
 function humanDelay(minMs, maxMs, scaleMs, profile) {
   const scale = scaleMs * ((profile?.readSpeed ?? 1) * 0.5 + 0.5)
-  return Math.max(minMs, Math.min(maxMs, weibull(scale)))
+  // Add small jitter to the floor so timing histogram never spikes at exactly minMs
+  const floor = minMs + Math.random() * 150
+  return Math.max(floor, Math.min(maxMs, weibull(scale)))
 }
 
 function fatigueMultiplier(totalPages) {
@@ -316,16 +317,8 @@ async function simulatePageReading(profile, reviewCount) {
     await sleep(humanDelay(120, 650, 320, profile))
   }
 
-  // Mouse movements — populate aws-waf-token behavioral data
-  const moves = 3 + Math.floor(Math.random() * 5)
-  for (let i = 0; i < moves; i++) {
-    document.dispatchEvent(new MouseEvent('mousemove', {
-      clientX: Math.floor(80 + Math.random() * 900),
-      clientY: Math.floor(80 + Math.random() * 500),
-      bubbles: true,
-    }))
-    await sleep(humanDelay(80, 350, 180, profile))
-  }
+  // Intentionally no synthetic mouse events — isTrusted:false events are a bot signal.
+  // Real scroll above is sufficient behavioral entropy for aws-waf-token.
 
   // Reading time scales with content volume
   const base    = humanDelay(3000, 10000, 5500, profile) * (profile?.readSpeed ?? 1)
@@ -409,22 +402,23 @@ function isCaptchaOrLoginWall(doc) {
   return false
 }
 
-// ── XHR Intercept: capture Amazon's own internal pagination AJAX ──
-// Amazon's /reviews-render/ajax/ endpoint is called by their own JS when
-// clicking next page. We intercept the response in page context and relay
-// the HTML fragment back to content script via a custom event, letting us
-// parse reviews from AJAX without triggering extra WAF-visible requests.
+// ── Dual pagination detection ─────────────────────────────────────
+// Method 1: XHR/fetch intercept — catches Amazon's AJAX pagination calls
+// Method 2: MutationObserver — catches DOM injection (when XHR isn't used)
+// Using both eliminates the cases either method alone misses.
 
 function injectXhrInterceptor() {
   const script = document.createElement('script')
   script.textContent = `(function() {
     const _open = XMLHttpRequest.prototype.open
     const _send = XMLHttpRequest.prototype.send
-    XMLHttpRequest.prototype.open = function(method, url, ...rest) {
+    const _fetch = window.fetch
+
+    const openWrapper = function(method, url, ...rest) {
       this._voxrateUrl = url
       return _open.call(this, method, url, ...rest)
     }
-    XMLHttpRequest.prototype.send = function(...args) {
+    const sendWrapper = function(...args) {
       this.addEventListener('load', function() {
         if (this._voxrateUrl && this._voxrateUrl.includes('reviews-render')) {
           document.dispatchEvent(new CustomEvent('voxrate-ajax-reviews', {
@@ -434,9 +428,7 @@ function injectXhrInterceptor() {
       })
       return _send.apply(this, args)
     }
-    // Also intercept fetch (Amazon may use either)
-    const _fetch = window.fetch
-    window.fetch = function(input, init) {
+    const fetchWrapper = function(input, init) {
       const url = typeof input === 'string' ? input : (input?.url ?? '')
       const p = _fetch.call(this, input, init)
       if (url.includes('reviews-render')) {
@@ -448,12 +440,23 @@ function injectXhrInterceptor() {
       }
       return p
     }
+
+    // Spoof toString so detection scripts see [native code]
+    const nativeStr = (name) => \`function \${name}() { [native code] }\`
+    Object.defineProperty(openWrapper, 'toString', { value: () => nativeStr('open'), enumerable: false })
+    Object.defineProperty(sendWrapper, 'toString', { value: () => nativeStr('send'), enumerable: false })
+    Object.defineProperty(fetchWrapper, 'toString', { value: () => nativeStr('fetch'), enumerable: false })
+
+    Object.defineProperty(XMLHttpRequest.prototype, 'open', { value: openWrapper, writable: true, configurable: true })
+    Object.defineProperty(XMLHttpRequest.prototype, 'send', { value: sendWrapper, writable: true, configurable: true })
+    Object.defineProperty(window, 'fetch', { value: fetchWrapper, writable: true, configurable: true })
   })()`
   ;(document.head || document.documentElement).appendChild(script)
   script.remove()
 }
 
 function listenForAjaxReviews(asin, marketplace, onBatch) {
+  // Method 1: XHR/fetch intercept events
   document.addEventListener('voxrate-ajax-reviews', (e) => {
     try {
       const tmp = document.createElement('div')
@@ -462,6 +465,24 @@ function listenForAjaxReviews(asin, marketplace, onBatch) {
       if (batch.length > 0) onBatch(batch)
     } catch {}
   })
+
+  // Method 2: MutationObserver — catches cases where Amazon doesn't use XHR
+  // Watches for the review list footer appearing, which signals new reviews injected
+  let mutationDebounce = null
+  const observer = new MutationObserver(() => {
+    const footer = document.querySelector('[data-hook="reviews-medley-footer"]')
+    if (!footer) return
+    clearTimeout(mutationDebounce)
+    mutationDebounce = setTimeout(() => {
+      try {
+        const batch = parseReviews(document, asin, marketplace)
+        if (batch.length > 0) onBatch(batch)
+      } catch {}
+    }, 750) // wait for full render after DOM injection
+  })
+  // Narrow to the review list to avoid observing hundreds of mutations/sec on the full body
+  const reviewRoot = document.querySelector('#cm_cr-review_list') || document.querySelector('[data-hook="reviews-medley-footer"]')?.parentElement || document.body
+  observer.observe(reviewRoot, { childList: true, subtree: true })
 }
 
 // ── Helpers: parse & finish ───────────────────────────────────────

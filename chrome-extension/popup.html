@@ -2,13 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Voxrate</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      width: 300px;
+      width: 320px;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       background: #0f0f0f;
       color: #f0f0f0;
@@ -17,243 +16,177 @@
     .header {
       display: flex;
       align-items: center;
-      gap: 10px;
-      padding: 16px 18px 12px;
-      border-bottom: 1px solid #222;
+      justify-content: space-between;
+      padding: 14px 16px 12px;
+      border-bottom: 1px solid #1e1e1e;
     }
 
-    .logo img {
-      height: 28px;
-      width: auto;
-      max-width: 140px;
-    }
+    .logo { display: flex; align-items: center; gap: 8px; }
+    .logo img { height: 24px; }
+    .logo-name { font-size: 15px; font-weight: 700; color: #fff; }
 
-    /* Disconnect confirmation overlay */
-    #disconnect-modal {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.75);
-      z-index: 100;
+    .conn-badge {
+      display: flex;
       align-items: center;
-      justify-content: center;
-      padding: 18px;
-    }
-    #disconnect-modal.visible { display: flex; }
-    .modal-box {
-      background: #1a1a1a;
-      border: 1px solid #333;
-      border-radius: 12px;
-      padding: 20px;
-      width: 100%;
-    }
-    .modal-title {
-      font-size: 14px;
-      font-weight: 700;
-      color: #fff;
-      margin-bottom: 8px;
-    }
-    .modal-warning {
+      gap: 5px;
       font-size: 11px;
-      color: #888;
-      line-height: 1.5;
-      margin-bottom: 16px;
-      padding: 8px 10px;
-      background: #111;
-      border-radius: 6px;
-      border-left: 3px solid #ef4444;
+      color: #555;
     }
-    .modal-actions {
-      display: flex;
-      gap: 8px;
-    }
-    .btn-danger {
-      flex: 1;
-      background: #ef4444;
-      color: #fff;
-      border: none;
-      border-radius: 7px;
-      padding: 8px 0;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    .btn-cancel {
-      flex: 1;
-      background: #2a2a2a;
-      color: #aaa;
-      border: none;
-      border-radius: 7px;
-      padding: 8px 0;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-    }
-
-    .card {
-      padding: 14px 18px;
-      border-bottom: 1px solid #1a1a1a;
-    }
-
-    .status-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 13px;
-    }
-
     .dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      flex-shrink: 0;
+      width: 7px; height: 7px; border-radius: 50%;
     }
-
-    .dot.green { background: #22c55e; box-shadow: 0 0 6px #22c55e88; }
+    .dot.green { background: #22c55e; box-shadow: 0 0 5px #22c55e88; }
     .dot.red   { background: #ef4444; }
     .dot.amber { background: #f59e0b; }
 
-    .label {
-      font-size: 11px;
-      color: #666;
-      margin-bottom: 4px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
+    /* ── Setup view ── */
+    #setup-view { padding: 20px 16px; }
+    .setup-title { font-size: 14px; font-weight: 600; color: #fff; margin-bottom: 6px; }
+    .setup-desc  { font-size: 12px; color: #666; line-height: 1.5; margin-bottom: 14px; }
+    .token-input {
+      width: 100%; padding: 8px 10px;
+      background: #1a1a1a; border: 1px solid #333; border-radius: 6px;
+      color: #f0f0f0; font-size: 12px; font-family: monospace;
+      margin-bottom: 10px; outline: none;
     }
+    .token-input:focus { border-color: #f97316; }
+    .error-msg { font-size: 11px; color: #ef4444; margin-bottom: 8px; }
 
-    .value {
-      font-size: 13px;
-      color: #d4d4d4;
-    }
+    /* ── Trial expired ── */
+    #trial-expired-view { padding: 20px 16px; text-align: center; }
 
-    .value.muted { color: #555; }
+    /* ── Main view ── */
+    #main-view { }
 
-    .stat-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-      padding: 14px 18px;
+    .stats-bar {
+      display: flex;
+      gap: 0;
       border-bottom: 1px solid #1a1a1a;
     }
+    .stat-cell {
+      flex: 1;
+      padding: 10px 14px;
+      border-right: 1px solid #1a1a1a;
+    }
+    .stat-cell:last-child { border-right: none; }
+    .stat-num  { font-size: 20px; font-weight: 700; color: #f97316; line-height: 1; }
+    .stat-lbl  { font-size: 10px; color: #555; margin-top: 2px; }
 
-    .stat { }
-
-    .stat-number {
-      font-size: 22px;
-      font-weight: 700;
-      color: #f97316;
-      line-height: 1;
+    /* ── Feature cards ── */
+    .section-title {
+      font-size: 10px; font-weight: 600; color: #444;
+      text-transform: uppercase; letter-spacing: .06em;
+      padding: 10px 16px 4px;
     }
 
-    .stat-label {
-      font-size: 11px;
-      color: #555;
-      margin-top: 2px;
-    }
-
-    .footer {
-      padding: 14px 18px;
-    }
-
-    .btn {
-      display: block;
-      width: 100%;
-      padding: 9px 0;
-      border-radius: 7px;
-      font-size: 13px;
-      font-weight: 600;
-      text-align: center;
-      cursor: pointer;
-      border: none;
-      text-decoration: none;
-      transition: opacity 0.15s;
-    }
-
-    .btn:hover { opacity: 0.85; }
-
-    .btn-primary {
-      background: #f97316;
-      color: #fff;
-    }
-
-    .btn-ghost {
-      background: #1e1e1e;
-      color: #888;
-      margin-top: 8px;
-      font-size: 12px;
-    }
-
-    .busy-indicator {
+    .feature-card {
       display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 12px;
-      color: #f97316;
-      padding: 10px 18px 0;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px 16px;
+      border-bottom: 1px solid #111;
+      cursor: default;
     }
 
+    .feature-icon {
+      width: 32px; height: 32px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      font-size: 15px;
+    }
+    .icon-orange { background: #431407; }
+    .icon-blue   { background: #0c1a2e; }
+    .icon-purple { background: #1a0a2e; }
+    .icon-green  { background: #0a2012; }
+
+    .feature-body { flex: 1; min-width: 0; }
+    .feature-name { font-size: 13px; font-weight: 600; color: #e5e5e5; line-height: 1.2; }
+    .feature-desc { font-size: 11px; color: #555; margin-top: 2px; line-height: 1.3; }
+    .feature-note { font-size: 10px; color: #f97316; margin-top: 4px; font-style: italic; }
+    .feature-note.ok { color: #22c55e; font-style: normal; }
+    .feature-note.warn { color: #f59e0b; }
+
+    /* Toggle */
+    .toggle-wrap { display: flex; align-items: center; gap: 6px; margin-top: 0; flex-shrink: 0; }
+    .toggle {
+      position: relative; width: 34px; height: 19px;
+      background: #2a2a2a; border-radius: 10px; cursor: pointer;
+      transition: background .2s;
+      border: none; padding: 0; outline: none;
+    }
+    .toggle.on { background: #f97316; }
+    .toggle::after {
+      content: ''; position: absolute;
+      left: 2px; top: 2px;
+      width: 15px; height: 15px;
+      background: #fff; border-radius: 50%;
+      transition: transform .2s;
+    }
+    .toggle.on::after { transform: translateX(15px); }
+
+    /* Connect button */
+    .btn-connect {
+      font-size: 11px; font-weight: 600; color: #f97316;
+      background: none; border: 1px solid #f9731655; border-radius: 6px;
+      padding: 4px 10px; cursor: pointer; white-space: nowrap;
+      transition: border-color .15s, color .15s;
+    }
+    .btn-connect:hover { border-color: #f97316; }
+    .btn-connect.connected { color: #22c55e; border-color: #22c55e44; }
+
+    /* Busy row */
+    .busy-row {
+      display: flex; align-items: center; gap: 6px;
+      padding: 6px 16px; font-size: 11px; color: #f97316;
+      background: #1a0c00; border-bottom: 1px solid #1e1e1e;
+    }
     .spinner {
-      width: 10px;
-      height: 10px;
-      border: 2px solid #f9731633;
-      border-top-color: #f97316;
-      border-radius: 50%;
-      animation: spin 0.7s linear infinite;
+      width: 9px; height: 9px;
+      border: 2px solid #f9731633; border-top-color: #f97316;
+      border-radius: 50%; animation: spin .7s linear infinite; flex-shrink: 0;
     }
-
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    #setup-view { padding: 18px; }
-
-    .setup-title {
-      font-size: 14px;
-      font-weight: 600;
-      color: #fff;
-      margin-bottom: 6px;
+    /* Footer */
+    .footer { padding: 10px 16px; display: flex; flex-direction: column; gap: 6px; }
+    .btn {
+      display: block; width: 100%; padding: 8px 0;
+      border-radius: 7px; font-size: 13px; font-weight: 600;
+      text-align: center; cursor: pointer; border: none;
+      text-decoration: none; transition: opacity .15s;
     }
+    .btn:hover { opacity: .85; }
+    .btn-primary { background: #f97316; color: #fff; }
+    .btn-ghost   { background: #1e1e1e; color: #888; font-size: 12px; }
 
-    .setup-desc {
-      font-size: 12px;
-      color: #666;
-      line-height: 1.5;
-      margin-bottom: 14px;
+    /* Disconnect modal */
+    #disconnect-modal {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.75); z-index: 100;
+      align-items: center; justify-content: center; padding: 18px;
     }
-
-    .token-input {
-      width: 100%;
-      padding: 8px 10px;
-      background: #1a1a1a;
-      border: 1px solid #333;
-      border-radius: 6px;
-      color: #f0f0f0;
-      font-size: 12px;
-      font-family: monospace;
-      margin-bottom: 10px;
-      outline: none;
+    #disconnect-modal.visible { display: flex; }
+    .modal-box {
+      background: #1a1a1a; border: 1px solid #333;
+      border-radius: 12px; padding: 20px; width: 100%;
     }
-
-    .token-input:focus { border-color: #f97316; }
-
-    .error-msg {
-      font-size: 11px;
-      color: #ef4444;
-      margin-top: -6px;
-      margin-bottom: 8px;
+    .modal-title  { font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 8px; }
+    .modal-warn   {
+      font-size: 11px; color: #888; line-height: 1.5; margin-bottom: 16px;
+      padding: 8px 10px; background: #111; border-radius: 6px; border-left: 3px solid #ef4444;
     }
+    .modal-actions { display: flex; gap: 8px; }
+    .btn-danger  { flex: 1; background: #ef4444; color: #fff; border: none; border-radius: 7px; padding: 8px 0; font-size: 13px; font-weight: 600; cursor: pointer; }
+    .btn-cancel  { flex: 1; background: #2a2a2a; color: #aaa; border: none; border-radius: 7px; padding: 8px 0; font-size: 13px; font-weight: 600; cursor: pointer; }
   </style>
 </head>
 <body>
 
-<div class="header">
-  <div class="logo"><img src="logo.png" alt="Voxrate" /></div>
-</div>
-
-<!-- Disconnect confirmation modal -->
 <div id="disconnect-modal">
   <div class="modal-box">
     <div class="modal-title">Disconnect extension?</div>
-    <div class="modal-warning">
-      ⚠️ If you disconnect, you won't be able to use the service until you reconnect using a token from voxrate.app/settings/extension.
+    <div class="modal-warn">
+      You won't be able to use the service until you reconnect using a token from voxrate.app/settings/extension.
     </div>
     <div class="modal-actions">
       <button class="btn-cancel" id="cancel-disconnect">Cancel</button>
@@ -262,74 +195,142 @@
   </div>
 </div>
 
-<!-- Setup view (no token yet) -->
+<!-- Setup view -->
 <div id="setup-view" style="display:none;">
-  <div class="setup-title">Connect to Voxrate</div>
-  <div class="setup-desc">
-    Open <strong style="color:#f97316">voxrate.app/settings/extension</strong> and your token will be captured automatically.<br><br>
-    Or paste it manually below:
+  <div class="header">
+    <div class="logo">
+      <img src="logo.png" alt="Voxrate" />
+      <span class="logo-name">Voxrate</span>
+    </div>
   </div>
-  <input type="text" class="token-input" id="token-input" placeholder="vox_xxxxxxxxxxxxxxxx" />
-  <div class="error-msg" id="token-error" style="display:none;">Invalid token. Check voxrate.app/settings/extension</div>
-  <button class="btn btn-primary" id="connect-btn">Connect</button>
-  <a href="https://voxrate.app/dashboard/settings/extension" target="_blank" class="btn btn-ghost">Get my token →</a>
+  <div style="padding:20px 16px;">
+    <div class="setup-title">Connect to Voxrate</div>
+    <div class="setup-desc">
+      Open <strong style="color:#f97316">voxrate.app/settings/extension</strong> — your token will be captured automatically.<br><br>
+      Or paste it manually:
+    </div>
+    <input type="text" class="token-input" id="token-input" placeholder="vox_xxxxxxxxxxxxxxxx" />
+    <div class="error-msg" id="token-error" style="display:none;">Invalid token. Check voxrate.app/settings/extension</div>
+    <button class="btn btn-primary" id="connect-btn">Connect</button>
+    <a href="https://voxrate.app/dashboard/settings/extension" target="_blank" class="btn btn-ghost" style="margin-top:6px;">Get my token →</a>
+  </div>
 </div>
 
-<!-- Trial expired view -->
-<div id="trial-expired-view" style="display:none; padding:20px;">
-  <div style="text-align:center; margin-bottom:16px;">
+<!-- Trial expired -->
+<div id="trial-expired-view" style="display:none;">
+  <div class="header">
+    <div class="logo">
+      <img src="logo.png" alt="Voxrate" />
+      <span class="logo-name">Voxrate</span>
+    </div>
+  </div>
+  <div id="trial-expired-view" style="padding:20px 16px; text-align:center;">
     <div style="font-size:28px; margin-bottom:8px;">⏰</div>
     <div style="font-size:14px; font-weight:700; color:#fff; margin-bottom:6px;">Your free trial ended</div>
-    <div style="font-size:12px; color:#666; line-height:1.5;">Upgrade to keep using the extension and your analyses.</div>
+    <div style="font-size:12px; color:#666; line-height:1.5; margin-bottom:16px;">Upgrade to keep using the extension and your analyses.</div>
+    <a href="https://voxrate.app/#pricing" target="_blank" class="btn btn-primary">Upgrade now →</a>
+    <div style="font-size:11px; color:#555; margin-top:10px;">Starter from $14.99/mo</div>
   </div>
-  <a href="https://voxrate.app/#pricing" target="_blank" class="btn btn-primary">Upgrade now →</a>
-  <div style="font-size:11px; color:#555; text-align:center; margin-top:10px;">Starter from $14.99/mo</div>
 </div>
 
-<!-- Main view (connected) -->
+<!-- Main view -->
 <div id="main-view" style="display:none;">
-  <div class="card">
-    <div class="label">Extension</div>
-    <div class="status-row">
+
+  <div class="header">
+    <div class="logo">
+      <img src="logo.png" alt="Voxrate" />
+      <span class="logo-name">Voxrate</span>
+    </div>
+    <div class="conn-badge">
       <div class="dot green" id="conn-dot"></div>
-      <div class="value" id="conn-label">Connected</div>
+      <span id="conn-label">Connected</span>
     </div>
   </div>
 
-  <div class="card">
-    <div class="label">Amazon</div>
-    <div class="status-row">
-      <div class="dot green" id="amazon-dot"></div>
-      <div class="value" id="amazon-label">Logged in ✓</div>
-    </div>
-  </div>
-
-  <div id="busy-row" class="busy-indicator" style="display:none;">
+  <!-- Busy bar (only when scraping) -->
+  <div id="busy-row" class="busy-row" style="display:none;">
     <div class="spinner"></div>
-    <span>Scraping reviews…</span>
+    <span id="busy-label">Scraping reviews…</span>
   </div>
 
-  <div class="stat-grid">
-    <div class="stat">
-      <div class="stat-number" id="jobs-today">0</div>
-      <div class="stat-label">products today</div>
+  <!-- Stats -->
+  <div class="stats-bar">
+    <div class="stat-cell">
+      <div class="stat-num" id="jobs-today">0</div>
+      <div class="stat-lbl">scraped today</div>
     </div>
-    <div class="stat">
-      <div id="last-asin" class="value muted" style="font-size:11px; margin-top:2px;">No jobs yet</div>
-      <div class="stat-label">last product</div>
+    <div class="stat-cell">
+      <div class="stat-num" id="velocity-today">0</div>
+      <div class="stat-lbl">velocity tracked</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-num" id="last-asin-num" style="font-size:10px; color:#d4d4d4; margin-top:5px; line-height:1.2;">—</div>
+      <div class="stat-lbl">last product</div>
     </div>
   </div>
 
+  <!-- Features section -->
+  <div class="section-title">Features</div>
+
+  <!-- Review Scraper (always on) -->
+  <div class="feature-card">
+    <div class="feature-icon icon-orange">📊</div>
+    <div class="feature-body">
+      <div class="feature-name">Review Scraper</div>
+      <div class="feature-desc">Auto-runs when you visit Amazon product pages. Powers all AI analysis.</div>
+      <div class="feature-note ok" id="scraper-status">● Active — scraping on visit</div>
+    </div>
+  </div>
+
+  <!-- Velocity Tracker -->
+  <div class="feature-card">
+    <div class="feature-icon icon-blue">📈</div>
+    <div class="feature-body">
+      <div class="feature-name">Velocity Tracker</div>
+      <div class="feature-desc">Tracks review count trends on product pages you visit.</div>
+      <div class="feature-note" id="velocity-note">Off — toggle to enable</div>
+    </div>
+    <div class="toggle-wrap">
+      <button class="toggle" id="velocity-toggle" data-feature="velocity_active"></button>
+    </div>
+  </div>
+
+  <!-- Competitor Overlay -->
+  <div class="feature-card">
+    <div class="feature-icon icon-purple">🔍</div>
+    <div class="feature-body">
+      <div class="feature-name">Competitor Overlay</div>
+      <div class="feature-desc">Shows your Voxrate data on Amazon product pages you browse.</div>
+      <div class="feature-note" id="overlay-note">Off — toggle to enable</div>
+    </div>
+    <div class="toggle-wrap">
+      <button class="toggle" id="overlay-toggle" data-feature="overlay_active"></button>
+    </div>
+  </div>
+
+  <!-- Account Health (SP-API) -->
+  <div class="feature-card">
+    <div class="feature-icon icon-green">🛡</div>
+    <div class="feature-body">
+      <div class="feature-name">Account Health</div>
+      <div class="feature-desc">Monitors your Seller Central health via Amazon's official API. Pro only.</div>
+      <div class="feature-note" id="health-note">Not connected</div>
+    </div>
+    <button class="btn-connect" id="health-connect-btn">Connect</button>
+  </div>
+
+  <!-- Footer -->
   <div class="footer">
     <a href="https://voxrate.app/?from=ext" target="_blank" class="btn btn-primary">Open Voxrate</a>
     <button class="btn btn-ghost" id="disconnect-btn">Disconnect</button>
   </div>
+
 </div>
 
-<div style="padding: 10px 18px; border-top: 1px solid #1a1a1a; text-align: center;">
-  <a href="https://voxrate.app/privacy" target="_blank" style="font-size: 10px; color: #444; text-decoration: none;">Privacy Policy</a>
-  <span style="color: #333; margin: 0 6px;">·</span>
-  <a href="https://voxrate.app/terms" target="_blank" style="font-size: 10px; color: #444; text-decoration: none;">Terms</a>
+<div style="padding:8px 16px; border-top:1px solid #111; text-align:center;">
+  <a href="https://voxrate.app/privacy" target="_blank" style="font-size:10px; color:#333; text-decoration:none;">Privacy</a>
+  <span style="color:#222; margin:0 6px;">·</span>
+  <a href="https://voxrate.app/terms" target="_blank" style="font-size:10px; color:#333; text-decoration:none;">Terms</a>
 </div>
 
 <script src="popup.js"></script>

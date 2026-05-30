@@ -102,6 +102,8 @@ export async function POST(req: NextRequest) {
     ? 'partial'
     : error
     ? 'failed'
+    : validReviews.length === 0
+    ? 'partial'   // logged-in scrape with no reviews = unexpected, treat as partial not completed
     : 'completed'
 
   await supabase
