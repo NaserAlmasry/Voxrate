@@ -89,9 +89,8 @@ export async function POST(request: NextRequest) {
       console.error('[validate-code] welcome email failed', e?.message)
     }
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
-      sessionToken,
       ambassador: {
         id: amb.id,
         name: amb.name,
@@ -100,6 +99,14 @@ export async function POST(request: NextRequest) {
         internshipEnd: amb.internship_end,
       },
     })
+    response.cookies.set('ambassador_token', sessionToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'strict',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 90, // 90 days
+    })
+    return response
   } catch (err: any) {
     console.error('[validate-code] error', err?.message)
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })

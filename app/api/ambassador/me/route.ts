@@ -12,14 +12,20 @@ export async function GET(request: NextRequest) {
   const [
     { count: clicksCount },
     { data: conversions },
+    { data: payoutHistory },
   ] = await Promise.all([
     supa.from('ambassador_clicks').select('id', { count: 'exact', head: true }).eq('ambassador_id', amb.id),
     supa.from('ambassador_conversions').select('*').eq('ambassador_id', amb.id),
+    supa.from('ambassador_payout_history').select('id, amount, paid_at, admin_note').eq('ambassador_id', amb.id).order('paid_at', { ascending: false }),
   ])
 
   const list = conversions || []
   const signupsCount = list.length
   const payingCustomers = list.filter(c => c.status === 'payable' || c.status === 'paid')
+  const payableConversions = list.filter(c => c.status === 'payable')
+  const payableBalance = Math.round(
+    payableConversions.reduce((s, c) => s + Number(c.commission_amount || 0) + Number(c.friend_bonus_amount || 0), 0) * 100
+  ) / 100
 
   const now = new Date()
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
@@ -66,7 +72,16 @@ export async function GET(request: NextRequest) {
       internshipEnd: amb.internship_end,
       friendBonusActive: amb.friend_bonus_active,
       friendInvitedId: amb.friend_invited_id,
+      payoutRequestStatus: amb.payout_request_status || 'none',
+      payoutRequestedAt: amb.payout_requested_at || null,
     },
+    payableBalance,
+    payoutHistory: (payoutHistory || []).map((h: any) => ({
+      id: h.id,
+      amount: Number(h.amount),
+      paid_at: h.paid_at,
+      admin_note: h.admin_note,
+    })),
     stats: {
       clicks: clicksCount || 0,
       signups: signupsCount,
