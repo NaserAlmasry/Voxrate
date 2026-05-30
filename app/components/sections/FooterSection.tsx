@@ -81,6 +81,7 @@ export default function FooterSection({ footerNlEmail, setFooterNlEmail, footerN
             <a href="/privacy" target="_blank" rel="noopener noreferrer" className="hover:text-black transition-colors">Privacy</a>
             <a href="/terms" target="_blank" rel="noopener noreferrer" className="hover:text-black transition-colors">Terms</a>
             <a href="/careers" target="_blank" rel="noopener noreferrer" className="hover:text-black transition-colors">Careers</a>
+            <a href="/extension" className="hover:text-black transition-colors">Extension</a>
             <a href="mailto:info@voxrate.app" className="hover:text-black transition-colors">Contact</a>
           </div>
         </div>
