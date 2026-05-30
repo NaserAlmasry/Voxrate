@@ -3,8 +3,13 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { checkRateLimit } from '@/app/lib/rate-limit'
 import { adminSupa } from '@/app/lib/ambassador-auth'
+import { createClient } from '@/app/lib/supabase/server'
 
 export async function POST(request: NextRequest) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user || !user.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
   const limit = await checkRateLimit(ip, 'ip', 30)
   if (!limit.allowed) return NextResponse.json({ ok: false }, { status: 429 })
@@ -12,7 +17,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}))
     const referralCode = String(body?.referralCode || '').trim().toUpperCase()
-    const email = String(body?.email || '').trim().toLowerCase()
+    const email = user.email.toLowerCase()
     if (!referralCode || !email) return NextResponse.json({ ok: true })
 
     const supa = adminSupa()

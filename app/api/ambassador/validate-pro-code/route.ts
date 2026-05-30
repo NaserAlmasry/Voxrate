@@ -26,12 +26,12 @@ export async function POST(request: NextRequest) {
       .eq('code', code)
       .single()
 
-    if (!codeRow) return NextResponse.json({ error: 'Invalid code' }, { status: 400 })
-    if (codeRow.type !== 'pro_access') return NextResponse.json({ error: 'Wrong code type' }, { status: 400 })
-    if (codeRow.used) return NextResponse.json({ error: 'This code has already been used' }, { status: 400 })
-    if (new Date(codeRow.expires_at) < new Date()) return NextResponse.json({ error: 'This code has expired' }, { status: 400 })
+    if (!codeRow) return NextResponse.json({ error: 'Invalid or expired code.' }, { status: 400 })
+    if (codeRow.type !== 'pro_access') return NextResponse.json({ error: 'Invalid or expired code.' }, { status: 400 })
+    if (codeRow.used) return NextResponse.json({ error: 'Invalid or expired code.' }, { status: 400 })
+    if (new Date(codeRow.expires_at) < new Date()) return NextResponse.json({ error: 'Invalid or expired code.' }, { status: 400 })
     if (!codeRow.assigned_email || codeRow.assigned_email.toLowerCase() !== email) {
-      return NextResponse.json({ error: 'This code is not assigned to that email' }, { status: 400 })
+      return NextResponse.json({ error: 'Invalid or expired code.' }, { status: 400 })
     }
 
     return NextResponse.json({ success: true, grantProAccess: true, email })

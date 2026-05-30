@@ -27,8 +27,12 @@ export function verifyCronRequest(
   if (!isCronRequest(request)) return { isCron: false }
 
   const allowedIps = (process.env.CRON_ALLOWED_IPS ?? '').split(',').map(s => s.trim()).filter(Boolean)
-  if (allowedIps.length === 0 && process.env.NODE_ENV === 'production') {
-    console.warn('[CronAuth] SECURITY: CRON_ALLOWED_IPS not set — cron bypass accepts any IP. Set this to Vercel internal IPs for defense in depth.')
+  if (allowedIps.length === 0) {
+    if (process.env.NODE_ENV === 'production') {
+      console.error('[CronAuth] SECURITY: CRON_ALLOWED_IPS not set — rejecting request')
+      return { isCron: true, error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
+    }
+    console.warn('[CronAuth] CRON_ALLOWED_IPS not set — skipping IP check (dev mode)')
   }
   if (allowedIps.length > 0) {
     const callerIp =

@@ -40,8 +40,7 @@ export async function GET() {
   const maskedUsers = (users || []).map((u: any) => ({
     ...u,
     email: u.email
-      ? u.email.replace(/^(.)(.*)(@.*)$/, (_: string, first: string, mid: string, domain: string) =>
-          first + '*'.repeat(Math.min(mid.length, 4)) + domain)
+      ? u.email.replace(/^(.).*@(.).*(\.(?:com|io|net|org|co\.\w+))$/, '$1****@$2***$3')
       : null,
   }))
 

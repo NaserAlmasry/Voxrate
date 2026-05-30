@@ -46,7 +46,7 @@ async function applyAmbassadorCommission(invoice: Stripe.Invoice, stripe: Stripe
 
   const planPrice = invoice.amount_paid / 100
   const rate = Number(ambassador.commission_rate)
-  const commissionRate = rate > 1 ? rate / 100 : rate
+  const commissionRate = Math.min(rate > 1 ? rate / 100 : rate, 1.0)
   const commissionAmount = Math.round(planPrice * commissionRate * 100) / 100
   const friendBonus = ambassador.friend_bonus_active ? 2 : 0
   const now = new Date()
@@ -284,15 +284,23 @@ export async function POST(request: NextRequest) {
               .maybeSingle()
 
             if (referral && !referral.converted) {
-              await supabase
+              const { data: convertedRow, error: convErr } = await supabase
                 .from('referrals')
                 .update({ converted: true, converted_at: new Date().toISOString() })
                 .eq('referred_user_id', userId)
-              const { error: rpcErr } = await supabase.rpc('increment_referral_count', { uid: referral.referrer_id })
-              if (rpcErr) {
-                console.error('[Webhook] increment_referral_count failed:', rpcErr.message)
+                .eq('converted', false)
+                .select('referrer_id')
+                .single()
+
+              if (convErr || !convertedRow) {
+                // Already converted by a concurrent webhook — skip silently
               } else {
-                console.log(`[Webhook] ✅ Referral converted — referrer ${referral.referrer_id} counter +1`)
+                const { error: rpcErr } = await supabase.rpc('increment_referral_count', { uid: convertedRow.referrer_id })
+                if (rpcErr) {
+                  console.error('[Webhook] increment_referral_count failed:', rpcErr.message)
+                } else {
+                  console.log(`[Webhook] ✅ Referral converted — referrer ${convertedRow.referrer_id} counter +1`)
+                }
               }
             }
           } catch (refErr: any) {
@@ -321,10 +329,25 @@ export async function POST(request: NextRequest) {
 
         const subscription = await stripe.subscriptions.retrieve(subscriptionId)
         const userId  = subscription.metadata?.user_id
-        const plan    = subscription.metadata?.plan
+        let plan      = subscription.metadata?.plan
 
         if (!userId || !plan) break
         if (!['starter', 'growth', 'pro'].includes(plan)) break
+
+        // Verify plan against actual price ID to detect metadata tampering
+        const priceId = subscription.items?.data?.[0]?.price?.id
+        const priceIdToPlan: Record<string, string> = {
+          [process.env.STRIPE_PRICE_STARTER_MONTHLY ?? '']: 'starter',
+          [process.env.STRIPE_PRICE_STARTER_YEARLY ?? '']: 'starter',
+          [process.env.STRIPE_PRICE_GROWTH_MONTHLY ?? '']: 'growth',
+          [process.env.STRIPE_PRICE_GROWTH_YEARLY ?? '']: 'growth',
+          [process.env.STRIPE_PRICE_PRO_MONTHLY ?? '']: 'pro',
+          [process.env.STRIPE_PRICE_PRO_YEARLY ?? '']: 'pro',
+        }
+        if (priceId && priceIdToPlan[priceId] && priceIdToPlan[priceId] !== plan) {
+          console.warn(`[Webhook] Plan metadata mismatch: metadata says "${plan}" but price ${priceId} maps to "${priceIdToPlan[priceId]}" — using price ID`)
+          plan = priceIdToPlan[priceId]
+        }
 
         const allotment = PLAN_ANALYSES[plan as keyof typeof PLAN_ANALYSES] ?? PLAN_ANALYSES.starter
 

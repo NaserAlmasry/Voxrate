@@ -60,6 +60,14 @@ export async function POST(request: NextRequest) {
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.SUPABASE_SERVICE_ROLE_KEY!,
       )
+      await adminClient
+        .from('reports')
+        .update({ is_public: false })
+        .eq('user_id', user.id)
+      await adminClient
+        .from('extension_sessions')
+        .update({ revoked_at: new Date().toISOString() })
+        .eq('user_id', user.id)
       await adminClient.auth.admin.deleteUser(user.id)
     } catch (err: any) {
       console.error('[DeleteAccount] Session invalidation error:', err.message)

@@ -33,7 +33,24 @@ export async function POST(request: NextRequest) {
     conversionsByAmbassador[c.ambassador_id].push(c.id)
   }
 
-  const eligibleAmbassadors = Object.entries(totals).filter(([, a]) => a >= 15)
+  const allEligible = Object.entries(totals).filter(([, a]) => a >= 15)
+
+  // Only pay ambassadors with verified PayPal email
+  const ambassadorIds = allEligible.map(([ambassadorId]) => ambassadorId)
+  const { data: ambassadorRows } = await supa
+    .from('ambassadors')
+    .select('id, paypal_email_verified')
+    .in('id', ambassadorIds)
+
+  const verifiedSet = new Set(
+    (ambassadorRows || []).filter((a: any) => a.paypal_email_verified === true).map((a: any) => a.id)
+  )
+  const skippedIds = ambassadorIds.filter(id => !verifiedSet.has(id))
+  if (skippedIds.length > 0) {
+    console.warn('[MarkPaid] Skipping unverified PayPal emails:', skippedIds)
+  }
+
+  const eligibleAmbassadors = allEligible.filter(([ambassadorId]) => verifiedSet.has(ambassadorId))
   const ids: string[] = eligibleAmbassadors.flatMap(([ambassadorId]) => conversionsByAmbassador[ambassadorId] || [])
 
   for (const [ambassadorId, amount] of eligibleAmbassadors) {
@@ -53,5 +70,5 @@ export async function POST(request: NextRequest) {
       .in('id', ids)
   }
 
-  return NextResponse.json({ success: true, period, paid_count: ids.length })
+  return NextResponse.json({ success: true, period, paid_count: ids.length, skipped_unverified: skippedIds })
 }

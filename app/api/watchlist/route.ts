@@ -8,6 +8,12 @@ export async function GET() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const { data: getUserData } = await supabase
+    .from('users')
+    .select('plan, is_admin')
+    .eq('id', user.id)
+    .single()
+
   const { data } = await supabase
     .from('watchlist')
     .select('*')
@@ -15,6 +21,9 @@ export async function GET() {
     .order('created_at', { ascending: false })
 
   const items = data || []
+  const getPlan = getUserData?.plan || 'free'
+  const getIsAdmin = getUserData?.is_admin === true
+  const planSupportsWatchlist = getIsAdmin || ['starter', 'growth', 'pro'].includes(getPlan)
 
   // Fetch score history (gracefully skip if table doesn't exist)
   const historyMap: Record<string, number[]> = {}
@@ -35,6 +44,7 @@ export async function GET() {
   const itemsWithHistory = items.map((item: any) => ({
     ...item,
     history: historyMap[item.id] || [],
+    monitoring_active: planSupportsWatchlist,
   }))
 
   return NextResponse.json({ items: itemsWithHistory })
@@ -156,11 +166,31 @@ export async function PATCH(request: NextRequest) {
   const limit = await checkRateLimit(user.id, 'user')
   if (!limit.allowed) return NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 })
 
+  const { data: patchUserData } = await supabase
+    .from('users')
+    .select('plan, is_admin')
+    .eq('id', user.id)
+    .single()
+
+  const patchPlan    = patchUserData?.plan    || 'free'
+  const patchIsAdmin = patchUserData?.is_admin === true
+
+  if (!patchIsAdmin && patchPlan === 'free') {
+    return NextResponse.json(
+      { error: 'Competitor watchlist is available on Starter and above.', upgradeRequired: true },
+      { status: 403 },
+    )
+  }
+
   const body = await request.json()
   const id       = typeof body?.id       === 'string' ? body.id       : null
   const note     = typeof body?.note     === 'string' ? body.note.trim().slice(0, 300) : undefined
   const reportId = typeof body?.reportId === 'string' ? body.reportId : undefined
   const newScore = typeof body?.newScore === 'number' ? body.newScore : undefined
+
+  if (newScore !== undefined && (typeof newScore !== 'number' || newScore < 0 || newScore > 100 || !Number.isInteger(newScore))) {
+    return NextResponse.json({ error: 'Invalid score' }, { status: 400 })
+  }
 
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   if (!id || !UUID_RE.test(id)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 })
