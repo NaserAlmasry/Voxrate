@@ -64,23 +64,12 @@ export default function HowItWorksSection() {
             <span className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-orange-500 text-white text-xs font-bold flex items-center justify-center shadow">1</span>
           </div>
           <div>
-            <div className="flex items-center gap-2 mb-1">
-              <h3 className="font-semibold text-white">{steps[0].title}</h3>
-              <span className="text-[10px] font-semibold bg-orange-500/20 text-orange-400 border border-orange-500/30 px-2 py-0.5 rounded-full uppercase tracking-wide">Free with paid plans</span>
-            </div>
-            <p className="text-sm text-neutral-400 leading-relaxed">{steps[0].body}</p>
-            <div className="flex flex-wrap gap-2 mt-3">
-              {['Competitor sidebar overlay', 'New review alerts', 'SC health scanner', 'Listing velocity tracker'].map(f => (
-                <span key={f} className="text-[11px] bg-neutral-800 text-neutral-300 px-2.5 py-1 rounded-full border border-neutral-700">{f}</span>
-              ))}
-            </div>
+            <h3 className="font-semibold text-white mb-1">{steps[0].title}</h3>
             <a
-              href="https://chromewebstore.google.com/detail/phngikckgandobfcfkifbkejmlgobhgd"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 mt-4 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold rounded-xl transition-colors"
+              href="/extension"
+              className="text-xs text-orange-400 hover:text-orange-300 underline underline-offset-2"
             >
-              Get the extension →
+              Learn what it does →
             </a>
           </div>
         </div>
