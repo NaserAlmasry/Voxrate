@@ -526,14 +526,12 @@ export default function ReportPage() {
 
   // ── Load report (defined before effects so closure is always valid) ──
   const loadReport = useCallback(async (retries: number) => {
-    console.log('[Report] loadReport called — reportId:', reportId, 'retries:', retries)
     if (!reportId) {
       console.warn('[Report] loadReport: reportId is empty, aborting')
       setLoading(false)
       return
     }
     try {
-      console.log('[Report] querying Supabase for report...')
       // Fetch via API so plan limits are enforced server-side.
       // Direct Supabase client fetch would send full paid data to free users.
       const res = await fetch(`/api/report/${reportId}`, {
@@ -542,15 +540,12 @@ export default function ReportPage() {
       const data = res.ok ? await res.json() : null
       const dbError = res.ok ? null : { message: `HTTP ${res.status}` }
 
-      console.log('[Report] query result — data:', !!data, 'status:', res.status)
-
       if (!res.ok || !data) {
         console.error('[Report] not found or error:', dbError?.message)
         setError('Report not found')
         setLoading(false)
         return
       }
-      console.log('[Report] status:', data.status)
       if (data.status === 'pending' || data.status === 'queued' || data.status === 'processing') {
         if (retries >= 100) { setError('Analysis is taking too long. Please try again.'); setLoading(false); return }
         setPollCount(retries + 1)
@@ -558,9 +553,6 @@ export default function ReportPage() {
         return
       }
       if (data.status === 'failed') { setError('Analysis failed. Please try again.'); setLoading(false); return }
-
-      console.log('[Report] status:', data.status, '— full_report keys:', Object.keys(data.full_report || {}))
-      console.log('[Report] complaints count:', (data.full_report?.complaints || []).length)
 
       const ready: string[] = data.full_report?._sectionsReady || []
       if (data.status === 'completed') {

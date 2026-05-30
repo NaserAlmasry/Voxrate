@@ -9,7 +9,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from('monitored_asins')
-    .select('*')
+    .select('id, user_id, asin, marketplace, product_name, main_image, is_own_product, created_at')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
 

@@ -11,7 +11,7 @@ export async function GET() {
 
   const { data } = await supabase
     .from('monitored_listings')
-    .select('*')
+    .select('id, user_id, report_id, product_url, product_name, last_score, check_frequency, last_checked_at, is_active, created_at')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
 

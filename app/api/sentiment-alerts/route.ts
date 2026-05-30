@@ -37,7 +37,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from('sentiment_alerts')
-    .select('*')
+    .select('id, user_id, asin, product_name, marketplace, frequency, active, next_run_at, created_at')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
 
