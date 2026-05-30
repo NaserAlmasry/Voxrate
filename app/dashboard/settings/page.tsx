@@ -20,8 +20,15 @@ export default function SettingsPage() {
   const [weeklyDigest, setWeeklyDigest] = useState(true)
   const [digestFrequency, setDigestFrequency] = useState<'weekly' | 'daily'>('weekly')
   const [digestSaving, setDigestSaving] = useState(false)
+  const [webhookUrl, setWebhookUrl] = useState('')
+  const [slackWebhookUrl, setSlackWebhookUrl] = useState('')
+  const [webhookSaving, setWebhookSaving] = useState(false)
   const [trialEndsAt, setTrialEndsAt] = useState<string | null>(null)
   const [trialDaysLeft, setTrialDaysLeft] = useState<number | null>(null)
+  const [amazonConnected, setAmazonConnected] = useState(false)
+  const [amazonPartnerId, setAmazonPartnerId] = useState<string | null>(null)
+  const [amazonConnectedAt, setAmazonConnectedAt] = useState<string | null>(null)
+  const [amazonDisconnecting, setAmazonDisconnecting] = useState(false)
   const supabaseRef = useRef(createClient())
   const supabase    = supabaseRef.current
   const toast    = useToast()
@@ -35,13 +42,16 @@ export default function SettingsPage() {
     const date = new Date(user.created_at)
     setJoinedDate(date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }))
 
-    const { data } = await supabase.from('users').select('plan, own_analyses_remaining, competitor_analyses_remaining, is_admin, stripe_current_period_end, weekly_digest_enabled, digest_frequency, trial_ends_at').eq('id', user.id).single()
+    const { data } = await supabase.from('users').select('plan, own_analyses_remaining, competitor_analyses_remaining, is_admin, stripe_current_period_end, weekly_digest_enabled, digest_frequency, trial_ends_at, webhook_url, slack_webhook_url').eq('id', user.id).single()
     if (data?.plan) setPlan(data.plan)
     if (data?.own_analyses_remaining != null) setOwnRemaining(data.own_analyses_remaining)
     if (data?.competitor_analyses_remaining != null) setCompetitorRemaining(data.competitor_analyses_remaining)
     if (data?.is_admin) setIsAdmin(true)
     if (data?.weekly_digest_enabled != null) setWeeklyDigest(data.weekly_digest_enabled)
     if (data?.digest_frequency) setDigestFrequency(data.digest_frequency as 'weekly' | 'daily')
+    if (data?.webhook_url) setWebhookUrl(data.webhook_url)
+    if (data?.slack_webhook_url) setSlackWebhookUrl(data.slack_webhook_url)
+
     if (data?.stripe_current_period_end) {
       setRenewalDate(new Date(data.stripe_current_period_end * 1000).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }))
     }
@@ -54,6 +64,21 @@ export default function SettingsPage() {
 
   useEffect(() => {
     loadUser()
+    fetch('/api/amazon/status', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (d?.connected) {
+          setAmazonConnected(true)
+          setAmazonPartnerId(d.selling_partner_id)
+          setAmazonConnectedAt(d.connected_at)
+        }
+      })
+      .catch(() => {})
+    if (window.location.search.includes('amazon_connected=true')) {
+      setAmazonConnected(true)
+      window.history.replaceState({}, '', '/dashboard/settings')
+      toast('Amazon account connected successfully', 'success')
+    }
     if (window.location.search.includes('upgraded=true')) {
       window.history.replaceState({}, '', '/dashboard/settings')
       const t = setTimeout(() => loadUser(), 2000)
@@ -87,6 +112,53 @@ export default function SettingsPage() {
     setWeeklyDigest(val)
     setDigestSaving(false)
     toast(val ? 'Digest enabled' : 'Digest disabled', 'success')
+  }
+
+  const saveWebhooks = async () => {
+    setWebhookSaving(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const trimmed = webhookUrl.trim()
+      const slackTrimmed = slackWebhookUrl.trim()
+      if (trimmed && !trimmed.startsWith('https://')) {
+        toast('Webhook URL must start with https://', 'error')
+        setWebhookSaving(false)
+        return
+      }
+      if (slackTrimmed && !slackTrimmed.startsWith('https://hooks.slack.com/')) {
+        toast('Slack webhook must be a hooks.slack.com URL', 'error')
+        setWebhookSaving(false)
+        return
+      }
+      await supabase.from('users').update({
+        webhook_url:       trimmed || null,
+        slack_webhook_url: slackTrimmed || null,
+      }).eq('id', user.id)
+    }
+    setWebhookSaving(false)
+    toast('Webhook settings saved', 'success')
+  }
+
+  const disconnectAmazon = async () => {
+    setAmazonDisconnecting(true)
+    try {
+      const res = await fetch('/api/amazon/connect', {
+        method: 'DELETE',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      })
+      if (res.ok) {
+        setAmazonConnected(false)
+        setAmazonPartnerId(null)
+        setAmazonConnectedAt(null)
+        toast('Amazon account disconnected', 'success')
+      } else {
+        toast('Failed to disconnect. Please try again.', 'error')
+      }
+    } catch {
+      toast('Something went wrong.', 'error')
+    } finally {
+      setAmazonDisconnecting(false)
+    }
   }
 
   const setDigestFreq = async (freq: 'weekly' | 'daily') => {
@@ -288,6 +360,92 @@ export default function SettingsPage() {
         )}
         {plan !== 'pro' && (
           <p className="text-xs text-neutral-400 pt-3 border-t border-neutral-100">Daily digest available on Pro plan.</p>
+        )}
+      </div>
+
+      {/* Webhooks — Starter and above */}
+      {(plan !== 'free' || isAdmin) && (
+        <div className="bg-white rounded-2xl border border-neutral-200 p-6">
+          <h2 className="text-sm font-semibold text-neutral-700 mb-1">Webhooks &amp; integrations</h2>
+          <p className="text-xs text-neutral-400 mb-4">Receive alerts in your own system or Slack when a score drops or a new 1★ review appears.</p>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-neutral-600 mb-1">Custom webhook URL</label>
+              <input
+                type="url"
+                value={webhookUrl}
+                onChange={e => setWebhookUrl(e.target.value)}
+                placeholder="https://your-server.com/webhook"
+                className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-xl focus:outline-none focus:border-neutral-400"
+              />
+              <p className="text-[11px] text-neutral-400 mt-1">We&apos;ll POST JSON with event, ASIN, product name, score, and review text.</p>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-neutral-600 mb-1">Slack incoming webhook URL</label>
+              <input
+                type="url"
+                value={slackWebhookUrl}
+                onChange={e => setSlackWebhookUrl(e.target.value)}
+                placeholder="https://hooks.slack.com/services/..."
+                className="w-full px-3 py-2 text-sm border border-neutral-200 rounded-xl focus:outline-none focus:border-neutral-400"
+              />
+              <p className="text-[11px] text-neutral-400 mt-1">Get formatted Slack messages. <a href="https://api.slack.com/messaging/webhooks" target="_blank" rel="noreferrer" className="underline">How to create one</a>.</p>
+            </div>
+            <button
+              onClick={saveWebhooks}
+              disabled={webhookSaving}
+              className="px-4 py-2 text-xs font-medium bg-black text-white rounded-xl hover:bg-neutral-800 disabled:opacity-50 transition-colors"
+            >
+              {webhookSaving ? 'Saving…' : 'Save webhook settings'}
+            </button>
+          </div>
+        </div>
+      )}
+
+
+      {/* Amazon SP-API */}
+      <div className="bg-white rounded-2xl border border-neutral-200 p-6">
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="text-sm font-semibold text-neutral-700">Amazon Account Health</h2>
+          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">Pro</span>
+        </div>
+        <p className="text-xs text-neutral-400 mb-4">Connect your Amazon Selling Partner account to monitor your Account Health Rating via Amazon&apos;s official SP-API. No scraping — direct API access.</p>
+
+        {amazonConnected ? (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-xl">
+              <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-green-800">Connected</p>
+                {amazonPartnerId && <p className="text-[10px] text-green-600 mt-0.5 font-mono truncate">{amazonPartnerId}</p>}
+                {amazonConnectedAt && <p className="text-[10px] text-green-500 mt-0.5">Since {new Date(amazonConnectedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>}
+              </div>
+            </div>
+            <button
+              onClick={disconnectAmazon}
+              disabled={amazonDisconnecting}
+              className="px-4 py-2 text-xs font-medium border border-red-200 text-red-600 rounded-xl hover:bg-red-50 transition-colors disabled:opacity-50"
+            >
+              {amazonDisconnecting ? 'Disconnecting…' : 'Disconnect Amazon account'}
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 p-3 bg-neutral-50 border border-neutral-200 rounded-xl">
+              <div className="w-2 h-2 rounded-full bg-neutral-300 flex-shrink-0" />
+              <p className="text-xs text-neutral-500">Not connected</p>
+            </div>
+            {plan === 'pro' || isAdmin ? (
+              <a
+                href="/api/amazon/connect"
+                className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold bg-black text-white rounded-xl hover:bg-neutral-800 transition-colors"
+              >
+                Connect Amazon account →
+              </a>
+            ) : (
+              <p className="text-xs text-neutral-400">Available on <a href="/#pricing" className="underline font-medium text-neutral-600">Pro plan</a>.</p>
+            )}
+          </div>
         )}
       </div>
 

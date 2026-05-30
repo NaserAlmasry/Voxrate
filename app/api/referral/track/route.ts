@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json().catch(() => ({}))
     const referralCode = typeof body?.referral_code === 'string' ? body.referral_code.trim() : ''
-    if (!referralCode || referralCode.length > 32) {
+    if (!referralCode || !/^[a-zA-Z0-9]{4,32}$/.test(referralCode)) {
       return NextResponse.json({ error: 'Invalid referral code' }, { status: 400 })
     }
 

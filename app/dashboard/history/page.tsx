@@ -25,6 +25,7 @@ export default function HistoryPage() {
   const [userEmail, setUserEmail] = useState('')
   const [userPlan, setUserPlan] = useState('free')
   const [simulatingUser, setSimulatingUser] = useState(false)
+  const [visibleCount, setVisibleCount] = useState(10)
 
   const supabase = createClient()
   const router = useRouter()
@@ -162,7 +163,7 @@ export default function HistoryPage() {
       </div>
 
       <div className="space-y-3">
-        {reports.map(report => {
+        {reports.slice(0, visibleCount).map(report => {
           const sc = scoreColor(report.health_score || 0)
           const date = new Date(report.created_at).toLocaleDateString('en-US', {
             month: 'short', day: 'numeric', year: 'numeric'
@@ -217,6 +218,15 @@ export default function HistoryPage() {
           )
         })}
       </div>
+
+      {reports.length > visibleCount && (
+        <button
+          onClick={() => setVisibleCount(c => c + 10)}
+          className="w-full py-3 mt-1 bg-neutral-50 hover:bg-neutral-100 border border-neutral-200 rounded-2xl text-sm text-neutral-600 font-medium transition-colors"
+        >
+          Show more ({reports.length - visibleCount} remaining)
+        </button>
+      )}
 
       {!effectiveAdmin && userPlan === 'free' && reports.length > 0 && (
         <div className="mt-6 p-4 bg-orange-50 border border-orange-200 rounded-2xl text-center">

@@ -14,6 +14,8 @@ async function getUserFromToken(token: string) {
     .from('extension_sessions')
     .select('user_id')
     .eq('token', token)
+    .is('revoked_at', null)
+    .gt('expires_at', new Date().toISOString())
     .single()
   return data
 }
@@ -63,8 +65,20 @@ export async function GET(req: NextRequest) {
     .order('created_at', { ascending: false })
     .limit(5)
 
+  // Detect if this is the user's own listing (has an 'own' type report for this ASIN)
+  const { data: ownReport } = await supabase
+    .from('reports')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('report_type', 'own')
+    .eq('status', 'completed')
+    .ilike('product_url', `%${asin.toUpperCase()}%`)
+    .limit(1)
+    .maybeSingle()
+
   return NextResponse.json({
     asin: asin.toUpperCase(),
+    is_own: !!ownReport,
     snapshot: snapshot || null,
     velocity: velocity || [],
     alerts: alerts || [],

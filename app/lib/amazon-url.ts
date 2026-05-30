@@ -11,6 +11,17 @@ export const AMAZON_DOMAINS = [
   'amazon.com.mx', 'amazon.nl', 'amazon.se', 'amazon.pl',
 ]
 
+export function extractAsin(urlOrAsin: string): string | null {
+  const trimmed = urlOrAsin.trim()
+  if (/^[A-Z0-9]{10}$/i.test(trimmed)) return trimmed.toUpperCase()
+  try {
+    const m = trimmed.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})/i)
+    return m ? m[1].toUpperCase() : null
+  } catch {
+    return null
+  }
+}
+
 export function sanitizeAmazonInput(raw: string): string | null {
   const trimmed = raw.trim()
 

@@ -134,7 +134,8 @@ export async function DELETE(request: NextRequest) {
   if (!limit.allowed) return NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 })
 
   const { id } = await request.json()
-  if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (!id || !UUID_RE.test(id)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 })
 
   await supabase
     .from('monitored_listings')

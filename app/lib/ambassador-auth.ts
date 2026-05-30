@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { createHash } from 'crypto'
 
 export function adminSupa() {
   return createClient(
@@ -9,13 +10,14 @@ export function adminSupa() {
 }
 
 export async function getAmbassadorFromToken(request: NextRequest) {
-  const token = request.headers.get('x-ambassador-token')
-  if (!token) return null
+  const rawToken = request.cookies.get('ambassador_token')?.value
+  if (!rawToken) return null
+  const tokenHash = createHash('sha256').update(rawToken).digest('hex')
   const supa = adminSupa()
   const { data } = await supa
     .from('ambassadors')
     .select('*')
-    .eq('session_token', token)
+    .eq('session_token', tokenHash)
     .single()
   if (!data) return null
   if (data.session_expires_at && new Date(data.session_expires_at) < new Date()) return null

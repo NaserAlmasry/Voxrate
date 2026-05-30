@@ -30,7 +30,7 @@ export async function GET() {
     if (!code) {
       // Generate a short code. Retry once on the (very unlikely) collision.
       for (let attempt = 0; attempt < 3 && !code; attempt++) {
-        const candidate = (globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2)).slice(0, 8)
+        const candidate = globalThis.crypto.randomUUID().replace(/-/g, '').slice(0, 8)
         const { error } = await supabase.from('users').update({ referral_code: candidate }).eq('id', user.id)
         if (!error) { code = candidate; break }
       }

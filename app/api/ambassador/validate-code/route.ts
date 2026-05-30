@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
+import { createHash } from 'crypto'
 import { checkCsrf } from '@/app/lib/csrf'
 import { checkRateLimit } from '@/app/lib/rate-limit'
 import { adminSupa } from '@/app/lib/ambassador-auth'
@@ -63,6 +64,7 @@ export async function POST(request: NextRequest) {
     if (!referralCode) return NextResponse.json({ error: 'Could not allocate referral code' }, { status: 500 })
 
     const sessionToken = globalThis.crypto.randomUUID()
+    const tokenHash = createHash('sha256').update(sessionToken).digest('hex')
     const sessionExpires = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString()
 
     const { data: amb, error: insertErr } = await supa
@@ -72,7 +74,7 @@ export async function POST(request: NextRequest) {
         email,
         code_used: code,
         referral_code: referralCode,
-        session_token: sessionToken,
+        session_token: tokenHash,
         session_expires_at: sessionExpires,
       })
       .select()

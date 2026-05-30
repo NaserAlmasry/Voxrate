@@ -15,6 +15,8 @@ async function getUserFromToken(token: string) {
     .from('extension_sessions')
     .select('user_id')
     .eq('token', token)
+    .is('revoked_at', null)
+    .gt('expires_at', new Date().toISOString())
     .single()
   return data
 }
@@ -71,9 +73,18 @@ export async function POST(req: NextRequest) {
   let body: VelocityPayload
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }) }
 
-  const { asin, one_star, two_star = 0, three_star = 0, four_star = 0, five_star = 0 } = body
+  const { asin } = body
   if (!asin) return NextResponse.json({ error: 'Missing asin' }, { status: 400 })
-  if (typeof one_star !== 'number' || isNaN(one_star)) return NextResponse.json({ error: 'Invalid one_star' }, { status: 400 })
+  if (!/^[A-Z0-9]{10}$/.test(asin)) return NextResponse.json({ error: 'Invalid asin' }, { status: 400 })
+
+  // Clamp and validate star counts — reject negative, cap at 5000 per tier
+  const clampStar = (v: unknown) => Math.min(5000, Math.max(0, typeof v === 'number' && isFinite(v) ? Math.round(v) : 0))
+  const one_star   = clampStar(body.one_star)
+  const two_star   = clampStar(body.two_star)
+  const three_star = clampStar(body.three_star)
+  const four_star  = clampStar(body.four_star)
+  const five_star  = clampStar(body.five_star)
+  // star counts already validated and clamped above
 
   const supabase = adminClient()
   const userId = session.user_id

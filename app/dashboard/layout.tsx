@@ -55,6 +55,11 @@ const NAV_GROUPS: NavGroup[] = [
         icon: <Crosshair size={18} />,
       },
       {
+        label: 'Compare Reports',
+        href: '/dashboard/compare',
+        icon: <Search size={18} />,
+      },
+      {
         label: 'Sentiment Alerts',
         href: '/dashboard/sentiment-alerts',
         icon: <BellRing size={18} />,

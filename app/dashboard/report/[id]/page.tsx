@@ -27,6 +27,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { createClient } from '@/app/lib/supabase/client'
 import { useParams, useRouter } from 'next/navigation'
 import { useToast } from '@/app/components/Toast'
+import { computeReportDiff } from '@/app/lib/report-diff'
 
 const SIMULATE_USER_KEY = 'voxrate_simulate_user'
 const FREE_PLAN_LIMIT   = 3   // change here if the limit ever changes
@@ -467,6 +468,7 @@ export default function ReportPage() {
   const [reanalyzing, setReanalyzing]               = useState(false)
   const [cooldownInfo, setCooldownInfo]             = useState<{ daysLeft: number; hasOverride: boolean } | null>(null)
   const [snapshotDiff, setSnapshotDiff]             = useState<any[] | null>(null)
+  const [showDiff, setShowDiff]                     = useState(false)
   const [ownReportsLoading, setOwnReportsLoading]   = useState(false)
   const loadStartRef                                = useRef<number>(Date.now())
   const ratingTimerRef                              = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -839,6 +841,8 @@ export default function ReportPage() {
       : typeof report?.verifiedHealthScore === 'number' ? report.verifiedHealthScore
       : typeof report?.verified_health_score === 'number' ? report.verified_health_score
       : null,
+    fakeReviewSignals:  rawReport.fakeReviewSignals  ?? null,
+    multilingualStats:  rawReport.multilingualStats  ?? null,
   }), [rawReport, report])
 
   const fr = useMemo(() => {
@@ -932,6 +936,17 @@ export default function ReportPage() {
       return n
     })
   }
+
+  const diff = report?.previousReport && report?.full_report?.complaints
+    ? computeReportDiff(
+        { healthScore: report.health_score, complaints: report.full_report.complaints },
+        {
+          healthScore: report.previousReport.health_score,
+          complaints: report.previousReport.full_report?.complaints || [],
+          createdAt: report.previousReport.created_at,
+        }
+      )
+    : null
 
   const isLimited = fr._isLimited === true
   const isPro     = effectiveAdmin || effectivePlan === 'pro'
@@ -1185,6 +1200,21 @@ export default function ReportPage() {
             <p className="text-[9px] text-neutral-400 mt-0.5">
               avg ~{fr.categoryBenchmark ?? getCategoryBenchmark(fr.bsrCategory || '')}
             </p>
+            {(() => {
+              const benchmark = fr.categoryBenchmark ?? getCategoryBenchmark(fr.bsrCategory || '')
+              const score = report.health_score
+              if (!benchmark || score == null) return null
+              const diff = score - benchmark
+              if (Math.abs(diff) < 3) return null
+              const pct = diff > 0
+                ? Math.min(99, Math.round(50 + (diff / (100 - benchmark)) * 49))
+                : Math.max(1, Math.round(50 - (Math.abs(diff) / benchmark) * 49))
+              return (
+                <p className={`text-[9px] font-semibold mt-0.5 ${diff > 0 ? 'text-green-600' : 'text-red-500'}`}>
+                  Top {diff > 0 ? 100 - pct : pct}% in category
+                </p>
+              )
+            })()}
             {scoreHistory.length >= 2 && (() => {
               const prev = scoreHistory[scoreHistory.length - 2].score
               const curr = report.health_score
@@ -1225,6 +1255,118 @@ export default function ReportPage() {
           >
             Stop sharing
           </button>
+        </div>
+      )}
+
+      {/* Review sample transparency */}
+      {fr.reviewSample && fr.reviewSample.totalFetched > 0 && (
+        <div className="flex items-center gap-2 text-xs text-neutral-400 bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-2.5 mb-4">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="flex-shrink-0">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+          </svg>
+          <span>
+            Analyzed {fr.reviewSample.sentToLLM} of {fr.reviewSample.totalFetched} reviews
+            {fr.reviewSample.totalFetched > fr.reviewSample.sentToLLM
+              ? ' — prioritized by complaint severity and verified purchase status'
+              : ''}
+          </span>
+        </div>
+      )}
+
+      {/* Multilingual notice */}
+      {(() => {
+        const ml = fr.multilingualStats as any
+        if (!ml || ml.nonEnglish < 5 || ml.pct < 10) return null
+        return (
+          <div className="flex items-center gap-2 text-xs text-blue-700 bg-blue-50 border border-blue-100 rounded-xl px-4 py-2.5 mb-4">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="flex-shrink-0">
+              <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+            </svg>
+            <span>{ml.nonEnglish} of {ml.total} reviews ({ml.pct}%) appear to be in a non-English language and may not be fully reflected in this analysis.</span>
+          </div>
+        )
+      })()}
+
+      {/* What changed diff */}
+      {diff && (
+        <div className="bg-white rounded-2xl border border-neutral-200 overflow-hidden mb-4">
+          <button
+            onClick={() => setShowDiff(!showDiff)}
+            className="w-full flex items-center justify-between p-4 text-left hover:bg-neutral-50 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-semibold text-neutral-800">What changed since last run</span>
+              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                diff.scoreDelta > 0 ? 'bg-green-100 text-green-700' :
+                diff.scoreDelta < 0 ? 'bg-red-100 text-red-600' :
+                'bg-neutral-100 text-neutral-500'
+              }`}>
+                {diff.scoreDelta > 0 ? '+' : ''}{diff.scoreDelta} pts
+              </span>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+              className={`transition-transform text-neutral-400 ${showDiff ? 'rotate-180' : ''}`}>
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </button>
+          {showDiff && (
+            <div className="px-4 pb-4 space-y-3 border-t border-neutral-100 pt-3">
+              <p className="text-xs text-neutral-400">
+                Compared to report from {new Date(diff.previousDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+              </p>
+              {diff.newThemes.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-red-600 mb-1">New complaints appeared</p>
+                  {diff.newThemes.map(t => (
+                    <p key={t} className="text-xs text-neutral-600 flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0" />{t}
+                    </p>
+                  ))}
+                </div>
+              )}
+              {diff.resolvedThemes.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-green-600 mb-1">Complaints resolved</p>
+                  {diff.resolvedThemes.map(t => (
+                    <p key={t} className="text-xs text-neutral-600 flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" />{t}
+                    </p>
+                  ))}
+                </div>
+              )}
+              {diff.worsenedThemes.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-orange-600 mb-1">Getting worse</p>
+                  {diff.worsenedThemes.map(t => (
+                    <p key={t.title} className="text-xs text-neutral-600 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-orange-500 flex-shrink-0" />{t.title}
+                      </span>
+                      <span className="text-red-500 font-medium">{t.before.toFixed(0)}% → {t.after.toFixed(0)}%</span>
+                    </p>
+                  ))}
+                </div>
+              )}
+              {diff.improvedThemes.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-blue-600 mb-1">Improved</p>
+                  {diff.improvedThemes.map(t => (
+                    <p key={t.title} className="text-xs text-neutral-600 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0" />{t.title}
+                      </span>
+                      <span className="text-green-600 font-medium">{t.before.toFixed(0)}% → {t.after.toFixed(0)}%</span>
+                    </p>
+                  ))}
+                </div>
+              )}
+              {diff.newThemes.length === 0 && diff.resolvedThemes.length === 0 &&
+               diff.worsenedThemes.length === 0 && diff.improvedThemes.length === 0 && (
+                <p className="text-xs text-neutral-400">No significant changes in complaint themes.</p>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -1288,10 +1430,12 @@ export default function ReportPage() {
       )}
 
       {/* Review Authenticity — Growth+/Pro/Admin only */}
-      {(effectiveAdmin || effectivePlan === 'growth' || effectivePlan === 'pro') && (fr.fakeReviewFlag !== null || typeof fr.verifiedHealthScore === 'number') && (() => {
-        const flagged = fr.fakeReviewFlag === true
+      {(effectiveAdmin || effectivePlan === 'growth' || effectivePlan === 'pro') && (fr.fakeReviewFlag !== null || typeof fr.verifiedHealthScore === 'number' || fr.fakeReviewSignals) && (() => {
+        const sigs    = fr.fakeReviewSignals as any
+        const suspicion = sigs?.suspicionScore ?? 0
+        const flagged = fr.fakeReviewFlag === true || suspicion >= 2
         const score   = typeof fr.verifiedHealthScore === 'number' ? fr.verifiedHealthScore : null
-        const healthy = !flagged && score !== null && score >= 80
+        const healthy = !flagged && (score === null || score >= 80) && suspicion === 0
         const palette = flagged
           ? { bg: 'bg-amber-50', border: 'border-amber-300', icon: '#d97706', title: 'text-amber-900', body: 'text-amber-800', score: 'text-amber-900' }
           : healthy
@@ -1299,9 +1443,9 @@ export default function ReportPage() {
           : { bg: 'bg-neutral-50', border: 'border-neutral-200', icon: '#525252', title: 'text-neutral-900', body: 'text-neutral-600', score: 'text-neutral-900' }
         const title = flagged ? 'Review Authenticity Alert' : 'Review Authenticity'
         const body  = flagged
-          ? 'A higher-than-normal ratio of unverified negative reviews was detected. This may indicate review manipulation by competitors.'
+          ? 'Signals suggest possible review manipulation — burst posting, duplicated phrases, or high unverified ratio detected.'
           : healthy
-          ? 'Review authenticity looks healthy.'
+          ? 'Review authenticity looks healthy. No unusual patterns detected.'
           : 'Some reviews could not be verified. Monitor for unusual patterns.'
         return (
           <div className={`rounded-2xl border p-5 flex items-start gap-4 ${palette.bg} ${palette.border}`}>
@@ -1325,6 +1469,25 @@ export default function ReportPage() {
                 <p className={`text-xs mt-2 font-medium ${palette.score}`}>
                   Verified Review Score: <span className="font-bold">{score}/100</span>
                 </p>
+              )}
+              {sigs && (
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {sigs.hasBurst && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-medium">
+                      {sigs.burstCount} reviews in one day
+                    </span>
+                  )}
+                  {sigs.duplicatedPhrases?.length >= 3 && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-medium">
+                      Repeated phrases detected
+                    </span>
+                  )}
+                  {sigs.highUnverified && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-medium">
+                      {sigs.unverifiedRatio}% unverified 5★ reviews
+                    </span>
+                  )}
+                </div>
               )}
             </div>
           </div>

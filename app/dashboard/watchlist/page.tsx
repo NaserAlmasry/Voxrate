@@ -26,6 +26,15 @@ function DeltaBadge({ initial, current }: { initial: number | null; current: num
   )
 }
 
+function getThemeDelta(data: { date: string; pct: number }[]): { delta: number; trend: 'up' | 'down' | 'stable' } | null {
+  if (data.length < 2) return null
+  const first = data[0].pct
+  const last  = data[data.length - 1].pct
+  const delta = last - first
+  if (Math.abs(delta) < 2) return { delta, trend: 'stable' }
+  return { delta, trend: delta > 0 ? 'up' : 'down' }
+}
+
 function Sparkline({ scores }: { scores: number[] }) {
   if (scores.length < 2) return <span className="text-[10px] text-neutral-300">—</span>
   const w = 72, h = 22, pad = 2
@@ -192,13 +201,22 @@ export default function WatchlistPage() {
               ? new Date(item.last_checked_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
               : 'Never'
             const isEditingThisNote = editingNote === item.id
+            const daysSinceCheck = item.last_checked_at
+              ? Math.floor((Date.now() - new Date(item.last_checked_at).getTime()) / 86400000)
+              : null
+            const isStale = daysSinceCheck !== null && daysSinceCheck >= 7
             return (
-              <div key={item.id} className="bg-white rounded-2xl border border-neutral-200 p-5">
+              <div key={item.id} className={`bg-white rounded-2xl border p-5 ${isStale ? 'border-amber-200' : 'border-neutral-200'}`}>
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <p className="text-sm font-semibold truncate">{item.product_name || 'Unnamed competitor'}</p>
+                      <p className="text-sm font-semibold truncate">{item.product_name || 'Unnamed product'}</p>
                       <DeltaBadge initial={item.initial_score ?? null} current={item.last_score || 0} />
+                      {isStale && (
+                        <span className="text-[10px] px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-full font-medium">
+                          {daysSinceCheck}d stale — visit on Amazon to refresh
+                        </span>
+                      )}
                     </div>
                     {item.top_complaint && (
                       <p className="text-xs text-orange-500 mb-1.5">Top complaint: {item.top_complaint}</p>
@@ -253,6 +271,38 @@ export default function WatchlistPage() {
                       <div className="flex flex-col items-end">
                         <Sparkline scores={item.history} />
                         <p className="text-[9px] text-neutral-300 mt-0.5">{item.history.length} data points</p>
+                      </div>
+                    )}
+                    {/* Complaint theme trends */}
+                    {item.themeHistory && item.themeHistory.length > 0 && (
+                      <div className="mt-2 pt-2 border-t border-neutral-100 w-full">
+                        <p className="text-[9px] font-semibold text-neutral-400 uppercase tracking-wide mb-1.5">Complaint trends</p>
+                        <div className="space-y-1">
+                          {item.themeHistory.slice(0, 3).map((t: any) => {
+                            const delta = getThemeDelta(t.data)
+                            const latestPct = t.data[t.data.length - 1]?.pct || 0
+                            return (
+                              <div key={t.theme} className="flex items-center justify-between gap-1">
+                                <span className="text-[10px] text-neutral-500 truncate flex-1">{t.theme}</span>
+                                <div className="flex items-center gap-1 flex-shrink-0">
+                                  <span className="text-[10px] font-medium text-neutral-400">{latestPct.toFixed(0)}%</span>
+                                  {delta && delta.trend === 'up' && (
+                                    <span className="text-[9px] font-bold text-red-600 bg-red-50 px-1 rounded">
+                                      ▲{Math.abs(delta.delta).toFixed(0)}
+                                      {delta.delta > 5 && <span className="ml-0.5">NEW</span>}
+                                    </span>
+                                  )}
+                                  {delta && delta.trend === 'down' && (
+                                    <span className="text-[9px] font-bold text-green-700 bg-green-50 px-1 rounded">
+                                      ▼{Math.abs(delta.delta).toFixed(0)}
+                                      {delta.delta < -10 && <span className="ml-0.5">FIXED</span>}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
                       </div>
                     )}
                     <div className="flex gap-1.5">
