@@ -3,6 +3,13 @@ import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
+function adminSupaClient() {
+  return createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  )
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://voxrate.app'
@@ -74,16 +81,30 @@ export async function GET(request: Request) {
 
       if (pendingProCode) {
         try {
-          const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || origin
-          await fetch(`${baseUrl}/api/ambassador/claim-pro`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Requested-With': 'XMLHttpRequest',
-              Cookie: request.headers.get('cookie') || '',
-            },
-            body: JSON.stringify({ code: pendingProCode }),
-          })
+          const userId = data.session.user.id
+          const userEmail = data.session.user.email
+          const adminDb = adminSupaClient()
+          const code = String(pendingProCode).trim().toUpperCase()
+          const { data: codeRow } = await adminDb
+            .from('ambassador_codes')
+            .select('*')
+            .eq('code', code)
+            .is('used', false)
+            .gt('expires_at', new Date().toISOString())
+            .single()
+          if (
+            codeRow &&
+            codeRow.type === 'pro_access' &&
+            codeRow.assigned_email?.toLowerCase() === userEmail?.toLowerCase()
+          ) {
+            const { error: planErr } = await adminDb.from('users').update({ plan: 'pro' }).eq('id', userId)
+            if (planErr) {
+              console.error('[Auth Callback] Pro code plan grant failed:', planErr.message)
+            } else {
+              const { error: usedErr } = await adminDb.from('ambassador_codes').update({ used: true }).eq('id', codeRow.id)
+              if (usedErr) console.error('[Auth Callback] Failed to mark code used — MANUAL REVIEW NEEDED:', usedErr.message)
+            }
+          }
         } catch (e) {
           console.error('[Auth Callback] Pro code claim failed (non-fatal):', e)
         }

@@ -41,16 +41,17 @@ export async function GET(request: NextRequest) {
     .from('users')
     .select('id')
     .eq('weekly_digest_enabled', true)
-    .limit(2000)
+    .limit(500)
 
   if (!userRows || userRows.length === 0) return NextResponse.json({ sent: 0 })
 
   let sent = 0
+  const BATCH = 10
 
-  for (const userRow of userRows) {
+  async function processUser(userRow: { id: string }): Promise<boolean> {
     try {
       const { data: authUser } = await supabase.auth.admin.getUserById(userRow.id)
-      if (!authUser?.user?.email) continue
+      if (!authUser?.user?.email) return false
       const email     = authUser.user.email
       const firstName = authUser.user.user_metadata?.full_name?.split(' ')[0] ?? email.split('@')[0]
 
@@ -210,13 +211,23 @@ export async function GET(request: NextRequest) {
         await resend.emails.send({
           from:    'Voxrate <noreply@voxrate.app>',
           to:      email,
-          subject: `Your Voxrate weekly summary â€” ${dateLabel}`,
+          subject: `Your Voxrate weekly summary — ${dateLabel}`,
           html,
         })
-        sent++
+        return true
       }
+      return false
     } catch (err: any) {
       console.error(`[WeeklyDigest] Failed for user ${userRow.id}:`, err?.message)
+      return false
+    }
+  }
+
+  for (let i = 0; i < userRows.length; i += BATCH) {
+    const batch = userRows.slice(i, i + BATCH)
+    const results = await Promise.allSettled(batch.map(processUser))
+    for (const r of results) {
+      if (r.status === 'fulfilled' && r.value === true) sent++
     }
   }
 

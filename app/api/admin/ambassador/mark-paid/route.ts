@@ -26,13 +26,17 @@ export async function POST(request: NextRequest) {
     .lt('paid_at', monthEnd.toISOString())
 
   const totals: Record<string, number> = {}
-  const ids: string[] = []
+  const conversionsByAmbassador: Record<string, string[]> = {}
   for (const c of (conversions || []) as any[]) {
     totals[c.ambassador_id] = (totals[c.ambassador_id] || 0) + Number(c.commission_amount || 0) + Number(c.friend_bonus_amount || 0)
-    ids.push(c.id)
+    if (!conversionsByAmbassador[c.ambassador_id]) conversionsByAmbassador[c.ambassador_id] = []
+    conversionsByAmbassador[c.ambassador_id].push(c.id)
   }
 
-  for (const [ambassadorId, amount] of Object.entries(totals)) {
+  const eligibleAmbassadors = Object.entries(totals).filter(([, a]) => a >= 15)
+  const ids: string[] = eligibleAmbassadors.flatMap(([ambassadorId]) => conversionsByAmbassador[ambassadorId] || [])
+
+  for (const [ambassadorId, amount] of eligibleAmbassadors) {
     await supa.from('ambassador_payouts').upsert({
       ambassador_id: ambassadorId,
       period,

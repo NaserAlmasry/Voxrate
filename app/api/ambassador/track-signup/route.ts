@@ -39,12 +39,6 @@ export async function POST(request: NextRequest) {
       ambassador_id: amb.id,
     })
 
-    await supa.from('ambassador_conversions').insert({
-      ambassador_id: amb.id,
-      subscriber_email: email,
-      status: 'pending',
-    })
-
     return NextResponse.json({ ok: true })
   } catch {
     return NextResponse.json({ ok: true })

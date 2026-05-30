@@ -45,7 +45,9 @@ async function applyAmbassadorCommission(invoice: Stripe.Invoice, stripe: Stripe
   if (ambassador.email?.toLowerCase() === email) return
 
   const planPrice = invoice.amount_paid / 100
-  const commissionAmount = Math.round(planPrice * Number(ambassador.commission_rate)) / 100
+  const rate = Number(ambassador.commission_rate)
+  const commissionRate = rate > 1 ? rate / 100 : rate
+  const commissionAmount = Math.round(planPrice * commissionRate * 100) / 100
   const friendBonus = ambassador.friend_bonus_active ? 2 : 0
   const now = new Date()
   const payableAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
@@ -62,7 +64,7 @@ async function applyAmbassadorCommission(invoice: Stripe.Invoice, stripe: Stripe
   if (existing) {
     await adminSupa.from('ambassador_conversions').update({
       status: 'payable',
-      paid_at: now.toISOString(),
+      paid_at: new Date(invoice.created * 1000).toISOString(),
       payable_at: payableAt,
       commission_rate: ambassador.commission_rate,
       commission_amount: commissionAmount,
@@ -82,7 +84,7 @@ async function applyAmbassadorCommission(invoice: Stripe.Invoice, stripe: Stripe
       commission_amount: commissionAmount,
       friend_bonus_amount: friendBonus,
       status: 'payable',
-      paid_at: now.toISOString(),
+      paid_at: new Date(invoice.created * 1000).toISOString(),
       payable_at: payableAt,
     })
   }

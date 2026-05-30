@@ -214,7 +214,7 @@ export default function AuthModal({ onClose, initialStep = 'plan', initialAuthMo
               <div className="mt-5 pt-4 border-t border-neutral-100 text-center">
                 <span className="text-xs text-neutral-400">Already have an account?{' '}</span>
                 <button
-                  onClick={() => { setStep('auth'); setAuthMode('login'); setError('') }}
+                  onClick={() => { setStep('auth'); setAuthMode('login'); setError(''); setTermsAccepted(false) }}
                   className="text-xs font-medium text-black hover:underline"
                 >
                   Sign in
@@ -371,7 +371,7 @@ export default function AuthModal({ onClose, initialStep = 'plan', initialAuthMo
                   Already have an account?{' '}
                   <button
                     type="button"
-                    onClick={() => { setAuthMode('login'); setError('') }}
+                    onClick={() => { setAuthMode('login'); setError(''); setTermsAccepted(false) }}
                     className="font-medium text-black hover:underline"
                   >
                     Sign in

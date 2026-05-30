@@ -22,12 +22,14 @@ export async function GET(_req: NextRequest) {
 
   const admin = adminClient()
 
-  // Check if token already exists for this user
+  // Check if token already exists for this user (not revoked, not expired)
   const { data: existing } = await admin
     .from('extension_sessions')
     .select('token')
     .eq('user_id', user.id)
-    .single()
+    .is('revoked_at', null)
+    .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
+    .maybeSingle()
 
   if (existing?.token) {
     return NextResponse.json({ token: existing.token }, {
