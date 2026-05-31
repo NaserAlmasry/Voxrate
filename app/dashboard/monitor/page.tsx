@@ -46,6 +46,84 @@ function ScoreSparkline({ history, current }: { history: number[], current: numb
   )
 }
 
+function AttackLog({ events }: { events: any[] }) {
+  const [open, setOpen] = useState(false)
+  if (events.length === 0) return null
+
+  const highCount = events.filter(e => e.severity === 'high').length
+  const badgeColor = highCount > 0 ? 'bg-red-100 text-red-700 border-red-200' : 'bg-orange-50 text-orange-700 border-orange-200'
+
+  return (
+    <div className="mt-3 pt-3 border-t border-neutral-100">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="flex items-center justify-between w-full text-left group"
+      >
+        <div className="flex items-center gap-2">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+          <span className="text-xs font-semibold text-neutral-700">Attack log</span>
+          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${badgeColor}`}>
+            {events.length} event{events.length > 1 ? 's' : ''}
+          </span>
+        </div>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+          className={`text-neutral-400 transition-transform ${open ? 'rotate-180' : ''}`}>
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>
+
+      {open && (
+        <div className="mt-3 space-y-2">
+          {events.map((e: any) => {
+            const date = new Date(e.detected_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+            const severityColor = e.severity === 'high'
+              ? 'bg-red-50 border-red-200'
+              : e.severity === 'medium'
+              ? 'bg-orange-50 border-orange-200'
+              : 'bg-neutral-50 border-neutral-200'
+            const dotColor = e.severity === 'high' ? 'bg-red-500' : e.severity === 'medium' ? 'bg-orange-400' : 'bg-neutral-400'
+            const label = e.is_coordinated
+              ? 'Coordinated attack'
+              : e.new_negative_count >= 3
+              ? 'Possible attack'
+              : 'New negatives'
+            return (
+              <div key={e.id} className={`rounded-xl border p-3 ${severityColor}`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full flex-shrink-0 mt-0.5 ${dotColor}`} />
+                    <div>
+                      <p className="text-xs font-semibold text-neutral-800">{label}</p>
+                      <p className="text-[10px] text-neutral-500 mt-0.5">
+                        {e.new_negative_count} new 1★/2★ · {date}
+                        {e.is_coordinated && ' · Shared phrasing detected'}
+                      </p>
+                    </div>
+                  </div>
+                  <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${
+                    e.severity === 'high' ? 'bg-red-100 text-red-700' : e.severity === 'medium' ? 'bg-orange-100 text-orange-700' : 'bg-neutral-100 text-neutral-500'
+                  }`}>{e.severity}</span>
+                </div>
+                {e.is_coordinated && e.shared_phrases?.length > 0 && (
+                  <div className="mt-2 pt-2 border-t border-red-100">
+                    <p className="text-[10px] font-semibold text-red-700 mb-1">Shared phrases (evidence for Amazon):</p>
+                    {e.shared_phrases.slice(0, 2).map((p: string, i: number) => (
+                      <p key={i} className="text-[10px] text-red-600 italic">"{p}"</p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function MonitorPage() {
   const [monitored, setMonitored]       = useState<any[]>([])
   const [ownReports, setOwnReports]     = useState<any[]>([])
@@ -171,12 +249,15 @@ export default function MonitorPage() {
               ? new Date(m.last_checked_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
               : 'Never'
             return (
-              <div key={m.id} className="bg-white rounded-2xl border border-neutral-200 p-5">
+              <div key={m.id} className={`bg-white rounded-2xl border p-5 ${m.attackEvents?.some((e: any) => e.severity === 'high') ? 'border-red-200' : 'border-neutral-200'}`}>
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse flex-shrink-0" />
                       <p className="text-sm font-semibold truncate">{m.product_name || 'Unnamed product'}</p>
+                      {m.attackEvents?.some((e: any) => e.is_coordinated) && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 bg-red-100 text-red-700 border border-red-200 rounded-full flex-shrink-0">Attack detected</span>
+                      )}
                     </div>
                     <div className="flex items-center gap-3 text-xs text-neutral-400">
                       <span>Checked {date}</span>
@@ -209,6 +290,7 @@ export default function MonitorPage() {
                     </button>
                   </div>
                 </div>
+                <AttackLog events={m.attackEvents || []} />
               </div>
             )
           })}

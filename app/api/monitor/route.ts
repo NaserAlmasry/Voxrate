@@ -33,9 +33,28 @@ export async function GET() {
     }
   } catch {}
 
+  // Fetch attack events per listing (last 90 days)
+  const attackMap: Record<string, any[]> = {}
+  try {
+    const ninetyDaysAgo = new Date(Date.now() - 90 * 86400000).toISOString()
+    const { data: attacks } = await supabase
+      .from('attack_events')
+      .select('listing_id, id, detected_at, new_negative_count, is_coordinated, shared_phrases, severity')
+      .in('listing_id', items.map((i: any) => i.id))
+      .gte('detected_at', ninetyDaysAgo)
+      .order('detected_at', { ascending: false })
+    if (attacks) {
+      for (const a of attacks) {
+        if (!attackMap[a.listing_id]) attackMap[a.listing_id] = []
+        attackMap[a.listing_id].push(a)
+      }
+    }
+  } catch {}
+
   const itemsWithHistory = items.map((item: any) => ({
     ...item,
-    history: historyMap[item.id] || [],
+    history:      historyMap[item.id] || [],
+    attackEvents: attackMap[item.id]  || [],
   }))
 
   return NextResponse.json({ listings: itemsWithHistory })

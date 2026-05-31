@@ -296,24 +296,28 @@ export default function WatchlistPage() {
                       <div className="mt-2 pt-2 border-t border-neutral-100 w-full">
                         <p className="text-[9px] font-semibold text-neutral-400 uppercase tracking-wide mb-1.5">Complaint trends</p>
                         <div className="space-y-1">
-                          {item.themeHistory.slice(0, 3).map((t: any) => {
+                          {item.themeHistory.slice(0, 4).map((t: any) => {
                             const delta = getThemeDelta(t.data)
                             const latestPct = t.data[t.data.length - 1]?.pct || 0
+                            const firstSeen = t.data[0]?.date ? new Date(t.data[0].date) : null
+                            const sevenDaysAgo = new Date(Date.now() - 7 * 86400000)
+                            const isNew = firstSeen && firstSeen > sevenDaysAgo && t.data.length === 1
                             return (
-                              <div key={t.theme} className="flex items-center justify-between gap-1">
+                              <div key={t.theme} className={`flex items-center justify-between gap-1 ${isNew ? 'bg-orange-50 rounded px-1 -mx-1' : ''}`}>
                                 <span className="text-[10px] text-neutral-500 truncate flex-1">{t.theme}</span>
                                 <div className="flex items-center gap-1 flex-shrink-0">
                                   <span className="text-[10px] font-medium text-neutral-400">{latestPct.toFixed(0)}%</span>
-                                  {delta && delta.trend === 'up' && (
+                                  {isNew && (
+                                    <span className="text-[9px] font-bold text-orange-700 bg-orange-100 px-1.5 py-0.5 rounded-full">NEW</span>
+                                  )}
+                                  {!isNew && delta && delta.trend === 'up' && (
                                     <span className="text-[9px] font-bold text-red-600 bg-red-50 px-1 rounded">
                                       ▲{Math.abs(delta.delta).toFixed(0)}
-                                      {delta.delta > 5 && <span className="ml-0.5">NEW</span>}
                                     </span>
                                   )}
-                                  {delta && delta.trend === 'down' && (
+                                  {!isNew && delta && delta.trend === 'down' && (
                                     <span className="text-[9px] font-bold text-green-700 bg-green-50 px-1 rounded">
                                       ▼{Math.abs(delta.delta).toFixed(0)}
-                                      {delta.delta < -10 && <span className="ml-0.5">FIXED</span>}
                                     </span>
                                   )}
                                 </div>
