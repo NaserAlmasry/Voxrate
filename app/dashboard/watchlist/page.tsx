@@ -72,6 +72,7 @@ export default function WatchlistPage() {
   const [editingNote, setEditingNote]     = useState<string | null>(null)
   const [editNoteVal, setEditNoteVal]     = useState('')
   const [savingNote, setSavingNote]       = useState(false)
+  const [togglingAlert, setTogglingAlert] = useState<string | null>(null)
   const router   = useRouter()
   const supabase = createClient()
 
@@ -129,6 +130,23 @@ export default function WatchlistPage() {
     setRemoving(null)
     toast('Removed from watchlist', 'info')
     await load()
+  }
+
+  const toggleAlert = async (id: string, current: boolean) => {
+    setTogglingAlert(id)
+    setItems(prev => prev.map(i => i.id === id ? { ...i, email_alerts_enabled: !current } : i))
+    const res = await fetch('/api/watchlist', {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+      body:    JSON.stringify({ id, emailAlerts: !current }),
+    })
+    if (!res.ok) {
+      setItems(prev => prev.map(i => i.id === id ? { ...i, email_alerts_enabled: current } : i))
+      toast('Failed to update alerts', 'error')
+    } else {
+      toast(!current ? 'Email alerts enabled' : 'Email alerts disabled', 'info')
+    }
+    setTogglingAlert(null)
   }
 
   const saveNote = async (id: string) => {
@@ -320,6 +338,22 @@ export default function WatchlistPage() {
                         Re-check
                       </button>
                       <button
+                        onClick={() => toggleAlert(item.id, item.email_alerts_enabled !== false)}
+                        disabled={togglingAlert === item.id}
+                        title={item.email_alerts_enabled !== false ? 'Email alerts on — click to disable' : 'Email alerts off — click to enable'}
+                        className={`px-2.5 py-1.5 text-xs border rounded-lg transition-colors disabled:opacity-50 ${
+                          item.email_alerts_enabled !== false
+                            ? 'border-orange-100 text-orange-500 hover:bg-orange-50'
+                            : 'border-neutral-200 text-neutral-300 hover:bg-neutral-50'
+                        }`}
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill={item.email_alerts_enabled !== false ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                          <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                          {item.email_alerts_enabled === false && <line x1="3" y1="3" x2="21" y2="21"/>}
+                        </svg>
+                      </button>
+                      <button
                         onClick={() => remove(item.id)}
                         disabled={removing === item.id}
                         className="px-2.5 py-1.5 text-xs border border-red-100 text-red-400 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
@@ -341,10 +375,12 @@ export default function WatchlistPage() {
           <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-3">How competitor tracking works</p>
           <div className="space-y-2">
             {[
-              "We re-check competitor listings weekly to detect score changes",
-              "Score drops 5+ points on their side = your opportunity to step in",
-              "Score increases on their side = they're raising the bar, watch closely",
-              "Use 'Re-check' to manually get fresh data at any time (uses 1 analysis)",
+              plan === 'starter'
+                ? "We re-check your watchlist weekly and email you when their score changes"
+                : "We re-check your watchlist daily and email you when their score changes",
+              "Any shift of 0.1★ or more triggers an alert — small moves matter on Amazon",
+              "Score drops on their side = your opportunity to step in before buyers notice",
+              "Use the bell icon on each item to enable or disable email alerts individually",
             ].map((s, i) => (
               <div key={i} className="flex items-start gap-2">
                 <span className="w-4 h-4 bg-orange-500 rounded-full text-white text-[9px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{i + 1}</span>

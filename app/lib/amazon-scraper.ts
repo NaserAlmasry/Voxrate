@@ -786,7 +786,7 @@ function toScrapingdogParams(marketplace: string): { country: string; domain: st
   return map[marketplace] ?? { country: 'us', domain: 'com' }
 }
 
-async function fetchProduct(asin: string, marketplace: string): Promise<{ product: AmazonProduct }> {
+export async function fetchProduct(asin: string, marketplace: string): Promise<{ product: AmazonProduct }> {
   try {
     return await fetchProductScrapingDog(asin, marketplace)
   } catch (err: any) {

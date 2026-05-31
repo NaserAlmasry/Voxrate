@@ -16,7 +16,7 @@ export async function GET() {
 
   const { data } = await supabase
     .from('watchlist')
-    .select('id, user_id, report_id, product_url, product_name, last_score, initial_score, top_complaint, note, last_checked_at, created_at')
+    .select('id, user_id, report_id, product_url, product_name, last_score, initial_score, top_complaint, note, last_checked_at, created_at, email_alerts_enabled')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
 
@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Enforce per-plan ASIN cap
-  const WATCHLIST_CAP: Record<string, number> = { starter: 5, growth: 20, pro: Infinity }
+  const WATCHLIST_CAP: Record<string, number> = { starter: 2, growth: 5, pro: 10 }
   const cap = isAdmin ? Infinity : (WATCHLIST_CAP[plan] ?? 5)
   if (cap !== Infinity) {
     const { count } = await supabase
@@ -220,10 +220,11 @@ export async function PATCH(request: NextRequest) {
   }
 
   const body = await request.json()
-  const id       = typeof body?.id       === 'string' ? body.id       : null
-  const note     = typeof body?.note     === 'string' ? body.note.trim().slice(0, 300) : undefined
-  const reportId = typeof body?.reportId === 'string' ? body.reportId : undefined
-  const newScore = typeof body?.newScore === 'number' ? body.newScore : undefined
+  const id            = typeof body?.id            === 'string'  ? body.id            : null
+  const note          = typeof body?.note          === 'string'  ? body.note.trim().slice(0, 300) : undefined
+  const reportId      = typeof body?.reportId      === 'string'  ? body.reportId      : undefined
+  const newScore      = typeof body?.newScore      === 'number'  ? body.newScore      : undefined
+  const emailAlerts   = typeof body?.emailAlerts   === 'boolean' ? body.emailAlerts   : undefined
 
   if (newScore !== undefined && (typeof newScore !== 'number' || newScore < 0 || newScore > 100)) {
     return NextResponse.json({ error: 'Invalid score' }, { status: 400 })
@@ -243,9 +244,10 @@ export async function PATCH(request: NextRequest) {
   }
 
   const updates: Record<string, any> = {}
-  if (note     !== undefined) updates.note             = note
-  if (reportId !== undefined) updates.report_id        = reportId
-  if (newScore !== undefined) { updates.last_score = newScore; updates.last_checked_at = new Date().toISOString() }
+  if (note         !== undefined) updates.note                 = note
+  if (reportId     !== undefined) updates.report_id            = reportId
+  if (emailAlerts  !== undefined) updates.email_alerts_enabled = emailAlerts
+  if (newScore     !== undefined) { updates.last_score = newScore; updates.last_checked_at = new Date().toISOString() }
 
   const { error } = await supabase
     .from('watchlist')
@@ -254,12 +256,6 @@ export async function PATCH(request: NextRequest) {
     .eq('user_id', user.id)
 
   if (error) return NextResponse.json({ error: 'Update failed' }, { status: 500 })
-
-  if (newScore !== undefined) {
-    try {
-      await supabase.from('watchlist_history').insert({ watchlist_id: id, score: newScore })
-    } catch {}
-  }
 
   return NextResponse.json({ success: true })
 }
