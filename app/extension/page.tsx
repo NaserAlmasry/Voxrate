@@ -39,24 +39,32 @@ const features = [
     icon: '📈',
     status: 'live' as const,
     title: 'Tracks how fast reviews are arriving',
-    body: 'Enable Velocity Tracker in the extension popup and Voxrate records the daily star count distribution for every product page you visit. A sudden spike in 1-star reviews on a competitor\'s listing is flagged immediately.',
+    body: 'Enable Velocity Tracker in the extension popup and Voxrate records the daily star count distribution for every product page you visit. A sudden spike in 1-star reviews on a competitor\'s listing is flagged immediately — before it shows in the overall rating.',
     howItWorks: 'Toggle it on from the extension popup. Works on any Amazon product page you visit — no extra steps needed.',
   },
   {
     tag: 'Competitor Overlay',
     icon: '🔍',
     status: 'live' as const,
-    title: 'See your Voxrate data while browsing competitor listings',
-    body: 'Enable the overlay in the extension popup and a small panel appears on the right side of any Amazon product page, showing the latest Voxrate snapshot, alerts, and review velocity for that product.',
-    howItWorks: 'Toggle it on from the extension popup. The panel is invisible to Amazon — it lives in a separate layer that does not affect the page.',
+    title: 'See Voxrate data while browsing any Amazon listing',
+    body: 'Enable the overlay in the extension popup and a small panel appears on the right side of any Amazon product page — showing the latest Voxrate snapshot, alerts, and velocity data for that product. Works on competitor listings and your own.',
+    howItWorks: 'Toggle it on from the extension popup. The panel is injected into a separate layer — invisible to Amazon, does not affect the page.',
+  },
+  {
+    tag: 'Pro Monitoring',
+    icon: '🔔',
+    status: 'live' as const,
+    title: 'Powers automatic review monitoring for Pro users',
+    body: 'If you are on the Pro plan and have Review Monitoring set up, the extension silently handles the scraping in the background whenever you browse Amazon — so Voxrate can check your monitored products without using any third-party API credits. No extra steps needed.',
+    howItWorks: 'Automatic when you are on Pro with monitoring enabled. The extension picks up queued monitoring jobs while you browse normally.',
   },
   {
     tag: 'Account Health',
     icon: '🛡',
     status: 'soon' as const,
-    title: 'Account Health monitoring — coming soon',
-    body: 'Voxrate will monitor your Seller Central Account Health Rating, ODR, late shipment rate, and policy violations via Amazon\'s official API. You will receive alerts the moment any metric approaches the warning threshold.',
-    howItWorks: 'Will require a one-time Amazon account connection — no extension reading of Seller Central pages.',
+    title: 'Seller Central health scanner — coming soon',
+    body: 'Voxrate will read your Account Health Rating, ODR, late shipment rate, and policy violations directly from Seller Central whenever you visit — and alert you the moment any metric approaches the warning threshold.',
+    howItWorks: 'Will activate automatically when you visit sellercentral.amazon.com — no extra setup beyond installing the extension.',
   },
 ]
 
@@ -67,7 +75,19 @@ const faqs = [
   },
   {
     q: 'Why does a new Amazon tab open briefly?',
-    a: 'When you queue a product for analysis, the extension opens an Amazon tab to read the reviews, then closes it automatically. This is normal — the tab needs to open so the extension can access the review data in your logged-in session.',
+    a: 'When you queue a product for analysis, the extension opens an Amazon tab to read the reviews, then closes it automatically. This is normal — the tab needs to open so the extension can access review data in your logged-in session.',
+  },
+  {
+    q: 'Does it work on Amazon marketplaces outside the US?',
+    a: 'Yes. The extension works on amazon.com, amazon.co.uk, amazon.de, amazon.fr, amazon.it, amazon.es, amazon.ca, amazon.com.au, amazon.co.jp, amazon.in, amazon.com.mx, and amazon.com.br.',
+  },
+  {
+    q: 'What does the extension popup show?',
+    a: 'The popup shows your connection status, whether Velocity Tracker and Competitor Overlay are enabled, and the current job status (idle or running). You can toggle features on and off from there.',
+  },
+  {
+    q: 'I am on the Pro plan — does the extension help with Review Monitoring?',
+    a: 'Yes. When you have products set up in Review Monitoring and your extension is active, it automatically handles the scraping in the background while you browse Amazon normally. This means your monitored products get checked without consuming any external API credits.',
   },
   {
     q: 'The extension is not working. What do I check first?',

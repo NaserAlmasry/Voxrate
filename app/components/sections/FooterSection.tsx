@@ -20,7 +20,7 @@ export default function FooterSection({ footerNlEmail, setFooterNlEmail, footerN
           <div>
             <p className="text-xs font-semibold text-neutral-700 uppercase tracking-wider mb-3">Product</p>
             <div className="space-y-2">
-              {[['#features','Features',false],['#how-it-works','How it works',false],['#pricing','Pricing',false],['/blog','Blog',true],['/faq','FAQ',true],['/privacy','Privacy policy',true],['/terms','Terms of service',true],['/careers','Careers',true]].map(([h,l,blank]) => (
+              {[['#features','Features',false],['#how-it-works','How it works',false],['#pricing','Pricing',false],['/extension','Chrome Extension',true],['/blog','Blog',true],['/faq','FAQ',true],['/privacy','Privacy policy',true],['/terms','Terms of service',true],['/careers','Careers',true]].map(([h,l,blank]) => (
                 <a key={String(l)} href={String(h)} target={blank ? '_blank' : undefined} rel={blank ? 'noopener noreferrer' : undefined}
                   className="block text-xs text-neutral-400 hover:text-black transition-colors">{l}</a>
               ))}
