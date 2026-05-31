@@ -4,6 +4,14 @@ import { useState } from 'react'
 
 const FAQ_ITEMS = [
   {
+    q: 'What do I get on the free trial?',
+    a: 'The 14-day free trial includes 5 analyses — you can run them on your own listings or competitors. All AI tools are unlocked: listing grader, description rewriter, review reply generator, and listing builder. No credit card required to start. At the end of the trial your reports stay in your account and you can upgrade to keep analyzing.',
+  },
+  {
+    q: 'Is Voxrate safe to use with my Amazon account? Does it violate Amazon TOS?',
+    a: 'Yes, completely safe. Voxrate only reads publicly available review data — the same text anyone can see on an Amazon listing page without logging in. We never access your Amazon Seller Central account, your order data, or any private information. The Chrome extension works within your own browser session and does not make automated server requests to Amazon. There is no TOS violation.',
+  },
+  {
     q: 'Does this work for any Amazon product?',
     a: 'Yes — Voxrate works for any product category on Amazon, from electronics and kitchen goods to clothing and supplements. The AI adapts its analysis to the product type. Best results come from listings with 30+ reviews.',
   },
