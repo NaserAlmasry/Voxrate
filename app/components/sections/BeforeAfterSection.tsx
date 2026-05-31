@@ -20,6 +20,11 @@ export default function BeforeAfterSection() {
       without: 'Uses keyword research tools. Title is optimized for search volume. "Ice retention" doesn\'t appear anywhere despite 341 buyers independently writing "ice still there after 18 hours" in 5-star reviews — the strongest selling point is invisible.',
       with: 'Review analysis surfaces the exact phrase buyers use. AI rewriter generates: "Ice Retention 18+ Hours — Verified by 341 Buyers." Listing updated in 10 minutes using language buyers already proved converts.',
     },
+    {
+      situation: '1★ and 2★ reviews keep coming in — is quality declining or is it an issue with one batch?',
+      without: 'No way to know without manually tracking reviews over weeks. Sentiment alerts don\'t exist. By the time the pattern is obvious, the rating has already dropped and rankings have slipped.',
+      with: 'Sentiment Alerts emails a digest of every new 1★ and 2★ review on a weekly schedule. Seller spots "paint chipping at base" appearing across 12 new reviews in 2 weeks — traces it to a specific supplier batch — catches the defect before it spreads to the next shipment.',
+    },
   ]
 
   return (
