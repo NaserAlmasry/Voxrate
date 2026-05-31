@@ -28,6 +28,7 @@ import { createClient } from '@/app/lib/supabase/client'
 import { useParams, useRouter } from 'next/navigation'
 import { useToast } from '@/app/components/Toast'
 import { computeReportDiff } from '@/app/lib/report-diff'
+import GeoPublishWizard from '@/app/components/GeoPublishWizard'
 
 const SIMULATE_USER_KEY = 'voxrate_simulate_user'
 const FREE_PLAN_LIMIT   = 3   // change here if the limit ever changes
@@ -2370,6 +2371,21 @@ export default function ReportPage() {
             </button>
           </>
         )}
+      </div>
+    )}
+
+    {/* GEO Publish Panel — only for paid users with a loaded report */}
+    {report && !fr._isLimited && reportId && (
+      <div className="mt-6 px-4 pb-8 max-w-3xl mx-auto">
+        <GeoPublishWizard
+          reportId={reportId}
+          productName={report.product_name || fr.productTitle || ''}
+          healthScore={report.health_score ?? 0}
+          complaints={normalised.complaints}
+          strengths={normalised.strengths}
+          buyerPhrases={fr.seoTopPhrases || []}
+          asin={fr.asin || report.asin || null}
+        />
       </div>
     )}
     </>
