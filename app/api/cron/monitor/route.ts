@@ -25,8 +25,9 @@ function adminClient() {
 }
 
 // Detect coordinated attack: 2+ reviews sharing 3+ consecutive 5-word sequences
-function isCoordinatedAttack(reviews: { body: string }[]): boolean {
-  if (reviews.length < 2) return false
+// Returns shared phrases found (empty array = not coordinated)
+function detectCoordination(reviews: { body: string }[]): string[] {
+  if (reviews.length < 2) return []
   const getSequences = (text: string): Set<string> => {
     const words = text.toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/).filter(Boolean)
     const seqs = new Set<string>()
@@ -35,16 +36,18 @@ function isCoordinatedAttack(reviews: { body: string }[]): boolean {
     }
     return seqs
   }
+  const foundPhrases = new Set<string>()
   for (let i = 0; i < reviews.length - 1; i++) {
     const seqA = getSequences(reviews[i].body)
     for (let j = i + 1; j < reviews.length; j++) {
       const seqB = getSequences(reviews[j].body)
-      let shared = 0
-      for (const s of seqA) { if (seqB.has(s)) shared++ }
-      if (shared >= 3) return true
+      const pairShared: string[] = []
+      for (const s of seqA) { if (seqB.has(s)) pairShared.push(s) }
+      // Only flag coordination if this specific pair shares 3+ sequences
+      if (pairShared.length >= 3) pairShared.forEach(p => foundPhrases.add(p))
     }
   }
-  return false
+  return [...foundPhrases].slice(0, 5)
 }
 
 export async function GET(request: NextRequest) {
@@ -186,9 +189,8 @@ export async function GET(request: NextRequest) {
         two_star:     currentTwoStar,
       })
 
-      // Send alerts
+      // Send alerts + persist attack events
       if (newNegatives.length === 0) {
-        // Check for removed reviews (positive notification)
         if (removedCount >= 1 && lastTotal > 0) {
           await sendReviewRemovedAlert({
             to:           user.email,
@@ -198,7 +200,20 @@ export async function GET(request: NextRequest) {
           }).catch(() => {})
         }
       } else if (newNegatives.length >= 3) {
-        const coordinated = isCoordinatedAttack(newNegatives.map(r => ({ body: r.body || '' })))
+        const sharedPhrases = detectCoordination(newNegatives.map(r => ({ body: r.body || '' })))
+        const coordinated   = sharedPhrases.length > 0
+        const severity      = coordinated ? 'high' : newNegatives.length >= 5 ? 'medium' : 'low'
+
+        // Persist attack event
+        void Promise.resolve(admin.from('attack_events').insert({
+          listing_id:         listing.id,
+          detected_at:        now.toISOString(),
+          new_negative_count: newNegatives.length,
+          is_coordinated:     coordinated,
+          shared_phrases:     sharedPhrases,
+          severity,
+        })).catch(e => console.error('[MonitorCron] attack_events insert failed:', e?.message))
+
         await sendReviewAttackAlert({
           to:            user.email,
           productName:   listing.product_name || asin,
@@ -212,9 +227,19 @@ export async function GET(request: NextRequest) {
           })),
           monitorId:     listing.id,
           isCoordinated: coordinated,
+          sharedPhrases,
         }).catch(() => {})
       } else {
-        // 1-2 new negatives — standard heads-up
+        // 1-2 new negatives — standard heads-up, still log as low severity
+        void Promise.resolve(admin.from('attack_events').insert({
+          listing_id:         listing.id,
+          detected_at:        now.toISOString(),
+          new_negative_count: newNegatives.length,
+          is_coordinated:     false,
+          shared_phrases:     [],
+          severity:           'low',
+        })).catch(e => console.error('[MonitorCron] attack_events insert failed:', e?.message))
+
         await sendImmediateStarAlert({
           to:          user.email,
           productName: listing.product_name || asin,

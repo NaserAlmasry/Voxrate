@@ -986,22 +986,80 @@ export async function POST(request: NextRequest) {
         })
       }
 
-      // Passive watchlist update: if this product_url is in watchlist, sync score for free
+      // Passive watchlist update: if this product_url is in watchlist, sync score + detect emerging complaints
       void (async () => {
         try {
           const { data: wl } = await supabase
             .from('watchlist')
-            .select('id')
+            .select('id, email_alerts_enabled')
             .eq('user_id', user.id)
             .eq('product_url', productUrl)
             .maybeSingle()
-          if (wl?.id) {
-            // Only update metadata — last_score is owned by the watchlist cron (ScrapingDog rating)
-            // to keep the scale consistent (Math.round(averageRating * 20))
-            await supabase.from('watchlist').update({
-              report_id:     reportId,
-              top_complaint: analysis.complaints?.[0]?.title || null,
-            }).eq('id', wl.id)
+          if (!wl?.id) return
+
+          await supabase.from('watchlist').update({
+            report_id:     reportId,
+            top_complaint: analysis.complaints?.[0]?.title || null,
+          }).eq('id', wl.id)
+
+          // Write new complaint theme snapshot
+          const complaints = analysis.complaints || []
+          const nowIso = new Date().toISOString()
+          if (complaints.length > 0) {
+            await supabase.from('complaint_theme_history').insert(
+              complaints.slice(0, 10).map((c: any) => ({
+                watchlist_id: wl.id,
+                report_id:    reportId,
+                theme_name:   (c.title || 'Unknown').slice(0, 200),
+                percentage:   typeof c.percentage === 'number' ? c.percentage : parseFloat(c.percentage) || 0,
+                severity:     c.severity || null,
+                checked_at:   nowIso,
+              }))
+            )
+          }
+
+          // Detect emerging complaints: diff current themes vs baseline 30+ days ago
+          // .lte(thirtyDaysAgo) naturally excludes the rows just inserted above
+          const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString()
+          const { data: oldThemes } = await supabase
+            .from('complaint_theme_history')
+            .select('theme_name, percentage')
+            .eq('watchlist_id', wl.id)
+            .lte('checked_at', thirtyDaysAgo)
+            .order('checked_at', { ascending: false })
+            .limit(50)
+
+          if (!oldThemes || oldThemes.length === 0) return
+
+          // Build map of old theme percentages (latest entry per theme from 30+ days ago)
+          const oldMap: Record<string, number> = {}
+          for (const t of oldThemes) {
+            if (!(t.theme_name in oldMap)) oldMap[t.theme_name] = Number(t.percentage)
+          }
+
+          const newThemes: { name: string; percentage: number; severity: string | null }[] = []
+          const spikedThemes: { name: string; oldPct: number; newPct: number }[] = []
+
+          for (const c of complaints.slice(0, 10) as any[]) {
+            const name   = (c.title || 'Unknown').slice(0, 200)
+            const newPct = typeof c.percentage === 'number' ? c.percentage : parseFloat(c.percentage) || 0
+            if (!(name in oldMap)) {
+              newThemes.push({ name, percentage: newPct, severity: c.severity || null })
+            } else {
+              const spike = newPct - oldMap[name]
+              if (spike >= 15) spikedThemes.push({ name, oldPct: oldMap[name], newPct })
+            }
+          }
+
+          if ((newThemes.length > 0 || spikedThemes.length > 0) && user.email && wl.email_alerts_enabled !== false) {
+            const { sendEmergingComplaintAlert } = await import('@/app/lib/email')
+            await sendEmergingComplaintAlert({
+              to:           user.email,
+              productName:  analysis.productTitle || productUrl,
+              reportId,
+              newThemes,
+              spikedThemes,
+            }).catch(e => console.error('[Analyze] sendEmergingComplaintAlert failed:', e?.message))
           }
         } catch {}
       })()
