@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 
 const ALL_ROWS = [
   { feature: 'Single health score per listing — watch it rise as you fix',                    us: true,      them: false },
@@ -23,10 +23,11 @@ const VISIBLE_DEFAULT = 5
 
 export default function ComparisonSection() {
   const [showAll, setShowAll] = useState(false)
+  const sectionRef = useRef<HTMLElement>(null)
   const rows = showAll ? ALL_ROWS : ALL_ROWS.slice(0, VISIBLE_DEFAULT)
 
   return (
-    <section className="py-24 px-6 bg-[#FAF9F6]">
+    <section ref={sectionRef} className="py-24 px-6 bg-[#FAF9F6]">
       <div className="max-w-3xl mx-auto scroll-fade">
         <div className="text-center mb-10">
           <p className="text-xs font-semibold text-orange-600 uppercase tracking-widest mb-2">Why Voxrate</p>
@@ -64,7 +65,10 @@ export default function ComparisonSection() {
         </div>
 
         <button
-          onClick={() => setShowAll(v => !v)}
+          onClick={() => {
+            if (showAll) sectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            setShowAll(v => !v)
+          }}
           className="w-full py-2.5 text-xs font-semibold text-neutral-500 hover:text-neutral-900 border border-neutral-200 bg-white rounded-xl transition-colors flex items-center justify-center gap-1.5 mb-3"
         >
           {showAll ? 'Show less' : `Show ${ALL_ROWS.length - VISIBLE_DEFAULT} more features`}

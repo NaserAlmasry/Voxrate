@@ -54,7 +54,7 @@ export default function FooterSection({ footerNlEmail, setFooterNlEmail, footerN
             <span className="text-xs font-bold" style={{ color: '#635bff' }}>Stripe</span>
           </div>
           <div className="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-50 border border-neutral-200 rounded-lg">
-            <span className="text-xs font-bold" style={{ color: '#003087' }}>Pay</span><span className="text-xs font-bold" style={{ color: '#009cde' }}>Pal</span>
+            <span className="text-xs font-bold" style={{ color: '#003087' }}>Pay</span><span className="text-xs font-bold leading-none" style={{ color: '#009cde' }}>Pal</span>
             <span className="text-xs text-neutral-500">accepted</span>
           </div>
           <div className="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-50 border border-neutral-200 rounded-lg">
