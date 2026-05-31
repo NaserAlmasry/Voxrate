@@ -986,6 +986,26 @@ export async function POST(request: NextRequest) {
         })
       }
 
+      // Passive watchlist update: if this product_url is in watchlist, sync score for free
+      void (async () => {
+        try {
+          const { data: wl } = await supabase
+            .from('watchlist')
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('product_url', productUrl)
+            .maybeSingle()
+          if (wl?.id) {
+            // Only update metadata — last_score is owned by the watchlist cron (ScrapingDog rating)
+            // to keep the scale consistent (Math.round(averageRating * 20))
+            await supabase.from('watchlist').update({
+              report_id:     reportId,
+              top_complaint: analysis.complaints?.[0]?.title || null,
+            }).eq('id', wl.id)
+          }
+        } catch {}
+      })()
+
       if (!isReAnalyze && user.email) {
         sendReportComplete({
           to:          user.email,
