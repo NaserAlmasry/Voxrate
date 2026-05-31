@@ -228,10 +228,7 @@ export default function PricingSection({
 }: Props) {
   const [expandedPlan, setExpandedPlan] = useState<string | null>(null)
 
-  const ownNeeded        = calcFrequency === 'monthly' ? calcProducts : Math.ceil(calcProducts / 3)
-  const competitorNeeded = calcFrequency === 'monthly' ? Math.ceil(calcProducts * 0.2) : Math.ceil(calcProducts * 0.2 / 3)
-  const totalNeeded      = ownNeeded + competitorNeeded
-  const recommended      = totalNeeded <= 35 ? 'starter' : totalNeeded <= 80 ? 'growth' : 'pro'
+  const recommended = calcProducts <= 5 ? 'starter' : calcProducts <= 30 ? 'growth' : 'pro'
 
   return (
     <section id="pricing" className="py-24 px-6 bg-white border-t border-neutral-200">
@@ -269,7 +266,6 @@ export default function PricingSection({
             const price        = billingCycle === 'annual' ? p.annualPrice : p.monthlyPrice
             const annualSaving = (p.monthlyPrice * 12 - p.annualTotal).toFixed(0)
             const isExpanded   = expandedPlan === p.plan
-            const details      = PLAN_DETAILS[p.plan]
 
             return (
               <div key={p.name} className={`rounded-2xl border relative flex flex-col transition-all duration-200 ${p.popular ? 'bg-black text-white border-black ring-2 ring-orange-500 ring-offset-2 scale-[1.03] z-10 hover:scale-[1.05]' : 'bg-white border-neutral-200 hover:border-orange-400 hover:shadow-lg hover:shadow-orange-50 hover:scale-[1.01]'}`}>
@@ -334,42 +330,52 @@ export default function PricingSection({
                     <ChevronDown size={13} className={`transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
                   </button>
                 </div>
-
-                {/* Expandable details */}
-                {isExpanded && (
-                  <div className={`border-t px-6 pb-6 pt-4 space-y-4 ${p.popular ? 'border-white/10' : 'border-neutral-100'}`}>
-                    {details.map(group => (
-                      <div key={group.category}>
-                        <p className={`text-[10px] font-semibold uppercase tracking-widest mb-2 ${p.popular ? 'text-neutral-500' : 'text-neutral-400'}`}>
-                          {group.category}
-                        </p>
-                        <div className="space-y-1.5">
-                          {group.rows.map(row => (
-                            <div key={row.label} className="flex items-center justify-between gap-3">
-                              <div className="flex items-center gap-1 min-w-0">
-                                <span className={`text-xs truncate ${p.popular ? 'text-neutral-300' : 'text-neutral-600'}`}>{row.label}</span>
-                                {row.tip && (
-                                  <div className="relative group flex-shrink-0">
-                                    <HelpCircle size={11} className="text-neutral-400 cursor-help" />
-                                    <div className="absolute left-0 bottom-5 w-48 bg-neutral-900 text-white text-xs rounded-xl p-2.5 shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-20">
-                                      <div className="absolute -bottom-1.5 left-2 w-3 h-3 bg-neutral-900 rotate-45" />
-                                      {row.tip}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                              <FeatureValue val={row.value} popular={p.popular} />
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
             )
           })}
         </div>
+
+        {/* Full-width expanded details panel */}
+        {expandedPlan && (() => {
+          const p = PLANS.find(pl => pl.plan === expandedPlan)!
+          const details = PLAN_DETAILS[expandedPlan]
+          return (
+            <div className={`rounded-2xl border mb-4 overflow-hidden ${p.popular ? 'bg-black border-black' : 'bg-white border-neutral-200'}`}>
+              <div className={`px-6 py-3 border-b flex items-center gap-2 ${p.popular ? 'border-white/10' : 'border-neutral-100'}`}>
+                {p.icon}
+                <p className={`text-sm font-semibold ${p.popular ? 'text-white' : 'text-neutral-800'}`}>{p.name} — everything included</p>
+              </div>
+              <div className="p-6 grid md:grid-cols-3 gap-6">
+                {details.map(group => (
+                  <div key={group.category}>
+                    <p className={`text-[10px] font-semibold uppercase tracking-widest mb-2 ${p.popular ? 'text-neutral-500' : 'text-neutral-400'}`}>
+                      {group.category}
+                    </p>
+                    <div className="space-y-1.5">
+                      {group.rows.map(row => (
+                        <div key={row.label} className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-1 min-w-0">
+                            <span className={`text-xs truncate ${p.popular ? 'text-neutral-300' : 'text-neutral-600'}`}>{row.label}</span>
+                            {row.tip && (
+                              <div className="relative group flex-shrink-0">
+                                <HelpCircle size={11} className="text-neutral-400 cursor-help" />
+                                <div className="absolute left-0 bottom-5 w-48 bg-neutral-900 text-white text-xs rounded-xl p-2.5 shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-20">
+                                  <div className="absolute -bottom-1.5 left-2 w-3 h-3 bg-neutral-900 rotate-45" />
+                                  {row.tip}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          <FeatureValue val={row.value} popular={p.popular} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        })()}
 
         {/* Free tier note */}
         <div className="text-center mb-10 mt-6">
@@ -402,12 +408,12 @@ export default function PricingSection({
             <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="text-xs font-semibold text-neutral-700">How many products do you have?</label>
-                <span className="text-sm font-bold text-orange-600">{calcProducts} products</span>
+                <span className="text-sm font-bold text-orange-600">{calcProducts === 50 ? '50+' : calcProducts} products</span>
               </div>
-              <input type="range" min={1} max={200} value={calcProducts} onChange={e => setCalcProducts(Number(e.target.value))}
+              <input type="range" min={1} max={50} value={calcProducts} onChange={e => setCalcProducts(Number(e.target.value))}
                 aria-label={`Number of products: ${calcProducts}`}
                 className="w-full accent-orange-500" />
-              <div className="flex justify-between text-xs text-neutral-400 mt-1"><span>1</span><span>200</span></div>
+              <div className="flex justify-between text-xs text-neutral-400 mt-1"><span>1</span><span>50+</span></div>
             </div>
 
             <div>
@@ -438,7 +444,7 @@ export default function PricingSection({
               <div>
                 <p className="text-xs text-neutral-500 mb-0.5">Recommended plan</p>
                 <p className="text-lg font-black text-neutral-900">{recommended.charAt(0).toUpperCase() + recommended.slice(1)}</p>
-                <p className="text-xs text-neutral-400">~{totalNeeded} analyses/mo needed ({ownNeeded} own + {competitorNeeded} competitor)</p>
+                <p className="text-xs text-neutral-400">Based on {calcProducts === 50 ? '50+' : calcProducts} product{calcProducts !== 1 ? 's' : ''}</p>
               </div>
               <div className="text-right">
                 <p className="text-2xl font-black text-orange-600">
