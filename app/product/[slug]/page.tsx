@@ -28,8 +28,9 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const page = await getPage(slug)
   if (!page) return { title: 'Not Found' }
 
+  const safeTotal   = page.total_reviews ?? 0
   const title       = `${page.product_title} — Verified Amazon Review Analysis`
-  const description = `${page.product_title} has a review health score of ${page.health_score}/100 based on ${page.total_reviews.toLocaleString()} verified Amazon reviews. See what buyers actually say.`
+  const description = `${page.product_title} has a review health score of ${page.health_score}/100 based on ${safeTotal.toLocaleString()} verified Amazon reviews. See what buyers actually say.`
   const url         = `https://voxrate.app/product/${slug}`
 
   return {
@@ -59,9 +60,7 @@ export default async function GeoProductPage({ params }: { params: Promise<{ slu
   const page = await getPage(slug)
   if (!page) notFound()
 
-  // Track view (fire and forget)
-  void trackView(page.id)
-
+  const safeTotal    = page.total_reviews ?? 0
   const complaints   = Array.isArray(page.complaints) ? page.complaints : []
   const strengths    = Array.isArray(page.strengths)  ? page.strengths  : []
   const buyerPhrases = Array.isArray(page.buyer_phrases) ? page.buyer_phrases : []
@@ -73,7 +72,11 @@ export default async function GeoProductPage({ params }: { params: Promise<{ slu
   if (complaints.length > 0 && page.show_complaints) {
     faqEntries.push({
       question: `What do buyers complain about most with ${page.product_title}?`,
-      answer: `${complaints[0].title} (${complaints[0].percentage ?? ''}% of reviews). ${complaints[0].description ?? ''}`.trim(),
+      answer: [
+        complaints[0].title,
+        complaints[0].percentage != null ? `(${complaints[0].percentage}% of reviews)` : '',
+        complaints[0].description ?? '',
+      ].filter(Boolean).join(' ').trim(),
     })
   }
   if (strengths.length > 0 && page.show_strengths) {
@@ -84,7 +87,7 @@ export default async function GeoProductPage({ params }: { params: Promise<{ slu
   }
   faqEntries.push({
     question: `What is the review health score for ${page.product_title}?`,
-    answer: `${page.product_title} has a review health score of ${page.health_score}/100 based on analysis of ${page.total_reviews.toLocaleString()} customer reviews on Amazon.`,
+    answer: `${page.product_title} has a review health score of ${page.health_score}/100 based on analysis of ${safeTotal.toLocaleString()} customer reviews on Amazon.`,
   })
   if (buyerPhrases.length > 0) {
     faqEntries.push({
@@ -135,18 +138,9 @@ export default async function GeoProductPage({ params }: { params: Promise<{ slu
     })),
   } : null
 
-  const reviewSchemas = page.show_complaints ? complaints.slice(0, 3).map((c: any) => ({
-    '@context': 'https://schema.org',
-    '@type': 'Review',
-    itemReviewed: { '@type': 'Product', name: page.product_title },
-    reviewBody: c.description || c.title,
-    reviewRating: {
-      '@type': 'Rating',
-      ratingValue: c.severity === 'critical' ? '1' : c.severity === 'medium' ? '2' : '3',
-    },
-    datePublished: page.published_at?.split('T')[0] || new Date().toISOString().split('T')[0],
-    author: { '@type': 'Organization', name: 'Voxrate Analysis' },
-  })) : []
+  // No Review schema — complaint data is aggregate analysis, not individual reviews.
+  // Using Review schema here would be misleading to Google and AI crawlers.
+  const reviewSchemas: any[] = []
 
   const orgSchema = {
     '@context': 'https://schema.org',
@@ -164,7 +158,7 @@ export default async function GeoProductPage({ params }: { params: Promise<{ slu
     '@type': 'WebPage',
     name: `${page.product_title} — Verified Amazon Review Analysis`,
     url: `https://voxrate.app/product/${slug}`,
-    description: `Review health score ${page.health_score}/100 — analysis of ${page.total_reviews.toLocaleString()} verified Amazon reviews.`,
+    description: `Review health score ${page.health_score}/100 — analysis of ${safeTotal.toLocaleString()} verified Amazon reviews.`,
     dateModified: page.last_snapshot_at,
     publisher: { '@type': 'Organization', name: 'Voxrate', url: 'https://voxrate.app' },
     about: { '@type': 'Product', name: page.product_title },
@@ -194,9 +188,3 @@ export default async function GeoProductPage({ params }: { params: Promise<{ slu
   )
 }
 
-async function trackView(pageId: string) {
-  try {
-    const admin = adminClient()
-    await admin.rpc('increment_geo_view', { p_page_id: pageId })
-  } catch {}
-}

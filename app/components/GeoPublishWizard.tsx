@@ -52,6 +52,7 @@ export default function GeoPublishWizard({ reportId, productName, healthScore, c
       const data = await res.json()
       if (!res.ok) { setError(data.error || 'Failed to publish'); return }
       setResult(data)
+      setStatus({ published: true, slug: data.slug, pageUrl: data.pageUrl })
       setStep(6)
     } catch {
       setError('Something went wrong. Please try again.')
@@ -62,13 +63,19 @@ export default function GeoPublishWizard({ reportId, productName, healthScore, c
 
   async function unpublish() {
     setUnpublishing(true)
+    setError('')
     try {
-      await fetch('/api/geo/publish', {
+      const res = await fetch('/api/geo/publish', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
         body: JSON.stringify({ reportId }),
         credentials: 'include',
       })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        setError(d.error || 'Failed to unpublish')
+        return
+      }
       setResult(null)
       setStatus(null)
       setStep(1)

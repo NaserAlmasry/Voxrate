@@ -35,6 +35,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     .select('source')
     .eq('page_id', page.id)
     .gte('viewed_at', thirtyDaysAgo)
+    .limit(5000)
 
   const sourceCounts: Record<string, number> = {}
   for (const v of views || []) {

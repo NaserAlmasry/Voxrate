@@ -1,7 +1,7 @@
 import { ImageResponse } from 'next/og'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 
-export const runtime = 'edge'
+export const runtime = 'nodejs'
 export const alt     = 'Voxrate — Amazon Review Analysis'
 export const size    = { width: 1200, height: 630 }
 export const contentType = 'image/png'
@@ -84,7 +84,7 @@ export default async function OGImage({ params }: { params: Promise<{ slug: stri
 
       {/* Stats row */}
       <div style={{ display: 'flex', gap: 32, alignItems: 'center', marginTop: 'auto' }}>
-        <span style={{ color: '#666', fontSize: 14 }}>{page.total_reviews.toLocaleString()} reviews analyzed</span>
+        <span style={{ color: '#666', fontSize: 14 }}>{(page.total_reviews ?? 0).toLocaleString()} reviews analyzed</span>
         {page.avg_rating && <span style={{ color: '#f59e0b', fontSize: 14 }}>★ {page.avg_rating} avg</span>}
         {page.asin && <span style={{ color: '#444', fontSize: 13 }}>ASIN: {page.asin}</span>}
       </div>

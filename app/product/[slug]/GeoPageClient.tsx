@@ -81,7 +81,16 @@ function CtaBanner() {
 
 export default function GeoPageClient({ page, complaints, strengths, buyerPhrases, starBreakdown, faqEntries, slug }: Props) {
   const [openFaq, setOpenFaq] = useState<number | null>(null)
-  const totalReviews = page.total_reviews || 0
+
+  // Track view client-side so every real visit is counted (not just ISR renders)
+  useEffect(() => {
+    fetch('/api/geo/view', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pageId: page.id }),
+    }).catch(() => {})
+  }, [page.id])
+  const totalReviews = page.total_reviews ?? 0
   const shareUrl     = `https://voxrate.app/product/${slug}`
 
   const scoreColor = page.health_score >= 75 ? 'text-green-600' : page.health_score >= 50 ? 'text-orange-500' : 'text-red-500'

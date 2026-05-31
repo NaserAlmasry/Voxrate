@@ -136,18 +136,25 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Extract snapshot data from full_report
-  const fr           = report.full_report || {}
+  // Extract snapshot data from full_report (may be object or JSON string)
+  const fr = (() => {
+    try {
+      return typeof report.full_report === 'string'
+        ? JSON.parse(report.full_report)
+        : (report.full_report || {})
+    } catch { return {} }
+  })()
   const asin         = reportAsin || urlAsin
   const marketplace  = report.product_url?.match(/amazon\.([a-z.]+)/)?.[0] || 'amazon.com'
   const complaints   = (fr.complaints || []).slice(0, 5)
   const strengths    = (fr.strengths  || []).slice(0, 5)
   const buyerPhrases = fr.seoTopPhrases || fr.buyerPhrases || []
   const starBreakdown = fr.starBreakdown || {}
-  const totalReviews  = Object.values(starBreakdown as Record<string, number>).reduce((a, b) => a + b, 0)
-  const avgRating     = totalReviews > 0
+  const totalReviews  = Object.values(starBreakdown as Record<string, number>)
+    .reduce((a, b) => a + (Number(b) || 0), 0)
+  const avgRating = totalReviews > 0 && Number.isFinite(totalReviews)
     ? Object.entries(starBreakdown as Record<string, number>)
-        .reduce((sum, [star, count]) => sum + Number(star) * count, 0) / totalReviews
+        .reduce((sum, [star, count]) => sum + Number(star) * (Number(count) || 0), 0) / totalReviews
     : null
 
   const now = new Date().toISOString()
@@ -172,7 +179,7 @@ export async function POST(request: NextRequest) {
       total_reviews:   totalReviews,
       avg_rating:      avgRating ? Number(avgRating.toFixed(1)) : null,
       published:       true,
-      published_at:    existing ? undefined : now,
+      published_at:    (existing as any).published_at ?? now,
       last_snapshot_at: now,
       updated_at:      now,
       plan_at_publish: plan,
