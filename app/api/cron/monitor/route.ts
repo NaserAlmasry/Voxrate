@@ -178,13 +178,13 @@ export async function GET(request: NextRequest) {
       }).eq('id', listing.id)
 
       // Write to monitor_history
-      await admin.from('monitor_history').insert({
+      void admin.from('monitor_history').insert({
         listing_id:   listing.id,
         score:        0,
         checked_at:   now.toISOString(),
         one_star:     currentOneStar,
         two_star:     currentTwoStar,
-      }).catch(() => {})
+      })
 
       // Send alerts
       if (newNegatives.length === 0) {
