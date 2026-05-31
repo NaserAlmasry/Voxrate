@@ -446,6 +446,57 @@ export async function scrapeAmazonFree(input: string): Promise<AmazonScrapeResul
   }
 }
 
+export async function scrapeForMonitoring(
+  asin: string,
+  marketplace: string,
+): Promise<{
+  oneStarReviews: AmazonReview[]
+  twoStarReviews: AmazonReview[]
+  quotaHit: boolean
+}> {
+  const domain = DOMAIN_MAP[marketplace] ?? 'US'
+  const [one, two] = await Promise.all([
+    fetchOnePageForMonitoring(asin, domain, 'ONE_STAR', 1),
+    fetchOnePageForMonitoring(asin, domain, 'TWO_STAR', 2),
+  ])
+  return {
+    oneStarReviews: one.reviews,
+    twoStarReviews: two.reviews,
+    quotaHit: one.quotaHit || two.quotaHit,
+  }
+}
+
+async function fetchOnePageForMonitoring(
+  asin: string,
+  domain: string,
+  rating: string,
+  ratingNum: number,
+): Promise<{ reviews: AmazonReview[]; quotaHit: boolean }> {
+  try {
+    const url = `${CANOPY_BASE}?asin=${asin}&domain=${domain}&page=1&rating=${rating}&sort_by=RECENT`
+    const res = await canopyFetch(url)
+    if (res.status === 429 || res.status === 403) return { reviews: [], quotaHit: true }
+    if (!res.ok) return { reviews: [], quotaHit: false }
+    const data = await res.json()
+    const paginated = data?.data?.amazonProduct?.reviewsPaginated
+    if (!paginated) return { reviews: [], quotaHit: false }
+    const reviews = (paginated.reviews ?? []).map((r: CanopyReview, i: number) => ({
+      id:       r.id ?? `${asin}-mon-${ratingNum}-${i}`,
+      rating:   r.rating ?? ratingNum,
+      title:    r.title ?? '',
+      body:     r.body ?? '',
+      date:     '',
+      verified: r.verifiedPurchase ?? false,
+      vine:     false,
+      helpful:  r.helpfulVotes ?? 0,
+      country:  domain.toLowerCase(),
+    }))
+    return { reviews, quotaHit: false }
+  } catch {
+    return { reviews: [], quotaHit: false }
+  }
+}
+
 async function fetchOnePageFiltered(
   asin: string,
   domain: string,
