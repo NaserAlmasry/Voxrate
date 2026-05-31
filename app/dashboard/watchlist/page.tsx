@@ -301,7 +301,7 @@ export default function WatchlistPage() {
                             const latestPct = t.data[t.data.length - 1]?.pct || 0
                             const firstSeen = t.data[0]?.date ? new Date(t.data[0].date) : null
                             const sevenDaysAgo = new Date(Date.now() - 7 * 86400000)
-                            const isNew = firstSeen && firstSeen > sevenDaysAgo && t.data.length === 1
+                            const isNew = firstSeen && firstSeen > sevenDaysAgo
                             return (
                               <div key={t.theme} className={`flex items-center justify-between gap-1 ${isNew ? 'bg-orange-50 rounded px-1 -mx-1' : ''}`}>
                                 <span className="text-[10px] text-neutral-500 truncate flex-1">{t.theme}</span>

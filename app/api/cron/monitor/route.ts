@@ -41,7 +41,10 @@ function detectCoordination(reviews: { body: string }[]): string[] {
     const seqA = getSequences(reviews[i].body)
     for (let j = i + 1; j < reviews.length; j++) {
       const seqB = getSequences(reviews[j].body)
-      for (const s of seqA) { if (seqB.has(s)) foundPhrases.add(s) }
+      const pairShared: string[] = []
+      for (const s of seqA) { if (seqB.has(s)) pairShared.push(s) }
+      // Only flag coordination if this specific pair shares 3+ sequences
+      if (pairShared.length >= 3) pairShared.forEach(p => foundPhrases.add(p))
     }
   }
   return [...foundPhrases].slice(0, 5)
@@ -198,7 +201,7 @@ export async function GET(request: NextRequest) {
         }
       } else if (newNegatives.length >= 3) {
         const sharedPhrases = detectCoordination(newNegatives.map(r => ({ body: r.body || '' })))
-        const coordinated   = sharedPhrases.length >= 3
+        const coordinated   = sharedPhrases.length > 0
         const severity      = coordinated ? 'high' : newNegatives.length >= 5 ? 'medium' : 'low'
 
         // Persist attack event
@@ -209,7 +212,7 @@ export async function GET(request: NextRequest) {
           is_coordinated:     coordinated,
           shared_phrases:     sharedPhrases,
           severity,
-        })).catch(() => {})
+        })).catch(e => console.error('[MonitorCron] attack_events insert failed:', e?.message))
 
         await sendReviewAttackAlert({
           to:            user.email,
@@ -235,7 +238,7 @@ export async function GET(request: NextRequest) {
           is_coordinated:     false,
           shared_phrases:     [],
           severity:           'low',
-        })).catch(() => {})
+        })).catch(e => console.error('[MonitorCron] attack_events insert failed:', e?.message))
 
         await sendImmediateStarAlert({
           to:          user.email,

@@ -991,7 +991,7 @@ export async function POST(request: NextRequest) {
         try {
           const { data: wl } = await supabase
             .from('watchlist')
-            .select('id')
+            .select('id, email_alerts_enabled')
             .eq('user_id', user.id)
             .eq('product_url', productUrl)
             .maybeSingle()
@@ -1018,7 +1018,8 @@ export async function POST(request: NextRequest) {
             )
           }
 
-          // Detect emerging complaints: themes present now but not 30 days ago
+          // Detect emerging complaints: diff current themes vs baseline 30+ days ago
+          // .lte(thirtyDaysAgo) naturally excludes the rows just inserted above
           const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString()
           const { data: oldThemes } = await supabase
             .from('complaint_theme_history')
@@ -1050,7 +1051,7 @@ export async function POST(request: NextRequest) {
             }
           }
 
-          if ((newThemes.length > 0 || spikedThemes.length > 0) && user.email) {
+          if ((newThemes.length > 0 || spikedThemes.length > 0) && user.email && wl.email_alerts_enabled !== false) {
             const { sendEmergingComplaintAlert } = await import('@/app/lib/email')
             await sendEmergingComplaintAlert({
               to:           user.email,
@@ -1058,7 +1059,7 @@ export async function POST(request: NextRequest) {
               reportId,
               newThemes,
               spikedThemes,
-            }).catch(() => {})
+            }).catch(e => console.error('[Analyze] sendEmergingComplaintAlert failed:', e?.message))
           }
         } catch {}
       })()
