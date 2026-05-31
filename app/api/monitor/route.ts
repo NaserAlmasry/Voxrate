@@ -62,9 +62,9 @@ export async function POST(request: NextRequest) {
   const plan    = userData?.plan || 'free'
   const isAdmin = userData?.is_admin === true
 
-  if (!isAdmin && !['growth', 'pro'].includes(plan)) {
+  if (!isAdmin && plan !== 'pro') {
     return NextResponse.json(
-      { error: 'Review monitoring is available on Growth and Pro plans.', upgradeRequired: true, upgradePrompt: 'growth' },
+      { error: 'Review monitoring is available on Pro plan only.', upgradeRequired: true, upgradePrompt: 'pro' },
       { status: 403 },
     )
   }
@@ -89,6 +89,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Report not found' }, { status: 404 })
   }
 
+  // 10 product limit
+  const { count } = await supabase
+    .from('monitored_listings')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', user.id)
+    .eq('is_active', true)
+
   // Check existing monitor for this URL
   const { data: existing } = await supabase
     .from('monitored_listings')
@@ -97,13 +104,34 @@ export async function POST(request: NextRequest) {
     .eq('product_url', report.product_url)
     .single()
 
+  const asinMatch = report.product_url.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})/i) || report.product_url.match(/^([A-Z0-9]{10})$/i)
+  const asin = asinMatch ? asinMatch[1].toUpperCase() : null
+  const marketplace = report.product_url.match(/amazon\.([a-z.]+)/)
+    ? 'amazon.' + report.product_url.match(/amazon\.([a-z.]+)/)![1]
+    : 'amazon.com'
+
   if (existing) {
     // Update frequency instead
     await supabase
       .from('monitored_listings')
-      .update({ check_frequency: checkFrequency, is_active: true, report_id: reportId, last_score: report.health_score })
+      .update({
+        check_frequency: checkFrequency,
+        is_active: true,
+        report_id: reportId,
+        last_score: report.health_score,
+        asin,
+        marketplace,
+        next_check_at: new Date(Date.now() + 7 * 86_400_000).toISOString(),
+      })
       .eq('id', existing.id)
     return NextResponse.json({ success: true, updated: true })
+  }
+
+  if ((count ?? 0) >= 10) {
+    return NextResponse.json(
+      { error: 'You can monitor up to 10 products on the Pro plan.' },
+      { status: 403 },
+    )
   }
 
   const { error } = await supabase.from('monitored_listings').insert({
@@ -115,6 +143,9 @@ export async function POST(request: NextRequest) {
     check_frequency: checkFrequency,
     last_checked_at: new Date().toISOString(),
     is_active:       true,
+    asin,
+    marketplace,
+    next_check_at:   new Date(Date.now() + 7 * 86_400_000).toISOString(),
   })
 
   if (error) return NextResponse.json({ error: 'Failed to add monitor' }, { status: 500 })

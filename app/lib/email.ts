@@ -480,6 +480,101 @@ export async function sendImmediateStarAlert({
   })
 }
 
+export async function sendReviewAttackAlert({
+  to, productName, asin, marketplace, reviews, monitorId, isCoordinated,
+}: {
+  to: string
+  productName: string
+  asin: string
+  marketplace: string
+  reviews: { rating: number; title?: string; body?: string; verified?: boolean }[]
+  monitorId: string
+  isCoordinated: boolean
+}) {
+  if (!resend) return
+  const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://voxrate.app'
+  const count = reviews.length
+  const safeName = productName.replace(/[^\w\s\-.,!?']/g, '') || asin
+  const subject = isCoordinated
+    ? `🚨 Coordinated attack detected on "${safeName}" — ${count} suspicious reviews`
+    : `⚠️ Possible review attack on "${safeName}" — ${count} new negative reviews`
+  const headerBg = isCoordinated ? '#7c3aed' : '#dc2626'
+  const headerLabel = isCoordinated ? 'Coordinated attack detected' : 'Possible review attack'
+
+  const reviewsHtml = reviews.slice(0, 5).map(r => {
+    const stars = '&#9733;'.repeat(r.rating) + '&#9734;'.repeat(5 - r.rating)
+    const unverifiedBadge = r.verified === false
+      ? `<span style="font-size:10px;background:#fef3c7;color:#92400e;padding:2px 6px;border-radius:4px;margin-left:6px;">Unverified</span>`
+      : ''
+    return `<div style="border:1px solid #fecaca;background:#fff5f5;border-radius:10px;padding:14px;margin-bottom:10px;">
+      <p style="margin:0 0 4px;font-size:12px;font-weight:700;color:#dc2626;">${stars}${unverifiedBadge}</p>
+      ${r.title ? `<p style="margin:0 0 4px;font-size:13px;font-weight:700;color:#111;">${h(r.title)}</p>` : ''}
+      <p style="margin:0;font-size:12px;color:#374151;line-height:1.5;">${h((r.body || '').slice(0, 300))}</p>
+    </div>`
+  }).join('')
+
+  await resend.emails.send({
+    from: 'Voxrate <noreply@voxrate.app>',
+    to,
+    subject,
+    html: `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f9fafb;margin:0;padding:24px;">
+<div style="max-width:560px;margin:0 auto;background:#fff;border-radius:16px;border:1px solid #e5e7eb;overflow:hidden;">
+  <div style="background:${headerBg};padding:20px 24px;">
+    <span style="font-size:18px;font-weight:900;color:#fff;">Voxrate</span>
+    <span style="display:block;font-size:11px;color:#fca5a5;margin-top:2px;">${headerLabel}</span>
+  </div>
+  <div style="padding:24px;">
+    <h1 style="font-size:16px;font-weight:700;color:#111;margin:0 0 4px;">${h(productName)}</h1>
+    <p style="font-size:13px;color:#6b7280;margin:0 0 18px;">${count} new negative reviews detected in this monitoring cycle. ${isCoordinated ? 'Multiple reviews share similar language — this may be a coordinated attack.' : 'This volume is unusually high and may indicate a review attack.'}</p>
+    ${reviewsHtml}
+    <a href="${SITE_URL}/dashboard/monitor" style="display:block;text-align:center;padding:14px;background:#111;color:#fff;text-decoration:none;border-radius:10px;font-size:13px;font-weight:700;margin-top:8px;">Manage monitoring &rarr;</a>
+  </div>
+  <div style="padding:16px 24px;border-top:1px solid #f3f4f6;text-align:center;">
+    <p style="font-size:11px;color:#9ca3af;margin:0;"><a href="${SITE_URL}" style="color:#f05a1e;text-decoration:none;">Voxrate</a> — <a href="${SITE_URL}/dashboard/monitor" style="color:#9ca3af;">Manage alerts</a></p>
+  </div>
+</div></body></html>`,
+  })
+}
+
+export async function sendReviewRemovedAlert({
+  to, productName, removedCount, newRating, monitorId,
+}: {
+  to: string
+  productName: string
+  removedCount: number
+  newRating?: number
+  monitorId: string
+}) {
+  if (!resend) return
+  const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://voxrate.app'
+  const safeName = productName.replace(/[^\w\s\-.,!?']/g, '') || 'your product'
+  await resend.emails.send({
+    from: 'Voxrate <noreply@voxrate.app>',
+    to,
+    subject: `✅ Good news: ${removedCount} negative review${removedCount > 1 ? 's' : ''} removed from "${safeName}"`,
+    html: `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f9fafb;margin:0;padding:24px;">
+<div style="max-width:520px;margin:0 auto;background:#fff;border-radius:16px;border:1px solid #e5e7eb;overflow:hidden;">
+  <div style="background:#16a34a;padding:20px 24px;">
+    <span style="font-size:18px;font-weight:900;color:#fff;">Voxrate</span>
+    <span style="display:block;font-size:11px;color:#bbf7d0;margin-top:2px;">Good news alert</span>
+  </div>
+  <div style="padding:24px;">
+    <h1 style="font-size:16px;font-weight:700;color:#111;margin:0 0 8px;">${h(productName)}</h1>
+    <p style="font-size:14px;color:#374151;margin:0 0 16px;">
+      <strong>${removedCount} negative review${removedCount > 1 ? 's were' : ' was'} removed</strong> from your listing — likely taken down by Amazon or retracted by the reviewer.
+      ${newRating ? `Your current rating is <strong>${newRating.toFixed(1)} ★</strong>.` : ''}
+    </p>
+    <a href="${SITE_URL}/dashboard/monitor" style="display:block;text-align:center;padding:14px;background:#16a34a;color:#fff;text-decoration:none;border-radius:10px;font-size:13px;font-weight:700;">View monitoring dashboard &rarr;</a>
+  </div>
+  <div style="padding:16px 24px;border-top:1px solid #f3f4f6;text-align:center;">
+    <p style="font-size:11px;color:#9ca3af;margin:0;"><a href="${SITE_URL}" style="color:#f05a1e;text-decoration:none;">Voxrate</a> — <a href="${SITE_URL}/dashboard/monitor" style="color:#9ca3af;">Manage alerts</a></p>
+  </div>
+</div></body></html>`,
+  })
+}
+
 export async function sendCompetitorAlert({
   to,
   productName,
