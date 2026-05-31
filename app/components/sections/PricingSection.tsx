@@ -110,7 +110,7 @@ const PLAN_DETAILS: Record<string, FeatureGroup[]> = {
       category: 'Reports',
       rows: [
         { label: 'Report history', value: '6 months' },
-        { label: 'CSV export', value: true },
+        { label: 'PDF / CSV export', value: 'soon' },
       ],
     },
   ],
@@ -159,7 +159,7 @@ const PLAN_DETAILS: Record<string, FeatureGroup[]> = {
       category: 'Reports',
       rows: [
         { label: 'Report history', value: 'Unlimited' },
-        { label: 'CSV export', value: true },
+        { label: 'PDF / CSV export', value: 'soon' },
         { label: 'Team seats', value: 'soon' },
       ],
     },
@@ -225,12 +225,9 @@ export default function PricingSection({
   billingCycle, setBillingCycle, calcProducts, setCalcProducts, calcFrequency, setCalcFrequency, openAuthModal,
 }: Props) {
   const [expandedPlan, setExpandedPlan] = useState<string | null>(null)
-  const [calcTrackCompetitors, setCalcTrackCompetitors] = useState(false)
 
   const ownNeeded        = calcFrequency === 'monthly' ? calcProducts : Math.ceil(calcProducts / 3)
-  const competitorNeeded = calcTrackCompetitors
-    ? (calcFrequency === 'monthly' ? Math.ceil(calcProducts * 0.3) : Math.ceil(calcProducts * 0.1))
-    : 0
+  const competitorNeeded = calcFrequency === 'monthly' ? Math.ceil(calcProducts * 0.2) : Math.ceil(calcProducts * 0.2 / 3)
   const totalNeeded      = ownNeeded + competitorNeeded
   const recommended      = totalNeeded <= 35 ? 'starter' : totalNeeded <= 80 ? 'growth' : 'pro'
 
@@ -290,12 +287,9 @@ export default function PricingSection({
                     <span className={`text-sm ml-1 ${p.popular ? 'text-neutral-400' : 'text-neutral-500'}`}>/month</span>
                   </div>
                   {billingCycle === 'annual' && (
-                    <div className="mb-1">
-                      <p className={`text-xs ${p.popular ? 'text-neutral-400' : 'text-neutral-500'}`}>
-                        ${p.annualTotal}/year
-                      </p>
-                      <p className="text-xs font-semibold text-green-500 mt-0.5">Save ${annualSaving}/year</p>
-                    </div>
+                    <p className={`text-xs mb-1 ${p.popular ? 'text-neutral-400' : 'text-neutral-500'}`}>
+                      ${p.annualTotal}/year — <span className="text-orange-400 font-medium">save ${annualSaving}</span>
+                    </p>
                   )}
 
                   {/* Pool at-a-glance */}
@@ -439,26 +433,11 @@ export default function PricingSection({
               </div>
             </div>
 
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold text-neutral-700">Do you track competitor ASINs?</p>
-                <p className="text-[10px] text-neutral-400 mt-0.5">Adds competitor analyses to your estimate</p>
-              </div>
-              <button
-                role="switch"
-                aria-checked={calcTrackCompetitors}
-                onClick={() => setCalcTrackCompetitors(v => !v)}
-                className={`relative flex-shrink-0 w-11 h-6 rounded-full transition-colors duration-200 focus:outline-none ${calcTrackCompetitors ? 'bg-orange-500' : 'bg-neutral-200'}`}
-              >
-                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${calcTrackCompetitors ? 'translate-x-5' : 'translate-x-0'}`} />
-              </button>
-            </div>
-
             <div className="p-4 bg-white border-2 border-orange-200 rounded-xl flex items-center justify-between">
               <div>
                 <p className="text-xs text-neutral-500 mb-0.5">Recommended plan</p>
                 <p className="text-lg font-black text-neutral-900">{recommended.charAt(0).toUpperCase() + recommended.slice(1)}</p>
-                <p className="text-xs text-neutral-400">~{totalNeeded} analyses/mo needed ({ownNeeded} own{competitorNeeded > 0 ? ` + ${competitorNeeded} competitor` : ''})</p>
+                <p className="text-xs text-neutral-400">~{totalNeeded} analyses/mo needed ({ownNeeded} own + {competitorNeeded} competitor)</p>
               </div>
               <div className="text-right">
                 <p className="text-2xl font-black text-orange-600">
