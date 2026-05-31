@@ -41,7 +41,7 @@ const PLAN_DETAILS: Record<string, FeatureGroup[]> = {
     {
       category: 'Monitoring & Alerts',
       rows: [
-        { label: 'ASIN watchlist', value: '5 ASINs' },
+        { label: 'Competitor watchlist', value: '2 slots' },
         { label: 'Bulk analyze', value: '3 at once' },
         { label: 'Sentiment alerts', value: false },
         { label: 'Digest email', value: 'Weekly' },
@@ -89,7 +89,7 @@ const PLAN_DETAILS: Record<string, FeatureGroup[]> = {
     {
       category: 'Monitoring & Alerts',
       rows: [
-        { label: 'ASIN watchlist', value: '20 ASINs' },
+        { label: 'Competitor watchlist', value: '5 slots — daily tracking' },
         { label: 'Bulk analyze', value: '5 at once' },
         { label: 'Sentiment alerts', value: 'Weekly' },
         { label: 'Digest email', value: 'Weekly' },
@@ -138,9 +138,11 @@ const PLAN_DETAILS: Record<string, FeatureGroup[]> = {
     {
       category: 'Monitoring & Alerts',
       rows: [
-        { label: 'ASIN watchlist', value: 'Unlimited' },
+        { label: 'Competitor watchlist', value: '10 slots — daily tracking' },
+        { label: 'Review Monitoring', value: 'Up to 10 products' },
+        { label: 'Attack Alerts', value: true },
         { label: 'Bulk analyze', value: '10 at once' },
-        { label: 'Sentiment alerts', value: 'Daily or weekly' },
+        { label: 'Sentiment alerts', value: 'Weekly or biweekly' },
         { label: 'Digest email', value: 'Daily or weekly' },
       ],
     },
@@ -176,7 +178,7 @@ const PLANS = [
     highlights: [
       '35 analyses/month — own or competitor',
       'Rollover up to 2 months',
-      '5-ASIN watchlist',
+      '2-slot competitor watchlist',
       'All AI tools unlimited',
       'Chrome extension included',
     ],
@@ -191,7 +193,7 @@ const PLANS = [
     highlights: [
       '80 analyses/month — own or competitor',
       'Rollover up to 2 months',
-      '20-ASIN watchlist + hijacker alerts',
+      '5-slot watchlist — daily automated tracking',
       'Sentiment alerts — weekly',
       'Bulk analyze 5 at once',
     ],
@@ -206,7 +208,7 @@ const PLANS = [
     highlights: [
       '220 analyses/month — own or competitor',
       'Rollover up to 3 months',
-      'Unlimited watchlist + no re-analyze cooldown',
+      '10-slot watchlist + Review Monitoring (10 products)',
       'Seller Central scanner (Pro exclusive)',
       'Bulk analyze 10 at once',
     ],
@@ -237,8 +239,7 @@ export default function PricingSection({
 
         {/* Header */}
         <div className="text-center mb-10">
-          <p className="text-xs font-semibold text-orange-600 uppercase tracking-widest mb-2">Pricing</p>
-          <h2 className="text-3xl md:text-4xl font-bold mb-3">Simple. Generous. No credits.</h2>
+          <h2 className="text-4xl md:text-5xl font-bold mb-3">Pricing</h2>
           <p className="text-sm text-neutral-500 max-w-lg mx-auto mb-2">
             One pool of analyses per month — use them on your own listings or competitors. Unused ones roll over automatically.
           </p>
@@ -263,7 +264,7 @@ export default function PricingSection({
         </div>
 
         {/* Plan cards */}
-        <div className="grid md:grid-cols-3 gap-5 mb-4">
+        <div className="grid md:grid-cols-3 gap-5 mb-4 items-start">
           {PLANS.map(p => {
             const price        = billingCycle === 'annual' ? p.annualPrice : p.monthlyPrice
             const annualSaving = (p.monthlyPrice * 12 - p.annualTotal).toFixed(0)
@@ -271,7 +272,7 @@ export default function PricingSection({
             const details      = PLAN_DETAILS[p.plan]
 
             return (
-              <div key={p.name} className={`rounded-2xl border relative flex flex-col ${p.popular ? 'bg-black text-white border-black ring-2 ring-orange-500 ring-offset-2 scale-[1.03] z-10' : 'bg-white border-neutral-200'}`}>
+              <div key={p.name} className={`rounded-2xl border relative flex flex-col transition-all duration-200 ${p.popular ? 'bg-black text-white border-black ring-2 ring-orange-500 ring-offset-2 scale-[1.03] z-10 hover:scale-[1.05]' : 'bg-white border-neutral-200 hover:border-orange-400 hover:shadow-lg hover:shadow-orange-50 hover:scale-[1.01]'}`}>
                 <div className="p-6 flex flex-col flex-1">
                   {p.badge && (
                     <div className="absolute top-4 right-4 px-2 py-0.5 text-xs bg-orange-500 rounded-full text-white">{p.badge}</div>
@@ -403,10 +404,10 @@ export default function PricingSection({
                 <label className="text-xs font-semibold text-neutral-700">How many products do you have?</label>
                 <span className="text-sm font-bold text-orange-600">{calcProducts} products</span>
               </div>
-              <input type="range" min={1} max={50} value={calcProducts} onChange={e => setCalcProducts(Number(e.target.value))}
+              <input type="range" min={1} max={200} value={calcProducts} onChange={e => setCalcProducts(Number(e.target.value))}
                 aria-label={`Number of products: ${calcProducts}`}
                 className="w-full accent-orange-500" />
-              <div className="flex justify-between text-xs text-neutral-400 mt-1"><span>1</span><span>50</span></div>
+              <div className="flex justify-between text-xs text-neutral-400 mt-1"><span>1</span><span>200</span></div>
             </div>
 
             <div>
