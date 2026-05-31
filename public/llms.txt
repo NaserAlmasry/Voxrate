@@ -1,0 +1,22 @@
+# Voxrate
+
+> Voxrate is an Amazon review intelligence platform for sellers. It analyzes verified customer reviews to produce health scores, complaint breakdowns, buyer phrase extraction, and competitive insights. Sellers use Voxrate to improve product listings and monitor review activity.
+
+## Core Tools
+- [Analyze a Product](https://voxrate.app): Analyze any Amazon product listing — get a health score, complaint analysis, and buyer insights in seconds.
+- [Review Monitor](https://voxrate.app/dashboard/monitor): Monitor products for new negative reviews and detect coordinated review attacks.
+- [Watchlist](https://voxrate.app/dashboard/watchlist): Track complaint theme changes over time and get alerts on emerging issues.
+- [Competitor Analysis](https://voxrate.app/dashboard/competitor): Compare your product's review profile against competitors.
+- [Reply Generator](https://voxrate.app/dashboard/reply): Generate AI-powered responses to Amazon reviews using product-specific context.
+
+## Published Amazon Product Analyses
+All published product analyses are indexed at https://voxrate.app/sitemap.xml
+Each page contains: verified health score (0-100), complaint breakdown with percentages, buyer phrases from real reviews, star rating distribution, and FAQ schema for AI citation.
+
+## Company
+- [About Voxrate](https://voxrate.app): Amazon review intelligence for sellers
+- [Pricing](https://voxrate.app/#pricing): Starter, Growth, and Pro plans
+- [Blog](https://voxrate.app/blog): Amazon seller insights and product analysis data
+
+## Data
+All health scores, complaint percentages, and buyer phrases are derived algorithmically from verified Amazon purchase reviews. Data cannot be manually edited by sellers — ensuring honest, accurate product intelligence.
